@@ -13,18 +13,17 @@ class WelcomeViewController: UIViewController {
     @IBOutlet var button: UIButton!
     @IBOutlet var titleLabel: UILabel!
     @IBOutlet var imageView: UIImageView!
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
         view.backgroundColor = UIColor(hex: "#24BAEC")
-        
-        // ⚠️ Don't reassign imageView — you're using the IBOutlet!
-        imageView.image = UIImage(named: "Logo")
-        imageView.translatesAutoresizingMaskIntoConstraints = false // ✅ enable Auto Layout
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false // ✅ enable Auto Layout
 
-        // Set up the imageView constraints to center it
+        imageView.image = UIImage(named: "Logo")
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // ImageView center constraints
         NSLayoutConstraint.activate([
             imageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             imageView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -32,35 +31,46 @@ class WelcomeViewController: UIViewController {
             imageView.heightAnchor.constraint(equalToConstant: 300)
         ])
 
-        // Style the title label
+        // Title label styling
         titleLabel.text = "City Scout"
         titleLabel.font = UIFont.boldSystemFont(ofSize: 24)
         titleLabel.textColor = .white
         titleLabel.textAlignment = .center
 
-        // Set up titleLabel constraints to position it at the bottom center
+        // TitleLabel constraints
         NSLayoutConstraint.activate([
             titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             titleLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -30)
         ])
-    }
-}
 
+        // Start rotating logo
+        startLogoRotation()
 
-extension UIColor {
-    convenience init(hex: String) {
-        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        if hexSanitized.hasPrefix("#") {
-            hexSanitized.remove(at: hexSanitized.startIndex)
+        // Dismiss after ~60 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            self.proceedToMainScreen()
         }
-        
-        var rgb: UInt64 = 0
-        Scanner(string: hexSanitized).scanHexInt64(&rgb)
-        
-        let red = CGFloat((rgb & 0xFF0000) >> 16) / 255.0
-        let green = CGFloat((rgb & 0x00FF00) >> 8) / 255.0
-        let blue = CGFloat(rgb & 0x0000FF) / 255.0
-        
-        self.init(red: red, green: green, blue: blue, alpha: 1.0)
+    }
+
+    private func startLogoRotation() {
+        let rotation = CABasicAnimation(keyPath: "transform.rotation")
+        rotation.toValue = NSNumber(value: -Double.pi * 2)
+        rotation.duration = 3 // 3 seconds per rotation
+        rotation.repeatCount = .infinity
+        imageView.layer.add(rotation, forKey: "rotateLogo")
+    }
+
+    private func proceedToMainScreen() {
+        // Replace this with your actual main view controller transition logic
+        let storyboard = UIStoryboard(name: "Main", bundle: nil)
+        if let mainVC = storyboard.instantiateViewController(withIdentifier: "onboard2") as? OnBoard2ViewController {
+            mainVC.modalTransitionStyle = .crossDissolve
+            mainVC.modalPresentationStyle = .fullScreen
+            self.present(mainVC, animated: true, completion: nil)
+        }
     }
 }
+
+
+
+
