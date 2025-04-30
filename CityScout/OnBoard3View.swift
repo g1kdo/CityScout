@@ -1,4 +1,5 @@
-//  OnBoard2View.swift
+//
+//  OnBoard3View.swift
 //  CityScout
 //
 //  Created by Umuco Auca on 30/04/2025.
@@ -6,9 +7,8 @@
 
 import SwiftUI
 
-struct OnBoard2View: View {
+struct OnBoard3View: View {
     
-    @State private var isOnBoarding3Active = false
     @State private var isSignInActive = false
     
     var body: some View {
@@ -17,12 +17,12 @@ struct OnBoard2View: View {
 
             VStack(spacing: 0) {
                 ZStack(alignment: .topTrailing) {
-                    Image("OnBoard2")
+                    Image("OnBoard3")
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(height: UIScreen.main.bounds.height * 0.55)
                         .frame(maxWidth: .infinity)
-                        .cornerRadius(40, corners: [.bottomLeft, .bottomRight])
+                        .cornerRadius(30, corners: [.bottomLeft, .bottomRight])
                         .clipped()
                         .ignoresSafeArea(edges: .top)
 
@@ -43,12 +43,12 @@ struct OnBoard2View: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 10) {
                         VStack(spacing: 4) {
-                            Text("It's a big world out there go")
+                            Text("People don't take trips, trips take")
                                 .font(.system(size: 26, weight: .heavy))
                                 .foregroundColor(.black)
                                 .multilineTextAlignment(.center)
 
-                            Text("explore")
+                            Text("people")
                                 .font(.system(size: 26, weight: .bold))
                                 .foregroundColor(Color(hex: "#FF7029"))
                                 .multilineTextAlignment(.center)
@@ -68,6 +68,11 @@ struct OnBoard2View: View {
 
                         HStack(spacing: 8) {
                             Rectangle()
+                                .fill(Color(hex: "#24BAEC").opacity(0.2))
+                                .frame(width: 8, height: 8)
+                                .cornerRadius(4)
+
+                            Rectangle()
                                 .fill(Color(hex: "#24BAEC").opacity(0.4))
                                 .frame(width: 16, height: 8)
                                 .cornerRadius(4)
@@ -76,18 +81,13 @@ struct OnBoard2View: View {
                                 .fill(Color(hex: "#24BAEC"))
                                 .frame(width: 24, height: 8)
                                 .cornerRadius(4)
-
-                            Rectangle()
-                                .fill(Color(hex: "#24BAEC").opacity(0.2))
-                                .frame(width: 8, height: 8)
-                                .cornerRadius(4)
                         }
                         .padding(.top, 10)
 
                         VStack(spacing: 16) {
                             Button(action: {
                                 print("Next Tapped")
-                                navigateToOnBoard3()
+                                navigateToSignIn()
                             }) {
                                 Text("Next")
                                     .font(.system(size: 16, weight: .bold))
@@ -107,16 +107,9 @@ struct OnBoard2View: View {
             }
         }
         .navigationBarHidden(true)
-        .navigationDestination(isPresented: $isOnBoarding3Active) {
-                       OnBoard3View()
-                   }
         .navigationDestination(isPresented: $isSignInActive) {
                        Text("SignIn View Placeholder")
                    }
-    }
-
-    private func navigateToOnBoard3() {
-        isOnBoarding3Active = true
     }
 
     private func navigateToSignIn() {
@@ -124,7 +117,6 @@ struct OnBoard2View: View {
     }
 }
 
-
 #Preview {
-    OnBoard2View()
+    OnBoard3View()
 }
