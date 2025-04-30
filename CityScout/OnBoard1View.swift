@@ -10,7 +10,7 @@ import SwiftUI
 struct OnBoard1View: View {
     
     @State private var isOnBoarding2Active = false
-    @State private var isSignInActive = false
+    @State private var isSignUpActive = false
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -29,7 +29,7 @@ struct OnBoard1View: View {
 
                     Button(action: {
                         print("Skip Tapped")
-                        navigateToSignIn()
+                        navigateToSignUp()
                     }) {
                         Text("Skip")
                             .font(.system(size: 16))
@@ -111,8 +111,8 @@ struct OnBoard1View: View {
         .navigationDestination(isPresented: $isOnBoarding2Active) {
                        OnBoard2View()
                    }
-        .navigationDestination(isPresented: $isSignInActive) {
-                       Text("SignIn View Placeholder")
+        .navigationDestination(isPresented: $isSignUpActive) {
+            SignUpView()
                    }
     }
 
@@ -120,8 +120,8 @@ struct OnBoard1View: View {
         isOnBoarding2Active = true
     }
 
-    private func navigateToSignIn() {
-        isSignInActive = false
+    private func navigateToSignUp() {
+        isSignUpActive = true
     }
 }
 

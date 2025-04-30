@@ -6,9 +6,14 @@
 //
 
 import SwiftUI
+import Firebase
 
 @main
 struct CityScoutApp: App {
+    init(){
+        FirebaseApp.configure()
+        print("Firebase configured")
+    }
     var body: some Scene {
         WindowGroup {
             WelcomeView()
