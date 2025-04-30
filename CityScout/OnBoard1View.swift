@@ -8,6 +8,10 @@
 import SwiftUI
 
 struct OnBoard1View: View {
+    
+    @State private var isOnBoarding2Active = false
+    @State private var isSignInActive = false
+    
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Color.white.ignoresSafeArea()
@@ -104,14 +108,20 @@ struct OnBoard1View: View {
             }
         }
         .navigationBarHidden(true)
+        .navigationDestination(isPresented: $isOnBoarding2Active) {
+                       OnBoard2View()
+                   }
+        .navigationDestination(isPresented: $isSignInActive) {
+                       Text("SignIn View Placeholder")
+                   }
     }
 
     private func navigateToOnBoard2() {
-        print("Navigating to OnBoard2View")
+        isOnBoarding2Active = true
     }
 
     private func navigateToSignIn() {
-        print("Navigating to SignInView")
+        isSignInActive = false
     }
 }
 
