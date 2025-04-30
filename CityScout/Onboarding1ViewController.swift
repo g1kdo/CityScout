@@ -176,6 +176,12 @@ class Onboarding1ViewController: UIViewController {
     // MARK: - Actions
     @objc private func skipTapped() {
         // handle skip
+        let storyboard = UIStoryboard(name: "Main", bundle: nil)
+        if let mainVC = storyboard.instantiateViewController(withIdentifier: "signin") as? SignInViewController {
+            mainVC.modalTransitionStyle = .crossDissolve
+            mainVC.modalPresentationStyle = .fullScreen
+            self.present(mainVC, animated: true, completion: nil)
+           }
     }
 
     @objc private func getStartedTapped() {

@@ -16,7 +16,6 @@ class OnBoard2ViewController: UIViewController {
     @IBOutlet var exploreLabel: UILabel!
     @IBOutlet var nextButton: UIButton!
     @IBOutlet var skipButton: UIButton!
-   // @IBOutlet var pageControl: UIPageControl!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -80,13 +79,12 @@ class OnBoard2ViewController: UIViewController {
        }
 
        @objc func skipButtonTapped() {
-           // Handle skip action, likely going to the main app or a login screen
-           print("Skip button tapped")
-           // Example: Present the main app view controller
-           // if let mainVC = storyboard?.instantiateViewController(withIdentifier: "MainViewControllerIdentifier") {
-           //     view.window?.rootViewController = mainVC
-           //     view.window?.makeKeyAndVisible()
-           // }
+           let storyboard = UIStoryboard(name: "Main", bundle: nil)
+           if let mainVC = storyboard.instantiateViewController(withIdentifier: "signin") as? SignInViewController {
+               mainVC.modalTransitionStyle = .crossDissolve
+               mainVC.modalPresentationStyle = .fullScreen
+               self.present(mainVC, animated: true, completion: nil)
+              }
        }
 
     private let pageIndicatorStack: UIStackView = {

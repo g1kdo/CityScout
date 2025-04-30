@@ -31,32 +31,38 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="HQg-mn-fDm">
-                                <rect key="frame" x="16" y="785" width="361" height="33"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="FXN-7E-q74">
+                                <rect key="frame" x="0.0" y="328" width="393" height="128"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="128" id="2HI-oz-YrQ"/>
+                                </constraints>
+                            </imageView>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="aJg-jD-pXz">
+                                <rect key="frame" x="27" y="817" width="350" height="0.0"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="17"/>
                                 <nil key="textColor"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" ambiguous="YES" translatesAutoresizingMaskIntoConstraints="NO" id="drR-qH-Cht">
-                                <rect key="frame" x="76" y="362" width="240" height="128"/>
-                            </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="koa-os-low"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                         <constraints>
-                            <constraint firstItem="drR-qH-Cht" firstAttribute="centerY" secondItem="hDB-yZ-a37" secondAttribute="centerY" id="28n-lv-2vw"/>
-                            <constraint firstItem="drR-qH-Cht" firstAttribute="centerX" secondItem="hDB-yZ-a37" secondAttribute="centerX" id="Jun-VR-CNK"/>
+                            <constraint firstItem="FXN-7E-q74" firstAttribute="leading" secondItem="koa-os-low" secondAttribute="leading" id="AGo-ya-Ucm"/>
+                            <constraint firstItem="aJg-jD-pXz" firstAttribute="centerX" secondItem="FXN-7E-q74" secondAttribute="centerX" constant="5.5" id="GSF-xX-tAo"/>
+                            <constraint firstItem="aJg-jD-pXz" firstAttribute="centerX" secondItem="hDB-yZ-a37" secondAttribute="centerX" constant="5.5" id="KjK-Vo-qQq"/>
+                            <constraint firstItem="koa-os-low" firstAttribute="bottom" secondItem="aJg-jD-pXz" secondAttribute="bottom" constant="1" id="iwv-Br-Qdr"/>
+                            <constraint firstItem="FXN-7E-q74" firstAttribute="top" secondItem="koa-os-low" secondAttribute="top" constant="269" id="mDx-HR-FN2"/>
+                            <constraint firstItem="aJg-jD-pXz" firstAttribute="leading" secondItem="koa-os-low" secondAttribute="leading" constant="27" id="yK2-fN-rcT"/>
                         </constraints>
                     </view>
                     <connections>
-                        <outlet property="imageView" destination="drR-qH-Cht" id="Hp6-vQ-GDE"/>
-                        <outlet property="titleLabel" destination="HQg-mn-fDm" id="JBC-0g-CHL"/>
+                        <outlet property="imageView" destination="FXN-7E-q74" id="4Vv-Co-wuY"/>
+                        <outlet property="titleLabel" destination="aJg-jD-pXz" id="oIH-sL-5F8"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="p4F-Ip-icf" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="796" y="4"/>
+            <point key="canvasLocation" x="794.6564885496183" y="3.5211267605633805"/>
         </scene>
         <!--On Board2 View Controller-->
         <scene sceneID="xwc-VN-iaz">
@@ -207,6 +213,74 @@
                 <placeholder placeholderIdentifier="IBFirstResponder" id="lS5-Nl-yUY" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="2935" y="4"/>
+        </scene>
+        <!--Sign In View Controller-->
+        <scene sceneID="txo-kM-x5A">
+            <objects>
+                <viewController storyboardIdentifier="signin" id="H4z-4y-gWO" customClass="SignInViewController" customModule="CityScout" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="JbM-6x-iAw">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <textField opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="248" fixedFrame="YES" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" textAlignment="natural" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="eqW-Fd-HRc">
+                                <rect key="frame" x="24" y="310" width="344" height="34"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <textInputTraits key="textInputTraits"/>
+                            </textField>
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="p6C-QM-LfE">
+                                <rect key="frame" x="16" y="409" width="361" height="35"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <state key="normal" title="Button"/>
+                                <buttonConfiguration key="configuration" style="plain" title="Button"/>
+                            </button>
+                            <textField opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="248" fixedFrame="YES" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" textAlignment="natural" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="Qzl-dz-rfi">
+                                <rect key="frame" x="24" y="181" width="344" height="34"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <textInputTraits key="textInputTraits"/>
+                            </textField>
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="6dQ-Ib-DE3">
+                                <rect key="frame" x="159" y="461" width="75" height="35"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <state key="normal" title="Button"/>
+                                <buttonConfiguration key="configuration" style="plain" title="Button"/>
+                            </button>
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="neW-ep-8Tu">
+                                <rect key="frame" x="185" y="538" width="24" height="14"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <state key="normal" title="Button"/>
+                                <buttonConfiguration key="configuration" style="plain"/>
+                            </button>
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Rpw-7w-NzF">
+                                <rect key="frame" x="185" y="589" width="24" height="14"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <state key="normal" title="Button"/>
+                                <buttonConfiguration key="configuration" style="plain"/>
+                            </button>
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Bu1-fZ-8DW">
+                                <rect key="frame" x="185" y="646" width="24" height="14"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <state key="normal" title="Button"/>
+                                <buttonConfiguration key="configuration" style="plain"/>
+                            </button>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="Gx0-rG-w9w"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                    </view>
+                    <connections>
+                        <outlet property="appleSignInButton" destination="Bu1-fZ-8DW" id="p8g-Yq-NLz"/>
+                        <outlet property="emailTextField" destination="Qzl-dz-rfi" id="0NT-zR-d0j"/>
+                        <outlet property="facebookSignInButton" destination="Rpw-7w-NzF" id="c4T-s9-HpY"/>
+                        <outlet property="forgotPasswordButton" destination="p6C-QM-LfE" id="8Zz-VI-qjU"/>
+                        <outlet property="googleSignInButton" destination="neW-ep-8Tu" id="6hU-TU-NTe"/>
+                        <outlet property="passwordTextField" destination="eqW-Fd-HRc" id="gNa-1g-FU4"/>
+                        <outlet property="signInButton" destination="6dQ-Ib-DE3" id="VFr-3L-hBZ"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="JFZ-2a-6OF" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="3692.3664122137402" y="10.563380281690142"/>
         </scene>
     </scenes>
     <resources>

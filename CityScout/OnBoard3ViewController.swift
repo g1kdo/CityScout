@@ -50,10 +50,12 @@ class OnBoard3ViewController: UIViewController {
         nextButton.backgroundColor = UIColor(red: 30/255, green: 175/255, blue: 240/255, alpha: 1.0)
         nextButton.setTitleColor(.white, for: .normal)
         nextButton.layer.cornerRadius = 10
+        nextButton.addTarget(self, action: #selector(nextButtonTapped), for: .touchUpInside)
 
         // Skip button
         skipButton.setTitle("Skip", for: .normal)
         skipButton.setTitleColor(.white, for: .normal)
+        skipButton.addTarget(self, action: #selector(skipButtonTapped), for: .touchUpInside)
 
         // LineView image setup
         lineView.image = UIImage(named: "Line")
@@ -165,6 +167,23 @@ class OnBoard3ViewController: UIViewController {
         ])
     }
 
+    @objc func nextButtonTapped() {
+        let storyboard = UIStoryboard(name: "Main", bundle: nil)
+        if let mainVC = storyboard.instantiateViewController(withIdentifier: "signin") as? SignInViewController {
+            mainVC.modalTransitionStyle = .crossDissolve
+            mainVC.modalPresentationStyle = .fullScreen
+            self.present(mainVC, animated: true, completion: nil)
+           }
+       }
+
+       @objc func skipButtonTapped() {
+           let storyboard = UIStoryboard(name: "Main", bundle: nil)
+           if let mainVC = storyboard.instantiateViewController(withIdentifier: "signin") as? SignInViewController {
+               mainVC.modalTransitionStyle = .crossDissolve
+               mainVC.modalPresentationStyle = .fullScreen
+               self.present(mainVC, animated: true, completion: nil)
+              }
+       }
     
 
     /*

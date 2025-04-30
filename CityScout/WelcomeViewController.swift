@@ -10,8 +10,6 @@ import FirebaseAnalytics
 
 class WelcomeViewController: UIViewController {
 
-    @IBOutlet var holderView: UIView!
-    @IBOutlet var button: UIButton!
     @IBOutlet var titleLabel: UILabel!
     @IBOutlet var imageView: UIImageView!
 
@@ -38,10 +36,10 @@ class WelcomeViewController: UIViewController {
         titleLabel.textColor = .white
         titleLabel.textAlignment = .center
 
-        Analytics.logEvent(AnalyticsEventScreenView, parameters: [
-            AnalyticsParameterScreenName: "Welcome Screen",
-            AnalyticsParameterScreenClass: "\(WelcomeViewController.self)"
-        ])
+//        Analytics.logEvent(AnalyticsEventScreenView, parameters: [
+//            AnalyticsParameterScreenName: "Welcome Screen",
+//            AnalyticsParameterScreenClass: "\(WelcomeViewController.self)"
+//        ])
 
         // TitleLabel constraints
         NSLayoutConstraint.activate([
