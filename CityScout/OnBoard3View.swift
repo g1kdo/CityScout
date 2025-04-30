@@ -108,12 +108,12 @@ struct OnBoard3View: View {
         }
         .navigationBarHidden(true)
         .navigationDestination(isPresented: $isSignInActive) {
-                       Text("SignIn View Placeholder")
+            SignInView()
                    }
     }
 
     private func navigateToSignIn() {
-        isSignInActive = false
+        isSignInActive = true
     }
 }
 

@@ -111,7 +111,7 @@ struct OnBoard2View: View {
                        OnBoard3View()
                    }
         .navigationDestination(isPresented: $isSignInActive) {
-                       Text("SignIn View Placeholder")
+            SignInView()
                    }
     }
 
@@ -120,7 +120,7 @@ struct OnBoard2View: View {
     }
 
     private func navigateToSignIn() {
-        isSignInActive = false
+        isSignInActive = true
     }
 }
 
