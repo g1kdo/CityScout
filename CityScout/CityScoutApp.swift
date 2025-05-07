@@ -10,12 +10,12 @@ import Firebase
 
 @main
 struct CityScoutApp: App {
-    
-    init() {
+
+    init(){
         FirebaseApp.configure()
-        print("Firebase configured!") // Optional: Verify configuration
+        print("Firebase configured")
     }
-    
+  
     var body: some Scene {
         WindowGroup {
             WelcomeView()
