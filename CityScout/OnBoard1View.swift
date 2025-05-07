@@ -111,8 +111,8 @@ struct OnBoard1View: View {
         .navigationDestination(isPresented: $isOnBoarding2Active) {
                        OnBoard2View()
                    }
-        .navigationDestination(isPresented: $isSignUpActive) {
-            SignUpView()
+        .navigationDestination(isPresented: $isSignInActive) {
+            SignInView()
                    }
     }
 
@@ -120,8 +120,8 @@ struct OnBoard1View: View {
         isOnBoarding2Active = true
     }
 
-    private func navigateToSignUp() {
-        isSignUpActive = true
+    private func navigateToSignIn() {
+        isSignInActive = true
     }
 }
 
