@@ -1,10 +1,11 @@
 import SwiftUI
 import FirebaseAuth
+import AuthenticationServices // Potentially needed for Apple Sign In in the future
 
 // MARK: – Model for the signed-in user
 struct SignedInUser: Identifiable {
-    let id: String           // Firebase UID
-    let displayName: String  // Full name
+    let id: String        // Firebase UID
+    let displayName: String // Full name
     let email: String
 }
 
@@ -14,41 +15,31 @@ struct SignUpView: View {
     @State private var signedInUser: SignedInUser? = nil
     @StateObject private var viewModel = SignUpViewModel()
     @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
+    // @StateObject private var appleAuthViewModel = AppleAuthViewModel() // If you integrate Apple Sign In
 
-    // Form state
-//    @State private var fullName    = ""
-//    @State private var email       = ""
-//    @State private var password    = ""
-    @State private var isAgreed    = false
-//    @State private var isLoading   = false
-//    @State private var alertMsg    = ""
-    @State private var showAlert   = false
+    // Form state (using ViewModel's properties now)
+    @State private var isAgreed = false
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 30) {
-                    headerSection
-                    fieldsSection
-                    termsSection
-                    signUpButton
-                    dividerSection
-                    socialSection
-                    footerSection
-                }
-                .padding(.horizontal)
-                .padding(.top, 10)
+        ScrollView {
+            VStack(spacing: 30) {
+                headerSection
+                fieldsSection
+                termsSection
+                signUpButton
+                dividerSection
+                socialSection
+                footerSection
             }
-            .navigationBarHidden(true)
-            .alert(viewModel.errorMessage, isPresented: $showAlert) {
-                Button("OK", role: .cancel) { }
-            }
-            .onChange(of: viewModel.errorMessage) { oldValue, newValue in
-                showAlert = !newValue.isEmpty
-            }
-            .fullScreenCover(item: $signedInUser) { user in
-                HomeView(user: user)
-            }
+            .padding(.horizontal)
+            .padding(.top, 10)
+        }
+        .navigationBarHidden(true)
+        .alert(viewModel.errorMessage, isPresented: $viewModel.showAlert) {
+            Button("OK", role: .cancel) { }
+        }
+        .fullScreenCover(item: $signedInUser) { user in
+            HomeView(user: user)
         }
     }
 
@@ -56,7 +47,7 @@ struct SignUpView: View {
 
     private var headerSection: some View {
         VStack(spacing: 6) {
-            Text("Sign Up Here")
+            Text("Sign Up Here!")
                 .font(.title.bold())
                 .padding(.top, 15)
 
@@ -71,13 +62,13 @@ struct SignUpView: View {
         Group {
             FloatingField(
                 label: "Full Name",
-                placeholder: "Enter Full Name",
+                placeholder: "Enter your full name",
                 text: $viewModel.fullName
             )
 
             FloatingField(
                 label: "Email Address",
-                placeholder: "Enter Email",
+                placeholder: "Enter your email",
                 text: $viewModel.email,
                 keyboardType: .emailAddress,
                 autocapitalization: .never
@@ -85,7 +76,7 @@ struct SignUpView: View {
 
             FloatingField(
                 label: "Password",
-                placeholder: "Enter Password",
+                placeholder: "Enter your password",
                 text: $viewModel.password,
                 isSecure: true
             )
@@ -96,13 +87,13 @@ struct SignUpView: View {
         HStack(alignment: .top) {
             Button { isAgreed.toggle() } label: {
                 Image(systemName: isAgreed
-                      ? "checkmark.square.fill"
-                      : "square")
+                            ? "checkmark.square.fill"
+                            : "square")
                     .font(.title3)
                     .foregroundColor(
                         isAgreed
-                        ? Color(hex: "#24BAEC")
-                        : .secondary
+                            ? Color(hex: "#24BAEC")
+                            : .secondary
                     )
             }
 
@@ -123,6 +114,7 @@ struct SignUpView: View {
             Task {
                 if !isAgreed {
                     viewModel.errorMessage = "You must agree to the Terms and Privacy Policy."
+                    viewModel.showAlert = true
                 } else {
                     await viewModel.signUpUser()
                 }
@@ -141,7 +133,7 @@ struct SignUpView: View {
             .background(Color(hex: "#24BAEC"))
             .cornerRadius(10)
         }
-        .disabled( // 👈 This is key
+        .disabled(
             !isAgreed ||
             viewModel.fullName.isEmpty ||
             viewModel.email.isEmpty ||
@@ -152,8 +144,6 @@ struct SignUpView: View {
             (!isAgreed || viewModel.fullName.isEmpty || viewModel.email.isEmpty || viewModel.password.isEmpty)
             ? 0.6 : 1.0
         )
-
-
     }
 
     private var dividerSection: some View {
@@ -171,28 +161,42 @@ struct SignUpView: View {
     }
 
     private var socialSection: some View {
-        HStack(spacing: 14) {
-            Button {  Task {
-                let success = await googleAuthViewModel.signInWithGoogle()
-                if success {
-                    print("Success")
-                } else {
-                    print(googleAuthViewModel.errorMessage)
+        HStack(spacing: 20) {
+            Button {
+                Task {
+                    let success = await googleAuthViewModel.signInWithGoogle()
+                    if success {
+                        print("Successfully signed up/in with Google")
+                        // Potentially update signedInUser here if your GoogleAuthViewModel handles user info
+                    } else {
+                        print(googleAuthViewModel.errorMessage)
+                        viewModel.errorMessage = googleAuthViewModel.errorMessage // Show Google error in the app's alert
+                        viewModel.showAlert = true
+                    }
                 }
-            } } label: {
+            } label: {
                 Image("google_logo")
                     .resizable()
                     .frame(width: 40, height: 40)
             }
-            Button { /* TODO: Facebook Sign-In */ } label: {
+
+            Button {
+                // TODO: Implement Facebook Sign In
+                print("Facebook Sign In Tapped")
+            } label: {
                 Image("facebook_logo")
                     .resizable()
                     .frame(width: 40, height: 40)
             }
-            Button { /* TODO: Apple Sign-In */ } label: {
+
+            Button {
+                // TODO: Implement Apple Sign In using appleAuthViewModel
+                print("Apple Sign In Tapped")
+                // appleAuthViewModel.startSignInWithAppleFlow()
+            } label: {
                 Image("apple_logo")
                     .resizable()
-                    .frame(width: 37, height: 42)
+                    .frame(width: 30, height: 40)
             }
         }
     }
@@ -200,14 +204,14 @@ struct SignUpView: View {
     private var footerSection: some View {
         HStack {
             Text("Already have an account?")
-                .foregroundColor(.secondary)
-            NavigationLink("Sign In", destination: Text("Sign In Screen"))
+                .foregroundColor(.gray)
+                .font(.footnote)
+            NavigationLink("Sign In", destination: Text("SignInView Placeholder")) // Replace with your actual SignInView
                 .foregroundColor(Color(hex: "#FF7029"))
+                .font(.footnote)
         }
-        .font(.footnote)
         .padding(.bottom, 20)
     }
-
 
     private func openURL(_ str: String) {
         guard let url = URL(string: str) else { return }
@@ -215,7 +219,7 @@ struct SignUpView: View {
     }
 }
 
-// MARK: – FloatingField helper
+// MARK: – FloatingField helper (Assuming this is defined elsewhere or in Version 2)
 
 struct FloatingField: View {
     let label: String
@@ -250,27 +254,6 @@ struct FloatingField: View {
         }
     }
 }
-
-// MARK: – HomeView showing the signed-in user’s info
-
-struct HomeView: View {
-    let user: SignedInUser
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("🎉 Welcome, \(user.displayName)!")
-                .font(.largeTitle.bold())
-            Text("Email: \(user.email)")
-                .font(.body)
-            Text("UID: \(user.id)")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-        }
-        .padding()
-    }
-}
-
-// MARK: – Hex string → Color initializer
 
 
 #Preview {

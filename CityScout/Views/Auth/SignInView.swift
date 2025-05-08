@@ -12,30 +12,24 @@ import AuthenticationServices
 struct SignInView: View {
     @StateObject private var viewModel = AuthenticationViewModel()
     @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
-   @StateObject private var appleAuthViewModel = AppleAuthViewModel()
+    @StateObject private var appleAuthViewModel = AppleAuthViewModel()
     @State private var isPasswordVisible = false
-    @State private var shouldNavigateToHome = false
+    @State private var shouldNavigateHome = false
     @State private var isSignUpActive = false
-    
+
     var body: some View {
-        GeometryReader { geometry in
-            
         ScrollView {
             VStack(spacing: 30) {
-                Spacer() // Top spacing
-                    .frame(height: geometry.size.height / 15)
-                VStack(alignment: .center, spacing: 10) {
-                    
+                Spacer().frame(height: 40)
+
+                VStack(spacing: 8) {
                     Text("Sign in to your account")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.black)
-                    
+                        .font(.title.bold())
                     Text("Please sign in to your account")
-                        .font(.system(size: 18))
                         .foregroundColor(.gray)
                 }
-                .frame(maxWidth: 340)
-                
+
+                // ── Fields ──
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Email Address")
                         .font(.system(size: 14))
@@ -50,8 +44,7 @@ struct SignInView: View {
                         .frame(height: 50)
                         .background(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.gray.opacity(0.3)))
                 }
-                .frame(maxWidth: 340)
-                
+
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Password")
                         .font(.system(size: 14))
@@ -70,7 +63,7 @@ struct SignInView: View {
                                     }
                             }
                         }
-                        
+
                         Button {
                             isPasswordVisible.toggle()
                         } label: {
@@ -81,24 +74,21 @@ struct SignInView: View {
                     .padding(.horizontal) // Add horizontal padding to the HStack
                     .frame(height: 50)
                     .background(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.gray.opacity(0.3)))
-                    
-                    HStack {
-                        Spacer()
-                        Button {
-                            // TODO: Implement forgot password action
-                            print("Forgot Password Tapped")
-                        } label: {
-                            Text("Forgot Password?")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#FF6900")) // Using your orange color
-                        }
-                    }
                 }
-                .frame(maxWidth: 340)
-                
+
+                // ── Forgot Password ──
+                HStack {
+                    Spacer()
+                    Button("Forgot Password?") {
+                        // TODO: Implement forgot password action
+                        print("Forgot Password Tapped")
+                    }
+                    .font(.caption)
+                    .foregroundColor(Color(hex: "#FF7029"))
+                }
+
+                // ── Sign In Button ──
                 Button {
-                   //signInTapped()
-                    
                     Task {
                         await viewModel.signIn()
                     }
@@ -106,103 +96,91 @@ struct SignInView: View {
                     Text(viewModel.isAuthenticating ? "Signing In..." : "Sign In")
                         .font(.system(size: 28, weight: .heavy))
                         .foregroundColor(.white)
-                        .frame(width: 340, height: 50)
+                        .frame(maxWidth: .infinity, height: 50)
                         .background(Color(red: 0/255, green: 175/255, blue: 240/255)) // Your blue color
                         .cornerRadius(10)
                 }
-                
-                VStack(spacing: 10) {
-                    HStack {
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(Color.gray.opacity(0.3))
-                        Text("Or continue with")
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(Color.gray.opacity(0.3))
-                    }
-                    .frame(maxWidth: 340)
-                    
-                    HStack(spacing: 15) {
-                        Button {
-                            // TODO: Implement Google Sign In
-                            print("Google Sign In Tapped")
-                            
-                            Task {
-                                let success = await googleAuthViewModel.signInWithGoogle()
-                                if success {
-                                    print("Successfully signed in with Google")
-                                } else {
-                                    print(googleAuthViewModel.errorMessage)
-                                }
-                            }
-                            
-                        } label: {
-                            Image("google_logo")
-                                .resizable()
-                                .frame(width: 40, height: 40)
-                        }
-                        
-                        Button {
-                            // TODO: Implement Facebook Sign In
-                            print("Facebook Sign In Tapped")
-                        } label: {
-                            Image("facebook_logo")
-                                .resizable()
-                                .frame(width: 40, height: 40)
-                        }
-                        
-                        Button {
-                            
-                            appleAuthViewModel.startSignInWithAppleFlow()
-                        } label: {
-                                Image("apple_logo")
-                                .resizable()
-                                .frame(width: 30, height: 40)
-                        }
-                    }
-                }
-                
-                HStack(spacing: 4) {
-                    Text("Don't have an account?")
+
+                // ── Divider ──
+                HStack {
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(Color.gray.opacity(0.3))
+                    Text("Or continue with")
                         .font(.system(size: 14))
                         .foregroundColor(.gray)
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(Color.gray.opacity(0.3))
+                }
+                .padding(.vertical)
+
+                // ── Social Buttons ──
+                HStack(spacing: 20) {
                     Button {
-                        // TODO: Implement navigation to sign up view
-                        print("Sign up Tapped")
-                        navigateToSignUp()
+                        Task {
+                            let success = await googleAuthViewModel.signInWithGoogle()
+                            if success {
+                                print("Successfully signed in with Google")
+                                // Potentially navigate home here if your view model doesn't handle it
+                            } else {
+                                print(googleAuthViewModel.errorMessage)
+                            }
+                        }
                     } label: {
-                        Text("Sign up")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color(hex: "#FF6900")) // Your orange color
+                        Image("google_logo")
+                            .resizable()
+                            .frame(width: 40, height: 40)
+                    }
+
+                    Button {
+                        // TODO: Implement Facebook Sign In
+                        print("Facebook Sign In Tapped")
+                    } label: {
+                        Image("facebook_logo")
+                            .resizable()
+                            .frame(width: 40, height: 40)
+                    }
+
+                    Button {
+                        appleAuthViewModel.startSignInWithAppleFlow()
+                    } label: {
+                        Image("apple_logo")
+                            .resizable()
+                            .frame(width: 30, height: 40)
                     }
                 }
-                
-                Spacer() // Bottom spacing
+
+                // ── Sign Up Link ──
+                HStack {
+                    Text("Don't have an account?")
+                        .foregroundColor(.secondary)
+                        .font(.footnote)
+                    Button("Sign up") {
+                        navigateToSignUp()
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color(hex: "#FF7029"))
+                    .font(.footnote)
+                }
+
+                Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .alert(isPresented: Binding(get: { !viewModel.errorMessage.isEmpty }, set: { _ in viewModel.errorMessage = "" })) {
             Alert(title: Text("Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
         }
         .navigationBarHidden(true)
+        .navigationDestination(isPresented: $shouldNavigateHome) {
+            Text("Home Screen Placeholder") // Replace with your actual Home View
+        }
         .navigationDestination(isPresented: $isSignUpActive) {
-            SignUpView()
-                   }
-            
-        .alert(isPresented: Binding(get: { !viewModel.errorMessage.isEmpty }, set: { _ in viewModel.errorMessage = "" })) {
-                  Alert(title: Text("Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
-              }
+            SignUpView() // Assuming you have a SignUpView
+        }
     }
-}
 
-    func navigateToHomeScreen() {
-        shouldNavigateToHome = true
-    }
-    
     private func navigateToSignUp() {
         isSignUpActive = true
     }

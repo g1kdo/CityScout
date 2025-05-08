@@ -47,13 +47,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 @main
 struct CityScoutApp: App {
-    // Connect the AppDelegate to your SwiftUI app
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
         WindowGroup {
-            WelcomeView() // Your main SwiftUI view
+            WelcomeView() 
         }
     }
 }
-
