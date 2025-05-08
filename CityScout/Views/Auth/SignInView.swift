@@ -1,224 +1,124 @@
-//
-//  SignInView.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 30/04/2025.
-//
+// SignInView.swift
 
 import SwiftUI
 import FirebaseAuth
 
 struct SignInView: View {
-    @State private var email = ""
-    @State private var password = ""
-    @State private var isPasswordVisible = false
-    @State private var errorMessage = ""
-    @State private var shouldNavigateToHome = false
-    
+    @State private var email              = ""
+    @State private var password           = ""
+    @State private var errorMessage       = ""
+    @State private var showAlert          = false
+    @State private var isLoading          = false
+    @State private var shouldNavigateHome = false
+
     var body: some View {
-        GeometryReader { geometry in
-            
         ScrollView {
             VStack(spacing: 30) {
-                Spacer() // Top spacing
-                    .frame(height: geometry.size.height / 15)
-                VStack(alignment: .center, spacing: 10) {
-                    
+                Spacer().frame(height: 40)
+
+                VStack(spacing: 8) {
                     Text("Sign in to your account")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.black)
-                    
+                        .font(.title.bold())
                     Text("Please sign in to your account")
-                        .font(.system(size: 18))
                         .foregroundColor(.gray)
                 }
-                .frame(maxWidth: 340)
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Email Address")
-                        .font(.system(size: 14))
-                        .foregroundColor(.black)
-                    TextField("", text: $email)
-                        .placeholder(when: email.isEmpty) {
-                            Text("").foregroundColor(.gray)
-                        }
-                        .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                        .padding()
-                        .frame(height: 50)
-                        .background(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.gray.opacity(0.3)))
-                }
-                .frame(maxWidth: 340)
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Password")
-                        .font(.system(size: 14))
-                        .foregroundColor(.black)
-                    HStack {
-                        Group {
-                            if isPasswordVisible {
-                                TextField("", text: $password)
-                                    .placeholder(when: password.isEmpty) {
-                                        Text("").foregroundColor(.gray)
-                                    }
-                            } else {
-                                SecureField("", text: $password)
-                                    .placeholder(when: password.isEmpty) {
-                                        Text("").foregroundColor(.gray)
-                                    }
-                            }
-                        }
-                        
-                        Button {
-                            isPasswordVisible.toggle()
-                        } label: {
-                            Image(systemName: isPasswordVisible ? "eye.fill" : "eye.slash.fill")
-                                .foregroundColor(.gray)
-                        }
-                    }
-                    .padding(.horizontal) // Add horizontal padding to the HStack
-                    .frame(height: 50)
-                    .background(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.gray.opacity(0.3)))
+
+                // ── Fields ──
+                FloatingField(
+                    label: "Email Address",
                     
-                    HStack {
-                        Spacer()
-                        Button {
-                            // TODO: Implement forgot password action
-                            print("Forgot Password Tapped")
-                        } label: {
-                            Text("Forgot Password?")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#FF6900")) // Using your orange color
-                        }
+                    placeholder: "Enter your email",
+                    text: $email,
+                    keyboardType: .emailAddress,
+                    autocapitalization: .never
+                )
+
+                FloatingField(
+                    label: "Password",
+                    
+                    placeholder: "Enter your password",
+                    text: $password,
+                    isSecure: true
+                )
+
+                // ── Forgot Password ──
+                HStack {
+                    Spacer()
+                    Button("Forgot Password?") {
+                        // TODO
                     }
+                    .font(.caption)
+                    .foregroundColor(Color(hex: "#FF7029"))
                 }
-                .frame(maxWidth: 340)
-                
-                Button {
+
+                // ── Sign In Button ──
+                PrimaryButton(
+                    title: "Sign In",
+                    isLoading: isLoading,
+                    disabled: email.isEmpty || password.isEmpty
+                ) {
                     signInTapped()
-                } label: {
-                    Text("Sign In")
-                        .font(.system(size: 28, weight: .heavy))
-                        .foregroundColor(.white)
-                        .frame(width: 340, height: 50)
-                        .background(Color(red: 0/255, green: 175/255, blue: 240/255)) // Your blue color
-                        .cornerRadius(10)
                 }
-                
-                VStack(spacing: 10) {
-                    HStack {
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(Color.gray.opacity(0.3))
-                        Text("Or sign in with")
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(Color.gray.opacity(0.3))
+
+                // ── Divider ──
+                DividerWithText(text: "Or continue with")
+
+                // ── Social Buttons ──
+                HStack(spacing: 20) {
+                    SocialLoginButton(provider: .google) {
+                        // TODO
                     }
-                    .frame(maxWidth: 340)
-                    
-                    HStack(spacing: 15) {
-                        Button {
-                            // TODO: Implement Google Sign In
-                            print("Google Sign In Tapped")
-                        } label: {
-                            Image("google_logo")
-                                .resizable()
-                                .frame(width: 40, height: 40)
-                        }
-                        
-                        Button {
-                            // TODO: Implement Facebook Sign In
-                            print("Facebook Sign In Tapped")
-                        } label: {
-                            Image("facebook_logo")
-                                .resizable()
-                                .frame(width: 40, height: 40)
-                        }
-                        
-                        Button {
-                            // TODO: Implement Apple Sign In
-                            print("Apple Sign In Tapped")
-                        } label: {
-                            Image("apple_logo")
-                                .resizable()
-                                .frame(width: 30, height: 40)
-                        }
+                    SocialLoginButton(provider: .facebook) {
+                        // TODO
+                    }
+                    SocialLoginButton(provider: .apple) {
+                        // TODO
                     }
                 }
-                
-                HStack(spacing: 4) {
+
+                // ── Sign Up Link ──
+                HStack {
                     Text("Don't have an account?")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                    Button {
-                        // TODO: Implement navigation to sign up view
-                        print("Sign up Tapped")
-                    } label: {
-                        Text("Sign up")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color(hex: "#FF6900")) // Your orange color
+                        .foregroundColor(.secondary)
+                    Button("Sign up") {
+                        // TODO: navigate to SignUpView
                     }
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color(hex: "#FF7029"))
                 }
-                
-                Spacer() // Bottom spacing
+                .font(.footnote)
+
+                Spacer()
             }
-            .padding(.horizontal, 20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal)
         }
-        .alert(isPresented: Binding(get: { !errorMessage.isEmpty }, set: { _ in errorMessage = "" })) {
-            Alert(title: Text("Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
+        .alert(errorMessage, isPresented: $showAlert) {
+            Button("OK", role: .cancel) { }
         }
-        .navigationDestination(isPresented: $shouldNavigateToHome) {
-            // Replace with your actual HomeView
+        .navigationDestination(isPresented: $shouldNavigateHome) {
             Text("Home Screen Placeholder")
-        }
-        .navigationBarHidden(true)
+                }
+                .navigationBarHidden(true)
     }
-}
-    func signInTapped() {
+
+    private func signInTapped() {
         guard !email.isEmpty, !password.isEmpty else {
             errorMessage = "Please enter both email and password."
+            showAlert = true
             return
         }
-        signInUser(email: email, password: password)
-    }
-
-    func signInUser(email: String, password: String) {
-        Auth.auth().signIn(withEmail: email, password: password) { authResult, error in
-            if let error = error {
-                print("Sign in failed: \(error.localizedDescription)")
-                errorMessage = "Sign in failed: \(error.localizedDescription)"
-                return
+        isLoading = true
+        Auth.auth().signIn(withEmail: email, password: password) { result, error in
+            isLoading = false
+            if let err = error {
+                errorMessage = err.localizedDescription
+                showAlert = true
+            } else {
+                shouldNavigateHome = true
             }
-            // Signed in successfully
-            print("User signed in: \(authResult?.user.email ?? "No Email")")
-            navigateToHomeScreen()
-        }
-    }
-
-    func navigateToHomeScreen() {
-        shouldNavigateToHome = true
-    }
-}
-
-
-// Helper extension for TextField placeholder
-extension View {
-    func placeholder<Content: View>(
-        when shouldShow: Bool,
-        alignment: Alignment = .leading,
-        @ViewBuilder placeholder: () -> Content) -> some View {
-
-        ZStack(alignment: alignment) {
-            placeholder().opacity(shouldShow ? 1 : 0)
-            self
         }
     }
 }
-
 #Preview {
     SignInView()
 }

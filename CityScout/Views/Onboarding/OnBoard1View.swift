@@ -67,40 +67,27 @@ struct OnBoard1View: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
 
-                        HStack(spacing: 8) {
-                            Rectangle()
-                                .fill(Color(hex: "#24BAEC"))
-                                .frame(width: 24, height: 8)
-                                .cornerRadius(4)
-
-                            Rectangle()
-                                .fill(Color(hex: "#24BAEC").opacity(0.4))
-                                .frame(width: 16, height: 8)
-                                .cornerRadius(4)
-
-                            Rectangle()
-                                .fill(Color(hex: "#24BAEC").opacity(0.2))
-                                .frame(width: 8, height: 8)
-                                .cornerRadius(4)
-                        }
+                      
+                        OnboardingPageIndicator(pageCount: 3, currentIndex: 0)
                         .padding(.top, 10)
-
-                        VStack(spacing: 16) {
-                            Button(action: {
-                                print("Get Started Tapped")
-                                navigateToOnBoard2()
-                            }) {
-                                Text("Get Started")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 50)
-                                    .background(Color(hex: "#24BAEC"))
-                                    .cornerRadius(10)
-                            }
-
-                            Spacer().frame(height: 10)
-                        }
+                        .padding(.bottom, 16)
+//                        VStack(spacing: 16) {
+//                            Button(action: {
+//                                print("Get Started Tapped")
+//                                navigateToOnBoard2()
+//                            }) {
+//                                Text("Get Started")
+//                                    .font(.system(size: 16, weight: .bold))
+//                                    .foregroundColor(.white)
+//                                    .frame(maxWidth: .infinity)
+//                                    .frame(height: 50)
+//                                    .background(Color(hex: "#24BAEC"))
+//                                    .cornerRadius(10)
+//                            }
+//
+//                            Spacer().frame(height: 10)
+//                        }
+                        PrimaryButton(title: "Get Started", action: navigateToOnBoard2)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 30)
                     }
@@ -111,8 +98,8 @@ struct OnBoard1View: View {
         .navigationDestination(isPresented: $isOnBoarding2Active) {
                        OnBoard2View()
                    }
-        .navigationDestination(isPresented: $isSignInActive) {
-            SignInView()
+        .navigationDestination(isPresented: $isSignUpActive) {
+            SignUpView()
                    }
     }
 
@@ -120,8 +107,8 @@ struct OnBoard1View: View {
         isOnBoarding2Active = true
     }
 
-    private func navigateToSignIn() {
-        isSignInActive = true
+    private func navigateToSignUp() {
+        isSignUpActive = true
     }
 }
 
