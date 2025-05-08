@@ -65,27 +65,10 @@ struct OnBoard2View: View {
                             .foregroundColor(.gray)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
-
                         OnboardingPageIndicator(pageCount: 3, currentIndex: 1)
 
                         .padding(.top, 10)
                         .padding(.bottom, 16)
-//                        VStack(spacing: 16) {
-//                            Button(action: {
-//                                print("Next Tapped")
-//                                navigateToOnBoard3()
-//                            }) {
-//                                Text("Next")
-//                                    .font(.system(size: 16, weight: .bold))
-//                                    .foregroundColor(.white)
-//                                    .frame(maxWidth: .infinity)
-//                                    .frame(height: 50)
-//                                    .background(Color(hex: "#24BAEC"))
-//                                    .cornerRadius(10)
-//                            }
-//
-//                            Spacer().frame(height: 10)
-//                        }
                         PrimaryButton(title: "Next", action: navigateToOnBoard3)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 30)

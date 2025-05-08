@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string></string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.421122967394-3kgohfd2r75e8r14o9fmhtdva0tq8p7u</string>
+			</array>
+            
+            <array>
+               <string>642645272095696</string>
+             </array>
+             </dict>
+           </array>
+           <key>642645272095696</key>
+           <string>642645272095696</string>
+           <key>ecf2cdd5ddaf2c561caac7193c684e2d</key>
+           <string>ecf2cdd5ddaf2c561caac7193c684e2d</string>
+           <key>City Scout</key>
+           <string>City Scout</string>
+           
+           
+           <key>LSApplicationQueriesSchemes</key>
+           <array>
+             <string>fbapi</string>
+             <string>fb-messenger-share-api</string>
+           </array>
+           
+		</dict>
+		<dict/>
+	</array>
+</dict>
+</plist>
