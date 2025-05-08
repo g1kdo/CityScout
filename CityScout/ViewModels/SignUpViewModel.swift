@@ -15,6 +15,7 @@ class SignUpViewModel: ObservableObject {
     @Published var password = ""
     @Published var isLoading = false
     @Published var errorMessage = ""
+    @Published var showAlert = false
     @Published var signedInUser: SignedInUser? = nil
 
     func signUpUser() async {

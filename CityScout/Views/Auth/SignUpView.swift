@@ -1,13 +1,6 @@
 import SwiftUI
 import FirebaseAuth
-import AuthenticationServices // Potentially needed for Apple Sign In in the future
-
-// MARK: – Model for the signed-in user
-struct SignedInUser: Identifiable {
-    let id: String        // Firebase UID
-    let displayName: String // Full name
-    let email: String
-}
+import AuthenticationServices
 
 // MARK: – The updated SignUpView
 struct SignUpView: View {
@@ -15,9 +8,6 @@ struct SignUpView: View {
     @State private var signedInUser: SignedInUser? = nil
     @StateObject private var viewModel = SignUpViewModel()
     @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
-    // @StateObject private var appleAuthViewModel = AppleAuthViewModel() // If you integrate Apple Sign In
-
-    // Form state (using ViewModel's properties now)
     @State private var isAgreed = false
 
     var body: some View {
@@ -125,7 +115,7 @@ struct SignUpView: View {
                     ProgressView()
                 } else {
                     Text("Sign Up")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 28, weight: .heavy))
                         .foregroundColor(.white)
                 }
             }
@@ -216,42 +206,6 @@ struct SignUpView: View {
     private func openURL(_ str: String) {
         guard let url = URL(string: str) else { return }
         UIApplication.shared.open(url)
-    }
-}
-
-// MARK: – FloatingField helper (Assuming this is defined elsewhere or in Version 2)
-
-struct FloatingField: View {
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-
-    var keyboardType: UIKeyboardType = .default
-    var autocapitalization: TextInputAutocapitalization = .sentences
-    var isSecure: Bool = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.subheadline)
-                .foregroundColor(.gray)
-
-            HStack {
-                Image(systemName: isSecure ? "lock.fill" : "person.fill")
-                    .foregroundColor(.secondary)
-
-                if isSecure {
-                    SecureField(placeholder, text: $text)
-                } else {
-                    TextField(placeholder, text: $text)
-                        .keyboardType(keyboardType)
-                        .textInputAutocapitalization(autocapitalization)
-                }
-            }
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
-        }
     }
 }
 

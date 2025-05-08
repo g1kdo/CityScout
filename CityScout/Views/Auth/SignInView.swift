@@ -96,7 +96,7 @@ struct SignInView: View {
                     Text(viewModel.isAuthenticating ? "Signing In..." : "Sign In")
                         .font(.system(size: 28, weight: .heavy))
                         .foregroundColor(.white)
-                        .frame(maxWidth: .infinity, height: 50)
+                        .frame(maxWidth: .infinity)
                         .background(Color(red: 0/255, green: 175/255, blue: 240/255)) // Your blue color
                         .cornerRadius(10)
                 }

@@ -60,10 +60,10 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		31A59CDE2DCBCD0E00CB7788 /* Exceptions for "CityScout" folder in "CityScout" target */ = {
+		311357312DCCFB4E001026CE /* Exceptions for "CityScout" folder in "CityScout" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Resources/Info.plist,
+				Info.plist,
 			);
 			target = 314B75172DC225B60045510C /* CityScout */;
 		};
@@ -73,7 +73,7 @@
 		314B751A2DC225B60045510C /* CityScout */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				31A59CDE2DCBCD0E00CB7788 /* Exceptions for "CityScout" folder in "CityScout" target */,
+				311357312DCCFB4E001026CE /* Exceptions for "CityScout" folder in "CityScout" target */,
 			);
 			path = CityScout;
 			sourceTree = "<group>";
@@ -505,7 +505,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"CityScout/Resources/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"CityScout/Preview Content\"";
 				DEVELOPMENT_TEAM = 98Y9H545L4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -538,7 +538,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"CityScout/Resources/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"CityScout/Preview Content\"";
 				DEVELOPMENT_TEAM = 98Y9H545L4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
