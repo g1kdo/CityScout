@@ -12,14 +12,16 @@ struct SignedInUser: Identifiable {
 struct SignUpView: View {
     // Drives the full-screen cover when non-nil
     @State private var signedInUser: SignedInUser? = nil
+    @StateObject private var viewModel = SignUpViewModel()
+    @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
 
     // Form state
-    @State private var fullName    = ""
-    @State private var email       = ""
-    @State private var password    = ""
+//    @State private var fullName    = ""
+//    @State private var email       = ""
+//    @State private var password    = ""
     @State private var isAgreed    = false
-    @State private var isLoading   = false
-    @State private var alertMsg    = ""
+//    @State private var isLoading   = false
+//    @State private var alertMsg    = ""
     @State private var showAlert   = false
 
     var body: some View {
@@ -38,8 +40,11 @@ struct SignUpView: View {
                 .padding(.top, 10)
             }
             .navigationBarHidden(true)
-            .alert(alertMsg, isPresented: $showAlert) {
+            .alert(viewModel.errorMessage, isPresented: $showAlert) {
                 Button("OK", role: .cancel) { }
+            }
+            .onChange(of: viewModel.errorMessage) { oldValue, newValue in
+                showAlert = !newValue.isEmpty
             }
             .fullScreenCover(item: $signedInUser) { user in
                 HomeView(user: user)
@@ -67,13 +72,13 @@ struct SignUpView: View {
             FloatingField(
                 label: "Full Name",
                 placeholder: "Enter Full Name",
-                text: $fullName
+                text: $viewModel.fullName
             )
 
             FloatingField(
                 label: "Email Address",
                 placeholder: "Enter Email",
-                text: $email,
+                text: $viewModel.email,
                 keyboardType: .emailAddress,
                 autocapitalization: .never
             )
@@ -81,7 +86,7 @@ struct SignUpView: View {
             FloatingField(
                 label: "Password",
                 placeholder: "Enter Password",
-                text: $password,
+                text: $viewModel.password,
                 isSecure: true
             )
         }
@@ -114,9 +119,17 @@ struct SignUpView: View {
     }
 
     private var signUpButton: some View {
-        Button(action: signUpWithEmail) {
+        Button {
+            Task {
+                if !isAgreed {
+                    viewModel.errorMessage = "You must agree to the Terms and Privacy Policy."
+                } else {
+                    await viewModel.signUpUser()
+                }
+            }
+        } label: {
             Group {
-                if isLoading {
+                if viewModel.isLoading {
                     ProgressView()
                 } else {
                     Text("Sign Up")
@@ -128,13 +141,19 @@ struct SignUpView: View {
             .background(Color(hex: "#24BAEC"))
             .cornerRadius(10)
         }
-        .disabled(
-            !isAgreed
-            || isLoading
-            || fullName.isEmpty
-            || email.isEmpty
-            || password.isEmpty
+        .disabled( // 👈 This is key
+            !isAgreed ||
+            viewModel.fullName.isEmpty ||
+            viewModel.email.isEmpty ||
+            viewModel.password.isEmpty ||
+            viewModel.isLoading
         )
+        .opacity(
+            (!isAgreed || viewModel.fullName.isEmpty || viewModel.email.isEmpty || viewModel.password.isEmpty)
+            ? 0.6 : 1.0
+        )
+
+
     }
 
     private var dividerSection: some View {
@@ -142,7 +161,7 @@ struct SignUpView: View {
             Capsule()
                 .frame(height: 1)
                 .foregroundColor(.gray.opacity(0.5))
-            Text("Or sign in with")
+            Text("Or sign up with")
                 .font(.footnote)
                 .foregroundColor(.gray)
             Capsule()
@@ -153,7 +172,14 @@ struct SignUpView: View {
 
     private var socialSection: some View {
         HStack(spacing: 14) {
-            Button { /* TODO: Google Sign-In */ } label: {
+            Button {  Task {
+                let success = await googleAuthViewModel.signInWithGoogle()
+                if success {
+                    print("Success")
+                } else {
+                    print(googleAuthViewModel.errorMessage)
+                }
+            } } label: {
                 Image("google_logo")
                     .resizable()
                     .frame(width: 40, height: 40)
@@ -182,37 +208,6 @@ struct SignUpView: View {
         .padding(.bottom, 20)
     }
 
-    // ─── Actions ─────────────────────────────────────────────
-
-    private func signUpWithEmail() {
-        guard isAgreed else {
-            alertMsg = "You must agree to the Terms and Privacy Policy."
-            showAlert = true
-            return
-        }
-        isLoading = true
-
-        Auth.auth().createUser(withEmail: email, password: password) { _, error in
-            isLoading = false
-            if let err = error {
-                alertMsg = err.localizedDescription
-                showAlert = true
-                return
-            }
-            guard let fbUser = Auth.auth().currentUser else { return }
-
-            // Update display name
-            let req = fbUser.createProfileChangeRequest()
-            req.displayName = fullName
-            req.commitChanges { _ in
-                signedInUser = SignedInUser(
-                    id: fbUser.uid,
-                    displayName: fullName,
-                    email: fbUser.email ?? "(no email)"
-                )
-            }
-        }
-    }
 
     private func openURL(_ str: String) {
         guard let url = URL(string: str) else { return }

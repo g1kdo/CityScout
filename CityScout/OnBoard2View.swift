@@ -83,6 +83,7 @@ struct OnBoard2View: View {
                                 .cornerRadius(4)
                         }
                         .padding(.top, 10)
+                        .padding(.bottom, 16)
 
                         VStack(spacing: 16) {
                             Button(action: {

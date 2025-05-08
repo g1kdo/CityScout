@@ -7,13 +7,15 @@
 
 import SwiftUI
 import FirebaseAuth
+import AuthenticationServices
 
 struct SignInView: View {
-    @State private var email = ""
-    @State private var password = ""
+    @StateObject private var viewModel = AuthenticationViewModel()
+    @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
+   @StateObject private var appleAuthViewModel = AppleAuthViewModel()
     @State private var isPasswordVisible = false
-    @State private var errorMessage = ""
     @State private var shouldNavigateToHome = false
+    @State private var isSignUpActive = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -38,8 +40,8 @@ struct SignInView: View {
                     Text("Email Address")
                         .font(.system(size: 14))
                         .foregroundColor(.black)
-                    TextField("", text: $email)
-                        .placeholder(when: email.isEmpty) {
+                    TextField("", text: $viewModel.email)
+                        .placeholder(when: viewModel.email.isEmpty) {
                             Text("").foregroundColor(.gray)
                         }
                         .keyboardType(.emailAddress)
@@ -57,13 +59,13 @@ struct SignInView: View {
                     HStack {
                         Group {
                             if isPasswordVisible {
-                                TextField("", text: $password)
-                                    .placeholder(when: password.isEmpty) {
+                                TextField("", text: $viewModel.password)
+                                    .placeholder(when: viewModel.password.isEmpty) {
                                         Text("").foregroundColor(.gray)
                                     }
                             } else {
-                                SecureField("", text: $password)
-                                    .placeholder(when: password.isEmpty) {
+                                SecureField("", text: $viewModel.password)
+                                    .placeholder(when: viewModel.password.isEmpty) {
                                         Text("").foregroundColor(.gray)
                                     }
                             }
@@ -95,9 +97,13 @@ struct SignInView: View {
                 .frame(maxWidth: 340)
                 
                 Button {
-                    signInTapped()
+                   //signInTapped()
+                    
+                    Task {
+                        await viewModel.signIn()
+                    }
                 } label: {
-                    Text("Sign In")
+                    Text(viewModel.isAuthenticating ? "Signing In..." : "Sign In")
                         .font(.system(size: 28, weight: .heavy))
                         .foregroundColor(.white)
                         .frame(width: 340, height: 50)
@@ -110,7 +116,7 @@ struct SignInView: View {
                         Rectangle()
                             .frame(height: 1)
                             .foregroundColor(Color.gray.opacity(0.3))
-                        Text("Or sign in with")
+                        Text("Or continue with")
                             .font(.system(size: 14))
                             .foregroundColor(.gray)
                         Rectangle()
@@ -123,6 +129,16 @@ struct SignInView: View {
                         Button {
                             // TODO: Implement Google Sign In
                             print("Google Sign In Tapped")
+                            
+                            Task {
+                                let success = await googleAuthViewModel.signInWithGoogle()
+                                if success {
+                                    print("Successfully signed in with Google")
+                                } else {
+                                    print(googleAuthViewModel.errorMessage)
+                                }
+                            }
+                            
                         } label: {
                             Image("google_logo")
                                 .resizable()
@@ -139,10 +155,10 @@ struct SignInView: View {
                         }
                         
                         Button {
-                            // TODO: Implement Apple Sign In
-                            print("Apple Sign In Tapped")
+                            
+                            appleAuthViewModel.startSignInWithAppleFlow()
                         } label: {
-                            Image("apple_logo")
+                                Image("apple_logo")
                                 .resizable()
                                 .frame(width: 30, height: 40)
                         }
@@ -156,6 +172,7 @@ struct SignInView: View {
                     Button {
                         // TODO: Implement navigation to sign up view
                         print("Sign up Tapped")
+                        navigateToSignUp()
                     } label: {
                         Text("Sign up")
                             .font(.system(size: 14, weight: .semibold))
@@ -168,42 +185,28 @@ struct SignInView: View {
             .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .alert(isPresented: Binding(get: { !errorMessage.isEmpty }, set: { _ in errorMessage = "" })) {
-            Alert(title: Text("Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
-        }
-        .navigationDestination(isPresented: $shouldNavigateToHome) {
-            // Replace with your actual HomeView
-            Text("Home Screen Placeholder")
+        .alert(isPresented: Binding(get: { !viewModel.errorMessage.isEmpty }, set: { _ in viewModel.errorMessage = "" })) {
+            Alert(title: Text("Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
         }
         .navigationBarHidden(true)
+        .navigationDestination(isPresented: $isSignUpActive) {
+            SignUpView()
+                   }
+            
+        .alert(isPresented: Binding(get: { !viewModel.errorMessage.isEmpty }, set: { _ in viewModel.errorMessage = "" })) {
+                  Alert(title: Text("Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
+              }
     }
 }
-    func signInTapped() {
-        guard !email.isEmpty, !password.isEmpty else {
-            errorMessage = "Please enter both email and password."
-            return
-        }
-        signInUser(email: email, password: password)
-    }
-
-    func signInUser(email: String, password: String) {
-        Auth.auth().signIn(withEmail: email, password: password) { authResult, error in
-            if let error = error {
-                print("Sign in failed: \(error.localizedDescription)")
-                errorMessage = "Sign in failed: \(error.localizedDescription)"
-                return
-            }
-            // Signed in successfully
-            print("User signed in: \(authResult?.user.email ?? "No Email")")
-            navigateToHomeScreen()
-        }
-    }
 
     func navigateToHomeScreen() {
         shouldNavigateToHome = true
     }
+    
+    private func navigateToSignUp() {
+        isSignUpActive = true
+    }
 }
-
 
 // Helper extension for TextField placeholder
 extension View {
