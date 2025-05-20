@@ -33,6 +33,8 @@
 		314B759D2DC22C1E0045510C /* FirebaseVertexAI in Frameworks */ = {isa = PBXBuildFile; productRef = 314B759C2DC22C1E0045510C /* FirebaseVertexAI */; };
 		314B75A02DC22F820045510C /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 314B759F2DC22F820045510C /* GoogleSignIn */; };
 		314B75A22DC22F820045510C /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 314B75A12DC22F820045510C /* GoogleSignInSwift */; };
+		315840012DDCD6870080BF35 /* FacebookBasics in Frameworks */ = {isa = PBXBuildFile; productRef = 315840002DDCD6870080BF35 /* FacebookBasics */; };
+		315840032DDCD8E10080BF35 /* FacebookAEM in Frameworks */ = {isa = PBXBuildFile; productRef = 315840022DDCD8E10080BF35 /* FacebookAEM */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -103,7 +105,9 @@
 				314B758D2DC22C1E0045510C /* FirebaseDynamicLinks in Frameworks */,
 				314B757F2DC22C1E0045510C /* FirebaseAppCheck in Frameworks */,
 				314B75A02DC22F820045510C /* GoogleSignIn in Frameworks */,
+				315840032DDCD8E10080BF35 /* FacebookAEM in Frameworks */,
 				314B75832DC22C1E0045510C /* FirebaseAuth in Frameworks */,
+				315840012DDCD6870080BF35 /* FacebookBasics in Frameworks */,
 				314B75792DC22C1E0045510C /* FirebaseAnalytics in Frameworks */,
 				314B758F2DC22C1E0045510C /* FirebaseFirestore in Frameworks */,
 				314B75A22DC22F820045510C /* GoogleSignInSwift in Frameworks */,
@@ -215,6 +219,8 @@
 				3134339B2DCCDD5B00D0C950 /* FacebookGamingServices */,
 				3134339D2DCCDD5B00D0C950 /* FacebookLogin */,
 				3134339F2DCCDD5B00D0C950 /* FacebookShare */,
+				315840002DDCD6870080BF35 /* FacebookBasics */,
+				315840022DDCD8E10080BF35 /* FacebookAEM */,
 			);
 			productName = CityScout;
 			productReference = 314B75182DC225B60045510C /* CityScout.app */;
@@ -827,6 +833,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 314B759E2DC22F820045510C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
+		};
+		315840002DDCD6870080BF35 /* FacebookBasics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 313433982DCCDD5B00D0C950 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookBasics;
+		};
+		315840022DDCD8E10080BF35 /* FacebookAEM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 313433982DCCDD5B00D0C950 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookAEM;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

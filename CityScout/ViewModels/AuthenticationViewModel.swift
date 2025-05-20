@@ -14,6 +14,7 @@ class AuthenticationViewModel: ObservableObject {
     @Published var email = ""
     @Published var password = ""
     @Published var errorMessage = ""
+    @Published var showAlert: Bool = false 
     @Published var isAuthenticating = false
     @Published var isAuthenticated = false
     @Published var user: User?

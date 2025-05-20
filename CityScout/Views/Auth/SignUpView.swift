@@ -7,8 +7,10 @@ struct SignUpView: View {
     // Drives the full-screen cover when non-nil
     @State private var signedInUser: SignedInUser? = nil
     @StateObject private var viewModel = SignUpViewModel()
+    @StateObject private var appleAuthViewModel = AppleAuthViewModel()
     @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
     @State private var isAgreed = false
+    @State private var isSignInActive = false
 
     var body: some View {
         ScrollView {
@@ -31,17 +33,21 @@ struct SignUpView: View {
         .fullScreenCover(item: $signedInUser) { user in
             HomeView(user: user)
         }
+        .navigationDestination(isPresented: $isSignInActive) {
+            SignInView()
+                   }
     }
+    
 
     // ─── Sections ────────────────────────────────────────────
 
     private var headerSection: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 15) {
             Text("Sign Up Here!")
                 .font(.title.bold())
                 .padding(.top, 15)
 
-            Text("Please fill in the details and create a new account")
+            Text("Please fill in the details below to sign up")
                 .font(.system(size: 18))
                 .foregroundColor(.gray)
                 .padding(.bottom, 15)
@@ -181,8 +187,7 @@ struct SignUpView: View {
 
             Button {
                 // TODO: Implement Apple Sign In using appleAuthViewModel
-                print("Apple Sign In Tapped")
-                // appleAuthViewModel.startSignInWithAppleFlow()
+                appleAuthViewModel.startSignInWithAppleFlow()
             } label: {
                 Image("apple_logo")
                     .resizable()
@@ -196,9 +201,12 @@ struct SignUpView: View {
             Text("Already have an account?")
                 .foregroundColor(.gray)
                 .font(.footnote)
-            NavigationLink("Sign In", destination: Text("SignInView Placeholder")) // Replace with your actual SignInView
-                .foregroundColor(Color(hex: "#FF7029"))
-                .font(.footnote)
+            Button("Sign in") {
+                isSignInActive = true
+            }
+            .fontWeight(.semibold)
+            .foregroundColor(Color(hex: "#FF7029"))
+            .font(.footnote)
         }
         .padding(.bottom, 20)
     }
