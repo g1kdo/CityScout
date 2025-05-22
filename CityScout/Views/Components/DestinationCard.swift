@@ -5,6 +5,7 @@ struct DestinationCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // ─── Image ──────────────────────────────────────────
             ZStack(alignment: .topTrailing) {
                 Image(destination.imageName)
                     .resizable()
@@ -21,33 +22,35 @@ struct DestinationCard: View {
                     .padding(10)
             }
 
-            // Title and Rating on one line
-            HStack(alignment: .center) {
+            // ─── Title & Rating ──────────────────────────────────
+            HStack {
                 Text(destination.name)
                     .font(.headline)
-                    .padding(10)
-                Spacer()
-                HStack(spacing: 1) {
+                    .lineLimit(1)                     // Prevent wrapping
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                HStack(spacing: 4) {
                     Image(systemName: "star.fill")
                         .foregroundColor(.yellow)
                     Text(String(format: "%.1f", destination.rating))
                         .font(.subheadline)
-                        .padding(10)
                 }
             }
+            .padding(.horizontal, 12)
 
-            // Location and Avatars row
-            HStack(alignment: .center) {
+            // ─── Location & Avatars ─────────────────────────────
+            HStack {
                 HStack(spacing: 4) {
                     Image(systemName: "mappin.and.ellipse")
-                        .padding(10)
-                
+                        .frame(width: 16, height: 16)
                     Text(destination.location)
                         .font(.subheadline)
                         .foregroundColor(.gray)
-                        
-                     }
+                        .lineLimit(1)                 // Prevent wrapping
+                }
+
                 Spacer()
+
                 HStack(spacing: -12) {
                     ForEach(destination.participantAvatars.prefix(3), id: \.self) { imageName in
                         AvatarViewLocal(imageName: imageName, size: 32)
@@ -59,27 +62,17 @@ struct DestinationCard: View {
                             .frame(width: 32, height: 32)
                             .background(Color.gray.opacity(0.3))
                             .clipShape(Circle())
-                            .padding(10)
                     }
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
         }
-        .frame(width: 260)
-        .padding(.bottom, 12)
+        .frame(width: 260)                          // Fixed width ensures uniform layout
         .background(Color.white)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
     }
 }
 
-#Preview {
-    DestinationCard(destination: Destination(
-        name: "Santorini",
-        imageName: "santorini",
-        rating: 4.7,
-        location: "Greece",
-        participantAvatars: ["avatar1", "avatar2", "avatar3", "avatar4"]
-    ))
-        .previewLayout(.sizeThatFits)
-        .padding()
-}
+

@@ -8,6 +8,7 @@ struct Destination: Identifiable {
     let rating: Double
     let location: String
     let participantAvatars: [String] // these will be local asset names too
+    let description: String
    
 }
 

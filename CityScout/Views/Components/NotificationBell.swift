@@ -8,7 +8,7 @@ struct NotificationBell: View {
         ZStack {
             // Gray circular background
             Circle()
-                .fill(Color(.systemGray5))
+                .fill(Color(.systemGray6))
                 .frame(width: 44, height: 44)
 
             // Outline bell icon centered
