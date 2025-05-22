@@ -3,20 +3,36 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var vm = HomeViewModel()
+    @State private var selectedTab: FooterTab = .home
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                topBar
-                headlineSection
-                sectionHeader
-                carouselSection
                 
+                // Top Bar
+                TopBarView()
+                    .environmentObject(authVM)
+                    .padding(.bottom, 25) // Custom bottom spacing for top bar
+
+                // Headline Section
+                headlineSection
+                    .padding(.bottom, 25) // Spacing below headline
+
+                // Section Header
+                sectionHeader
+                    .padding(.bottom, 35) // Spacing below section header
+
+                // Carousel Section
+                carouselSection
+                    .padding(.bottom, 65) // Spacing below carousel
+
                 Spacer()
-                FooterView()
+
+                // Footer
+                FooterView(selected: $selectedTab)
             }
-            .padding(.top, safeAreaTop())
-            .background(Color(.systemGray6).ignoresSafeArea())
+            .padding(.top, safeAreaTop()) // Keep safe area padding at the top
+            .background(Color.white).ignoresSafeArea()
             .navigationBarHidden(true)
             .onAppear {
                 Task { await vm.loadDestinations() }
@@ -24,36 +40,7 @@ struct HomeView: View {
         }
     }
 
-    private var topBar: some View {
-        HStack {
-            if let user = authVM.user {
-                HStack(spacing: 8) {
-                    Image("LocalAvatarName")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 36, height: 36)
-                        .clipShape(Circle())
-                    Text(user.displayName ?? "User")
-                        .font(.subheadline).bold()
-                }
-                .padding(.vertical, 6)
-                .padding(.horizontal, 12)
-                .background(Color(.systemGray6))
-                .cornerRadius(20)
-            } else {
-                ProgressView()
-                    .frame(width: 36, height: 36)
-            }
-            Spacer()
-            // Inside your topBar:
-            NotificationBell(unreadCount: 0)
-
-
-        }
-        .padding(.horizontal)
-       
-    }
-
+    // MARK: Headline—flush left
     private var headlineSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Explore the")
@@ -71,24 +58,25 @@ struct HomeView: View {
                         .frame(width: 100, height: 15)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal)
-        .padding(.top, 10)
     }
 
+    // MARK: Section Header
     private var sectionHeader: some View {
         HStack {
             Text("Best Destinations")
                 .font(.headline).bold()
             Spacer()
-            Button("View all") {}
+            Button("View all") { }
                 .font(.subheadline)
                 .foregroundColor(Color(hex: "#FF7029"))
         }
         .padding(.horizontal)
-        .padding(.top, 30)
     }
 
+    // MARK: Carousel
     private var carouselSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
@@ -97,7 +85,6 @@ struct HomeView: View {
                 }
             }
             .padding(.horizontal)
-            .padding(.vertical, 12)
         }
     }
 
@@ -113,4 +100,5 @@ struct HomeView: View {
 #Preview {
     HomeView()
         .environmentObject(AuthenticationViewModel())
+
 }
