@@ -2,8 +2,10 @@ import SwiftUI
 import FirebaseAuth
 import AuthenticationServices
 
+
 // MARK: – The updated SignUpView
 struct SignUpView: View {
+    @EnvironmentObject var authVM: AuthenticationViewModel
     // Drives the full-screen cover when non-nil
     @State private var signedInUser: SignedInUser? = nil
     @StateObject private var viewModel = SignUpViewModel()
@@ -31,8 +33,10 @@ struct SignUpView: View {
             Button("OK", role: .cancel) { }
         }
         .fullScreenCover(item: $signedInUser) { user in
-            HomeView(user: user)
+            HomeView()
+              .environmentObject(authVM)      // now authVM is in scope
         }
+
         .navigationDestination(isPresented: $isSignInActive) {
             SignInView()
                    }
