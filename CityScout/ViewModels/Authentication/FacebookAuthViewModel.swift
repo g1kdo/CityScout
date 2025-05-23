@@ -8,31 +8,62 @@
 import Foundation
 import FirebaseAuth
 import FBSDKLoginKit
-import FacebookCore // Ensure this is imported for GraphRequest
+import FacebookCore
 
+@MainActor
 class FacebookAuthViewModel: ObservableObject {
     @Published var errorMessage: String = ""
     @Published var isLoading: Bool = false
-    @Published var userEmail: String? // New property to store fetched email
+    @Published var userEmail: String?
+    @Published var signedInUser: SignedInUser? 
+
+    // Firebase Auth State Listener (optional, but good for consistency)
+    private var authStateHandler: AuthStateDidChangeListenerHandle?
+
+    init() {
+        setupAuthStateListener()
+    }
+
+    deinit {
+        if let handle = authStateHandler {
+            Auth.auth().removeStateDidChangeListener(handle)
+        }
+    }
+
+    private func setupAuthStateListener() {
+        if authStateHandler == nil {
+            authStateHandler = Auth.auth().addStateDidChangeListener { [weak self] auth, user in
+                guard let self = self else { return }
+                if let firebaseUser = user, firebaseUser.providerData.contains(where: { $0.providerID == FacebookAuthProviderID }) {
+                    // Only update signedInUser if it's the *current* user signed in with Facebook
+                    self.signedInUser = SignedInUser(
+                        id: firebaseUser.uid,
+                        displayName: firebaseUser.displayName,
+                        email: firebaseUser.email ?? "(unknown email)"
+                    )
+                } else if self.signedInUser != nil {
+                    // If the user signed out, or switched to a different provider
+                    self.signedInUser = nil
+                }
+            }
+        }
+    }
+
 
     func signInWithFacebook() async -> Bool {
         await MainActor.run {
             isLoading = true
             errorMessage = ""
             userEmail = nil // Clear previous email on new attempt
+            signedInUser = nil // Clear previous user
         }
 
         // Check if there's an existing access token and valid permissions
-        // This avoids re-prompting the user if they're already logged in
         if let accessToken = AccessToken.current, !accessToken.isExpired {
-            // Already logged in with Facebook, check if email is granted
             if accessToken.permissions.contains("email") {
                 print("Facebook: Already logged in with valid token and email permission.")
-                // Attempt to sign in with Firebase using the existing token
                 return await authenticateFirebaseWithFacebook(accessToken: accessToken.tokenString)
             } else {
-                // Token exists but email permission is missing.
-                // We'll proceed with loginManager.logIn to re-request if needed.
                 print("Facebook: Existing token, but email permission missing. Re-attempting login.")
             }
         }
@@ -41,9 +72,8 @@ class FacebookAuthViewModel: ObservableObject {
             let loginManager = LoginManager()
 
             // Request permissions during login.
-            // Even with the "Invalid Scopes: email" warning, we still request it.
-            // The SDK will decide if it grants it.
-            loginManager.logIn(permissions: ["public_profile", "email"], from: nil) { result, error in
+            loginManager.logIn(permissions: ["public_profile", "email"], from: nil) { [weak self] result, error in
+                guard let self = self else { return }
                 Task { @MainActor in
                     self.isLoading = false
 
@@ -61,12 +91,9 @@ class FacebookAuthViewModel: ObservableObject {
                         return
                     }
 
-                    // Check for declined permissions
                     if result.declinedPermissions.contains("email") {
-                        self.errorMessage = "Facebook: Email permission was declined. App functionality might be limited."
+                        self.errorMessage = "Facebook: Email permission was declined. Some app functionality might be limited."
                         print("Facebook: Email permission was explicitly declined by the user.")
-                        // You might choose to show a more specific alert or guide the user.
-                        // For now, we'll continue the login process, as other permissions might be granted.
                     }
 
                     guard let accessToken = result.token?.tokenString else {
@@ -76,19 +103,22 @@ class FacebookAuthViewModel: ObservableObject {
                         return
                     }
 
-                    // Proceed to authenticate with Firebase using the Facebook token
                     let firebaseAuthSuccess = await self.authenticateFirebaseWithFacebook(accessToken: accessToken)
 
-                    if firebaseAuthSuccess {
-                        // Optionally, fetch user email if it was granted.
-                        // This uses Graph API and requires the 'email' permission.
-                        // It's good practice to fetch only if needed and granted.
-                        if result.grantedPermissions.contains("email") {
-                            self.fetchFacebookUserEmail()
-                        } else {
-                            print("Facebook: Email permission not granted or explicitly declined, skipping email fetch.")
+                    if firebaseAuthSuccess && result.grantedPermissions.contains("email") {
+                        self.fetchFacebookUserEmail()
+                    } else if firebaseAuthSuccess {
+                        // If Firebase auth was successful but email wasn't granted or fetched,
+                        // ensure signedInUser is populated based on Firebase user
+                        if let firebaseUser = Auth.auth().currentUser {
+                            self.signedInUser = SignedInUser(
+                                id: firebaseUser.uid,
+                                displayName: firebaseUser.displayName,
+                                email: firebaseUser.email ?? "(unknown email)"
+                            )
                         }
                     }
+
                     continuation.resume(returning: firebaseAuthSuccess)
                 }
             }
@@ -102,14 +132,23 @@ class FacebookAuthViewModel: ObservableObject {
         let credential = FacebookAuthProvider.credential(withAccessToken: accessToken)
 
         return await withCheckedContinuation { continuation in
-            Auth.auth().signIn(with: credential) { authResult, firebaseError in
+            Auth.auth().signIn(with: credential) { [weak self] authResult, firebaseError in
+                guard let self = self else { return }
                 Task { @MainActor in
                     if let firebaseError = firebaseError {
                         self.errorMessage = "Firebase Facebook Auth Error: \(firebaseError.localizedDescription)"
                         print("Firebase Facebook Auth Error: \(firebaseError.localizedDescription)")
+                        self.signedInUser = nil
                         continuation.resume(returning: false)
                     } else {
                         print("Successfully signed in with Facebook and Firebase!")
+                        if let firebaseUser = authResult?.user {
+                             self.signedInUser = SignedInUser(
+                                id: firebaseUser.uid,
+                                displayName: firebaseUser.displayName,
+                                email: firebaseUser.email ?? "(unknown email)"
+                            )
+                        }
                         continuation.resume(returning: true)
                     }
                 }
@@ -117,10 +156,8 @@ class FacebookAuthViewModel: ObservableObject {
         }
     }
 
-    // New function to fetch user's email using Graph API
     private func fetchFacebookUserEmail() {
         print("Attempting to fetch Facebook user email...")
-        // Request the 'email' field specifically
         let graphRequest = GraphRequest(graphPath: "me", parameters: ["fields": "email"], httpMethod: .get)
         graphRequest.start { [weak self] connection, result, error in
             guard let self = self else { return }
@@ -134,12 +171,28 @@ class FacebookAuthViewModel: ObservableObject {
 
                 if let resultDict = result as? [String: Any], let email = resultDict["email"] as? String {
                     self.userEmail = email
+                    // Update the signedInUser email if it's a new email or more accurate
+                    if var currentUser = self.signedInUser {
+                        currentUser.email = email
+                        self.signedInUser = currentUser
+                    }
                     print("Fetched Facebook user email: \(email)")
                 } else {
-                    self.errorMessage = "Facebook email not found in profile data."
+                    self.errorMessage = "Facebook email not found in profile data or permission not granted."
                     print("Facebook email not found in profile data or permission not granted.")
                 }
             }
+        }
+    }
+
+    func signOut() {
+        do {
+            try Auth.auth().signOut()
+            LoginManager().logOut() // Facebook SDK logout
+            self.signedInUser = nil
+            self.errorMessage = ""
+        } catch {
+            self.errorMessage = error.localizedDescription
         }
     }
 }

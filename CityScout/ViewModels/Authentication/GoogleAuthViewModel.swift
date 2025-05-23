@@ -15,7 +15,8 @@ class GoogleAuthViewModel: ObservableObject {
     @Published var authenticationState: AuthenticationState = .unauthenticated
     @Published var errorMessage: String = ""
     @Published var user: User?
-    @Published var displayName: String = ""
+    @Published var signedInUser: SignedInUser?
+    @Published var displayName: String = "" 
 
     private var authStateHandler: AuthStateDidChangeListenerHandle?
 
@@ -23,19 +24,36 @@ class GoogleAuthViewModel: ObservableObject {
         registerAuthStateHandler()
     }
 
+    deinit {
+        if let handle = authStateHandler {
+            Auth.auth().removeStateDidChangeListener(handle)
+        }
+    }
+
     func registerAuthStateHandler() {
         if authStateHandler == nil {
-            authStateHandler = Auth.auth().addStateDidChangeListener { auth, user in
+            authStateHandler = Auth.auth().addStateDidChangeListener { [weak self] auth, user in
+                guard let self = self else { return }
                 self.user = user
                 self.authenticationState = user == nil ? .unauthenticated : .authenticated
                 self.displayName = user?.displayName ?? ""
+
+                if let firebaseUser = user {
+                    self.signedInUser = SignedInUser(
+                        id: firebaseUser.uid,
+                        displayName: firebaseUser.displayName,
+                        email: firebaseUser.email ?? "(unknown email)"
+                    )
+                } else {
+                    self.signedInUser = nil
+                }
             }
         }
     }
 
     func signInWithGoogle() async -> Bool {
         guard let clientID = FirebaseApp.app()?.options.clientID else {
-            errorMessage = "Client ID not found in Firebase configuration."
+            errorMessage = "Client ID not found in Firebase configuration. Make sure GoogleService-Info.plist is correctly set up."
             return false
         }
 
@@ -44,7 +62,7 @@ class GoogleAuthViewModel: ObservableObject {
 
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first?.rootViewController else {
-            errorMessage = "Root view controller not found."
+            errorMessage = "Root view controller not found for Google Sign-In presentation."
             return false
         }
 
@@ -52,7 +70,7 @@ class GoogleAuthViewModel: ObservableObject {
             let userAuthentication = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
 
             guard let idToken = userAuthentication.user.idToken else {
-                errorMessage = "ID token missing."
+                errorMessage = "Google ID token missing after sign-in."
                 return false
             }
             let accessToken = userAuthentication.user.accessToken
@@ -65,11 +83,18 @@ class GoogleAuthViewModel: ObservableObject {
             let result = try await Auth.auth().signIn(with: credential)
             self.user = result.user
             self.authenticationState = .authenticated
-            self.displayName = result.user.displayName ?? ""
+
+            // Populate your custom SignedInUser object
+            self.signedInUser = SignedInUser(
+                id: result.user.uid,
+                displayName: result.user.displayName,
+                email: result.user.email ?? "(unknown email)"
+            )
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Google Sign-In failed: \(error.localizedDescription)"
             authenticationState = .unauthenticated
+            self.signedInUser = nil
             return false
         }
     }
@@ -79,6 +104,8 @@ class GoogleAuthViewModel: ObservableObject {
             try Auth.auth().signOut()
             GIDSignIn.sharedInstance.signOut()
             authenticationState = .unauthenticated
+            self.signedInUser = nil
+            self.user = nil
         } catch {
             errorMessage = error.localizedDescription
         }
