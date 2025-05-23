@@ -55,7 +55,7 @@ struct SignInView: View {
                    }
                }
         .navigationDestination(isPresented: $shouldNavigateHome) {
-            Text("Home Screen Placeholder") // Replace with your actual Home View
+         HomeView()
         }
         .navigationDestination(isPresented: $isSignUpActive) {
             SignUpView() // Assuming you have a SignUpView
