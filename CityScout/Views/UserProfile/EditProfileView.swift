@@ -1,11 +1,12 @@
 // Views/EditProfileView.swift
 import SwiftUI
-import PhotosUI // For iOS 14+ photo picker
+import PhotosUI
 
 struct EditProfileView: View {
-    @Environment(\.dismiss) var dismiss // To dismiss the sheet/fullScreenCover
-    @ObservedObject var viewModel: ProfileViewModel
-    @State private var showingSaveAlert = false // To show success/error after save
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authVM: AuthenticationViewModel // Added for direct access
+    @ObservedObject var viewModel: ProfileViewModel // Still use this for editing fields
+    @State private var showingSaveAlert = false
 
     var body: some View {
         NavigationStack {
@@ -19,15 +20,33 @@ struct EditProfileView: View {
                 .padding(.horizontal)
                 .padding(.top, 10)
             }
-            .navigationBarHidden(true) // Hide default nav bar to use custom one
+            .navigationBarHidden(true)
             .alert("Profile Update", isPresented: $showingSaveAlert) {
                 Button("OK") {
                     if viewModel.errorMessage.isEmpty {
-                        dismiss() // Dismiss if successful
+                        // After successful save, also update authVM.signedInUser
+                        // by forcing a refresh or passing updated data.
+                        // For simplicity, let's assume authVM has a mechanism to refresh
+                        // its signedInUser from Firebase Auth after a profile update.
+                        // Or, you can explicitly call a refresh method:
+                        // authVM.refreshSignedInUserFromFirebaseAuth()
+                        // Or even simpler:
+                       // $authVM.fetchUser // Assuming this method re-fetches user from Firebase Auth
+                        dismiss()
                     }
                 }
             } message: {
                 Text(viewModel.errorMessage.isEmpty ? "Your profile has been updated successfully." : viewModel.errorMessage)
+            }
+        }
+        .onAppear {
+            // Setup ProfileViewModel with the current user from AuthenticationViewModel
+            viewModel.setup(with: authVM.signedInUser)
+        }
+        // Observe changes to authVM.signedInUser to refresh edit fields if external changes occur
+        .onChange(of: authVM.signedInUser) { oldUser, newUser in
+            if let user = newUser {
+                viewModel.setup(with: user)
             }
         }
     }
@@ -35,11 +54,13 @@ struct EditProfileView: View {
     private var headerSection: some View {
         HStack {
             Button {
-                dismiss() // Dismiss the sheet
+                dismiss()
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .padding()
+                    .background(Circle().fill(Color(.systemGray6)).frame(width: 44, height: 44))
             }
 
             Spacer()
@@ -50,12 +71,11 @@ struct EditProfileView: View {
             Spacer()
 
             Button {
-                // "Done" button action, similar to Save
                 Task { await saveProfile() }
             } label: {
                 Text("Done")
                     .font(.body.bold())
-                    .foregroundColor(Color(hex: "#24BAEC")) // Your app's primary color
+                    .foregroundColor(Color(hex: "#24BAEC"))
             }
         }
         .padding(.horizontal)
@@ -63,6 +83,7 @@ struct EditProfileView: View {
 
     private var profilePictureSection: some View {
         VStack(spacing: 10) {
+            // Display viewModel.profileImage (the selected/loaded image)
             if let image = viewModel.profileImage {
                 Image(uiImage: image)
                     .resizable()
@@ -71,6 +92,7 @@ struct EditProfileView: View {
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
             } else {
+                // Fallback to default if no image is selected/loaded
                 Image(systemName: "person.circle.fill")
                     .resizable()
                     .scaledToFit()
@@ -78,7 +100,8 @@ struct EditProfileView: View {
                     .foregroundColor(.gray)
             }
 
-            Text(viewModel.signedInUser.displayName ?? "\(viewModel.firstName) \(viewModel.lastName)".trimmingCharacters(in: .whitespacesAndNewlines))
+            // Display current display name from authVM, or construct from local fields
+            Text(authVM.signedInUser?.displayName ?? "\(viewModel.firstName) \(viewModel.lastName)".trimmingCharacters(in: .whitespacesAndNewlines))
                 .font(.title.bold())
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -86,10 +109,8 @@ struct EditProfileView: View {
             PhotosPicker(selection: $viewModel.selectedPhotoItem, matching: .images) {
                 Text("Change Profile Picture")
                     .font(.subheadline.bold())
-                    .foregroundColor(Color(hex: "#FF7029")) // Your app's accent color
+                    .foregroundColor(Color(hex: "#FF7029"))
             }
-            // Ensure this is only for iOS 14+ for PhotosPicker
-            // For older iOS, you'd use UIImagePickerController
         }
     }
 
@@ -139,7 +160,7 @@ struct EditProfileView: View {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(Color(hex: "#24BAEC")) // Your app's primary color
+            .background(Color(hex: "#24BAEC"))
             .cornerRadius(10)
         }
         .disabled(viewModel.isLoading)
@@ -148,7 +169,8 @@ struct EditProfileView: View {
     }
 
     private func saveProfile() async {
-        let success = await viewModel.updateProfile()
-        showingSaveAlert = true // Always show alert after attempting save
+        // Pass the signedInUser from authVM to the updateProfile method
+        let success = await viewModel.updateProfile(signedInUserFromAuthVM: authVM.signedInUser)
+        showingSaveAlert = true
     }
 }

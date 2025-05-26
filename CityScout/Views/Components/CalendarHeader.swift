@@ -1,3 +1,11 @@
+//
+//  CalendarHeader.swift
+//  CityScout
+//
+//  Created by Umuco Auca on 26/05/2025.
+//
+import SwiftUI
+
 struct CalendarHeader: View {
     @Binding var selectedDate: Date
     private let dateFormatter: DateFormatter = {
@@ -35,5 +43,14 @@ struct CalendarHeader: View {
                     .clipShape(Circle())
             }
         }
+    }
+}
+
+struct CalendarHeader_Previews: PreviewProvider {
+    @State static var selectedDate: Date = Date()
+    static var previews: some View {
+        CalendarHeader(selectedDate: $selectedDate)
+            .padding()
+            .previewLayout(.sizeThatFits)
     }
 }

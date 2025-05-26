@@ -1,14 +1,22 @@
+//
+//  ScheduleEventRow.swift
+//  CityScout
+//
+//  Created by Umuco Auca on 26/05/2025.
+//
+import SwiftUI
+
 struct ScheduleEventRow: View {
     let event: ScheduledEvent
 
     var body: some View {
         HStack(alignment: .top, spacing: 15) {
-            Image(event.destination.imageName) // Use your actual image assets
+            Image(event.destination.imageName)
                 .resizable()
                 .scaledToFill()
                 .frame(width: 80, height: 80)
                 .cornerRadius(10)
-                .clipped() // Ensure content stays within bounds
+                .clipped()
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
@@ -44,5 +52,13 @@ struct ScheduleEventRow: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMMM yyyy"
         return formatter.string(from: date)
+    }
+}
+
+struct ScheduleEventRow_Previews: PreviewProvider {
+    static var previews: some View {
+        ScheduleEventRow(event: ScheduledEvent(date: Date(), destination: Destination.sampleDestinations[0]))
+            .padding()
+           // .previewLayout(.sizeThatFits)
     }
 }

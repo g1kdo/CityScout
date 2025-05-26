@@ -36,6 +36,27 @@ extension Color {
     }
 }
 
+extension Date { // Made public
+    static let weekDays: [String] = ["S", "M", "T", "W", "T", "F", "S"]
+    
+    func startOfMonth() -> Date {
+        Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: self))!
+    }
+    
+    func endOfMonth() -> Date {
+        Calendar.current.date(byAdding: DateComponents(month: 1, day: -1), to: self.startOfMonth())!
+    }
+    
+    func isToday() -> Bool {
+        Calendar.current.isDateInToday(self)
+    }
+    
+    // Renamed for clarity and to avoid conflict with Calendar.current.isDate
+    func isSameDayAs(_ date: Date) -> Bool {
+        Calendar.current.isDate(self, inSameDayAs: date)
+    }
+    
+}
 
 #Preview {
     ContentView()

@@ -55,8 +55,13 @@ struct CityScoutApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WelcomeView()
-                .environmentObject(authVM)   // <-- makes authVM available throughout your SwiftUI views
+            if authVM.signedInUser != nil {
+                HomeView().environmentObject(authVM)
+            }else{
+                WelcomeView()
+            }
+//            WelcomeView()
+//                .environmentObject(authVM)
         }
     }
 }

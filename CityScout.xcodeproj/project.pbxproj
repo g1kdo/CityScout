@@ -35,6 +35,7 @@
 		314B75A22DC22F820045510C /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 314B75A12DC22F820045510C /* GoogleSignInSwift */; };
 		315840012DDCD6870080BF35 /* FacebookBasics in Frameworks */ = {isa = PBXBuildFile; productRef = 315840002DDCD6870080BF35 /* FacebookBasics */; };
 		315840032DDCD8E10080BF35 /* FacebookAEM in Frameworks */ = {isa = PBXBuildFile; productRef = 315840022DDCD8E10080BF35 /* FacebookAEM */; };
+		318E42272DE483C100EE47F5 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 318E42262DE483C100EE47F5 /* Kingfisher */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,6 +106,7 @@
 				314B758D2DC22C1E0045510C /* FirebaseDynamicLinks in Frameworks */,
 				314B757F2DC22C1E0045510C /* FirebaseAppCheck in Frameworks */,
 				314B75A02DC22F820045510C /* GoogleSignIn in Frameworks */,
+				318E42272DE483C100EE47F5 /* Kingfisher in Frameworks */,
 				315840032DDCD8E10080BF35 /* FacebookAEM in Frameworks */,
 				314B75832DC22C1E0045510C /* FirebaseAuth in Frameworks */,
 				315840012DDCD6870080BF35 /* FacebookBasics in Frameworks */,
@@ -221,6 +223,7 @@
 				3134339F2DCCDD5B00D0C950 /* FacebookShare */,
 				315840002DDCD6870080BF35 /* FacebookBasics */,
 				315840022DDCD8E10080BF35 /* FacebookAEM */,
+				318E42262DE483C100EE47F5 /* Kingfisher */,
 			);
 			productName = CityScout;
 			productReference = 314B75182DC225B60045510C /* CityScout.app */;
@@ -308,6 +311,7 @@
 				314B75772DC22C1E0045510C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				314B759E2DC22F820045510C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				313433982DCCDD5B00D0C950 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */,
+				318E42252DE483C100EE47F5 /* XCRemoteSwiftPackageReference "Kingfisher" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 314B75192DC225B60045510C /* Products */;
@@ -706,6 +710,14 @@
 				minimumVersion = 8.0.0;
 			};
 		};
+		318E42252DE483C100EE47F5 /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/onevcat/Kingfisher.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.3.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -843,6 +855,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 313433982DCCDD5B00D0C950 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
 			productName = FacebookAEM;
+		};
+		318E42262DE483C100EE47F5 /* Kingfisher */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 318E42252DE483C100EE47F5 /* XCRemoteSwiftPackageReference "Kingfisher" */;
+			productName = Kingfisher;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -14,80 +14,47 @@ import FacebookCore
 class FacebookAuthViewModel: ObservableObject {
     @Published var errorMessage: String = ""
     @Published var isLoading: Bool = false
-    @Published var userEmail: String?
-    @Published var signedInUser: SignedInUser? 
+    // Removed: @Published var userEmail: String?
+    // Removed: @Published var signedInUser: SignedInUser?
+    // Removed: private var authStateHandler: AuthStateDidChangeListenerHandle?
+    // Removed: init() and deinit() as they are no longer needed for authStateListener here
 
-    // Firebase Auth State Listener (optional, but good for consistency)
-    private var authStateHandler: AuthStateDidChangeListenerHandle?
-
-    init() {
-        setupAuthStateListener()
-    }
-
-    deinit {
-        if let handle = authStateHandler {
-            Auth.auth().removeStateDidChangeListener(handle)
-        }
-    }
-
-    private func setupAuthStateListener() {
-        if authStateHandler == nil {
-            authStateHandler = Auth.auth().addStateDidChangeListener { [weak self] auth, user in
-                guard let self = self else { return }
-                if let firebaseUser = user, firebaseUser.providerData.contains(where: { $0.providerID == FacebookAuthProviderID }) {
-                    // Only update signedInUser if it's the *current* user signed in with Facebook
-                    self.signedInUser = SignedInUser(
-                        id: firebaseUser.uid,
-                        displayName: firebaseUser.displayName,
-                        email: firebaseUser.email ?? "(unknown email)"
-                    )
-                } else if self.signedInUser != nil {
-                    // If the user signed out, or switched to a different provider
-                    self.signedInUser = nil
-                }
-            }
-        }
-    }
-
-
-    func signInWithFacebook() async -> Bool {
+    func signInWithFacebook() async -> FirebaseAuth.User? { // Returns Firebase User on success
         await MainActor.run {
             isLoading = true
             errorMessage = ""
-            userEmail = nil // Clear previous email on new attempt
-            signedInUser = nil // Clear previous user
         }
 
-        // Check if there's an existing access token and valid permissions
-        if let accessToken = AccessToken.current, !accessToken.isExpired {
-            if accessToken.permissions.contains("email") {
-                print("Facebook: Already logged in with valid token and email permission.")
-                return await authenticateFirebaseWithFacebook(accessToken: accessToken.tokenString)
-            } else {
-                print("Facebook: Existing token, but email permission missing. Re-attempting login.")
-            }
-        }
+        // The Facebook SDK's LoginManager.logIn handles token expiration and permissions.
+        // We'll just initiate the login flow.
+        return await performFacebookLogin()
+    }
 
+    private func performFacebookLogin() async -> FirebaseAuth.User? {
         return await withCheckedContinuation { continuation in
             let loginManager = LoginManager()
 
             // Request permissions during login.
             loginManager.logIn(permissions: ["public_profile", "email"], from: nil) { [weak self] result, error in
-                guard let self = self else { return }
+                guard let self = self else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
                 Task { @MainActor in
                     self.isLoading = false
 
                     if let error = error {
                         self.errorMessage = "Facebook Login Error: \(error.localizedDescription)"
                         print("Facebook Login Error: \(error.localizedDescription)")
-                        continuation.resume(returning: false)
+                        continuation.resume(returning: nil)
                         return
                     }
 
                     guard let result = result, !result.isCancelled else {
                         self.errorMessage = "Facebook login cancelled."
                         print("Facebook login cancelled.")
-                        continuation.resume(returning: false)
+                        continuation.resume(returning: nil)
                         return
                     }
 
@@ -99,100 +66,38 @@ class FacebookAuthViewModel: ObservableObject {
                     guard let accessToken = result.token?.tokenString else {
                         self.errorMessage = "Facebook access token not found."
                         print("Facebook access token not found.")
-                        continuation.resume(returning: false)
+                        continuation.resume(returning: nil)
                         return
                     }
 
-                    let firebaseAuthSuccess = await self.authenticateFirebaseWithFacebook(accessToken: accessToken)
-
-                    if firebaseAuthSuccess && result.grantedPermissions.contains("email") {
-                        self.fetchFacebookUserEmail()
-                    } else if firebaseAuthSuccess {
-                        // If Firebase auth was successful but email wasn't granted or fetched,
-                        // ensure signedInUser is populated based on Firebase user
-                        if let firebaseUser = Auth.auth().currentUser {
-                            self.signedInUser = SignedInUser(
-                                id: firebaseUser.uid,
-                                displayName: firebaseUser.displayName,
-                                email: firebaseUser.email ?? "(unknown email)"
-                            )
-                        }
-                    }
-
-                    continuation.resume(returning: firebaseAuthSuccess)
+                    // Proceed to authenticate with Firebase
+                    let firebaseUser = await self.authenticateFirebaseWithFacebook(accessToken: accessToken)
+                    continuation.resume(returning: firebaseUser)
                 }
             }
         }
     }
 
-    private func authenticateFirebaseWithFacebook(accessToken: String) async -> Bool {
+    private func authenticateFirebaseWithFacebook(accessToken: String) async -> FirebaseAuth.User? {
         await MainActor.run {
             errorMessage = "" // Clear error before Firebase auth attempt
         }
         let credential = FacebookAuthProvider.credential(withAccessToken: accessToken)
 
-        return await withCheckedContinuation { continuation in
-            Auth.auth().signIn(with: credential) { [weak self] authResult, firebaseError in
-                guard let self = self else { return }
-                Task { @MainActor in
-                    if let firebaseError = firebaseError {
-                        self.errorMessage = "Firebase Facebook Auth Error: \(firebaseError.localizedDescription)"
-                        print("Firebase Facebook Auth Error: \(firebaseError.localizedDescription)")
-                        self.signedInUser = nil
-                        continuation.resume(returning: false)
-                    } else {
-                        print("Successfully signed in with Facebook and Firebase!")
-                        if let firebaseUser = authResult?.user {
-                             self.signedInUser = SignedInUser(
-                                id: firebaseUser.uid,
-                                displayName: firebaseUser.displayName,
-                                email: firebaseUser.email ?? "(unknown email)"
-                            )
-                        }
-                        continuation.resume(returning: true)
-                    }
-                }
-            }
-        }
-    }
-
-    private func fetchFacebookUserEmail() {
-        print("Attempting to fetch Facebook user email...")
-        let graphRequest = GraphRequest(graphPath: "me", parameters: ["fields": "email"], httpMethod: .get)
-        graphRequest.start { [weak self] connection, result, error in
-            guard let self = self else { return }
-
-            Task { @MainActor in
-                if let error = error {
-                    self.errorMessage = "Failed to fetch Facebook user email: \(error.localizedDescription)"
-                    print("Error fetching Facebook user email: \(error.localizedDescription)")
-                    return
-                }
-
-                if let resultDict = result as? [String: Any], let email = resultDict["email"] as? String {
-                    self.userEmail = email
-                    // Update the signedInUser email if it's a new email or more accurate
-                    if var currentUser = self.signedInUser {
-                        currentUser.email = email
-                        self.signedInUser = currentUser
-                    }
-                    print("Fetched Facebook user email: \(email)")
-                } else {
-                    self.errorMessage = "Facebook email not found in profile data or permission not granted."
-                    print("Facebook email not found in profile data or permission not granted.")
-                }
-            }
-        }
-    }
-
-    func signOut() {
         do {
-            try Auth.auth().signOut()
-            LoginManager().logOut() // Facebook SDK logout
-            self.signedInUser = nil
-            self.errorMessage = ""
+            let authResult = try await Auth.auth().signIn(with: credential)
+            print("Successfully signed in with Facebook and Firebase!")
+            return authResult.user // Return the Firebase User
         } catch {
-            self.errorMessage = error.localizedDescription
+            errorMessage = "Firebase Facebook Auth Error: \(error.localizedDescription)"
+            print("Firebase Facebook Auth Error: \(error.localizedDescription)")
+            return nil
         }
+    }
+
+    // Only log out from Facebook SDK, Firebase Auth will be handled by AuthenticationViewModel
+    func signOutFacebookOnly() {
+        LoginManager().logOut()
+        print("Facebook account signed out from FBSDKLoginKit.")
     }
 }

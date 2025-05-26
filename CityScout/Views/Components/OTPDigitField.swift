@@ -17,7 +17,7 @@ struct OTPDigitField: View {
             .frame(width: 60, height: 60)
             .background(Color(.systemGray6))
             .cornerRadius(10)
-            .onChange(of: text) { newValue in
+            .onChange(of: text) { oldValue, newValue in
                 // Ensure only one digit is entered
                 if newValue.count > 1 {
                     text = String(newValue.prefix(1))

@@ -1,16 +1,13 @@
 // Views/ProfileView.swift
 import SwiftUI
-import Kingfisher // For loading images from URL (add to Project dependencies if you haven't)
+import Kingfisher // Still using Kingfisher for loading images from URLs
 
 struct ProfileView: View {
-    @ObservedObject var viewModel: ProfileViewModel
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authVM: AuthenticationViewModel // Access shared authentication state
+    @StateObject var viewModel = ProfileViewModel() // Initialize without 'user'
     @State private var isShowingEditProfile = false
-    @Binding var shouldNavigateToSignIn: Bool // For signing out
 
-    init(user: SignedInUser, shouldNavigateToSignIn: Binding<Bool>) {
-        _viewModel = ObservedObject(wrappedValue: ProfileViewModel(user: user))
-        _shouldNavigateToSignIn = shouldNavigateToSignIn
-    }
 
     var body: some View {
         NavigationStack {
@@ -23,15 +20,42 @@ struct ProfileView: View {
                 .padding(.horizontal)
                 .padding(.top, 10)
             }
-            .navigationBarHidden(true) // Hide default nav bar to use custom one
+            .navigationBarHidden(true)
             .fullScreenCover(isPresented: $isShowingEditProfile) {
-                EditProfileView(viewModel: viewModel) // Pass the same viewModel
+                // Pass the same viewModel, and inject authVM as environment
+                EditProfileView(viewModel: viewModel)
+                    .environmentObject(authVM)
             }
         }
-        .onChange(of: viewModel.signedInUser) { oldUser, newUser in
-            // React to changes in signedInUser, e.g., if it becomes nil after sign out
-            if newUser.id.isEmpty { // Assuming id is empty when signed out
-                shouldNavigateToSignIn = true
+        .onAppear {
+            // Setup ProfileViewModel with the current user from AuthenticationViewModel
+            viewModel.setup(with: authVM.signedInUser)
+        }
+        .onChange(of: authVM.signedInUser?.id) { oldId, newId in
+            // React to changes in the signedInUser from AuthenticationViewModel
+            // If the user logs out (id becomes empty), handle navigation
+            if newId == nil || newId?.isEmpty == true {
+                // This `ProfileView` instance might not be the direct one navigating
+                // the app to sign-in, but it reflects the state.
+                // The parent (HomeView) will likely handle navigation to sign-in.
+                print("User signed out from ProfileView. Handling transition if needed.")
+            } else {
+                // If the user re-authenticates or updates, refresh data
+                viewModel.setup(with: authVM.signedInUser)
+            }
+        }
+        // Observe changes to authVM.signedInUser to trigger UI updates for profile details
+        .onChange(of: authVM.signedInUser) { oldUser, newUser in
+            // This sink is crucial for ProfileView to react when AuthVM updates its user
+            if let user = newUser {
+                viewModel.setup(with: user) // Re-setup if the user object itself changes
+            } else {
+                // User logged out, clear local state if necessary
+                viewModel.firstName = ""
+                viewModel.lastName = ""
+                viewModel.location = ""
+                viewModel.mobileNumber = ""
+                viewModel.profileImage = nil
             }
         }
     }
@@ -39,14 +63,15 @@ struct ProfileView: View {
     private var headerSection: some View {
         HStack {
             Button {
-                // Handle back action (if this view is pushed)
-                // If it's a root view, this might not do anything or navigate to a dashboard
+                 dismiss()
             } label: {
+                
                 Image(systemName: "chevron.left")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .padding()
+                    .background(Circle().fill(Color(.systemGray6)).frame(width: 44, height: 44))
             }
-            .opacity(0) // Hide for now as per design, but keep button structure
 
             Spacer()
 
@@ -56,11 +81,14 @@ struct ProfileView: View {
             Spacer()
 
             Button {
-                isShowingEditProfile = true // Show edit profile sheet/fullScreenCover
+                isShowingEditProfile = true
             } label: {
+                
                 Image(systemName: "pencil")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .padding()
+                    .background(Circle().fill(Color(.systemGray6)).frame(width: 44, height: 44))
             }
         }
         .padding(.horizontal)
@@ -68,6 +96,7 @@ struct ProfileView: View {
 
     private var profileInfoSection: some View {
         VStack(spacing: 10) {
+            // Prefer viewModel.profileImage if set (from PhotosPicker or loaded from URL cache)
             if let image = viewModel.profileImage {
                 Image(uiImage: image)
                     .resizable()
@@ -75,20 +104,22 @@ struct ProfileView: View {
                     .frame(width: 120, height: 120)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
-            } else if let url = viewModel.signedInUser.profilePictureURL {
+            }
+            // Fallback to Kingfisher for URL from authVM if viewModel.profileImage isn't set
+            else if let url = authVM.signedInUser?.profilePictureURL { // Use authVM for the URL
                 KFImage(url)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 120, height: 120)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
-                    .placeholder {
-                        Image(systemName: "person.circle.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 120, height: 120)
-                            .foregroundColor(.gray)
-                    }
+//                    .placeholder {
+//                        Image(systemName: "person.circle.fill")
+//                            .resizable()
+//                            .scaledToFit()
+//                            .frame(width: 120, height: 120)
+//                            .foregroundColor(.gray)
+//                    }
             } else {
                 Image(systemName: "person.circle.fill")
                     .resizable()
@@ -97,12 +128,12 @@ struct ProfileView: View {
                     .foregroundColor(.gray)
             }
 
-            Text(viewModel.signedInUser.displayName ?? "\(viewModel.signedInUser.firstName ?? "") \(viewModel.signedInUser.lastName ?? "")".trimmingCharacters(in: .whitespacesAndNewlines))
+            Text(authVM.signedInUser?.displayName ?? "\(viewModel.firstName) \(viewModel.lastName)".trimmingCharacters(in: .whitespacesAndNewlines))
                 .font(.title.bold())
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
-            Text(viewModel.signedInUser.email)
+            Text(authVM.signedInUser?.email ?? "N/A")
                 .font(.body)
                 .foregroundColor(.gray)
         }
@@ -112,7 +143,6 @@ struct ProfileView: View {
         VStack(spacing: 15) {
             ProfileOptionRow(icon: "person", title: "Profile") {
                 // This might navigate to the same profile view (redundant for now)
-                // Or if there are sub-sections of profile.
             }
             ProfileOptionRow(icon: "bookmark", title: "Bookmarked") {
                 // Navigate to bookmarked content
@@ -127,7 +157,6 @@ struct ProfileView: View {
                 // Display app version
             }
             .overlay(
-                // For "Version", show the version number
                 Text("1.0.0") // Replace with actual app version from Bundle
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -138,8 +167,9 @@ struct ProfileView: View {
             Spacer()
 
             Button {
-                viewModel.signOut()
-                // shouldNavigateToSignIn will be set to true by the onChange observer
+                viewModel.signOut() // This will clear the `Auth.auth().currentUser`
+                authVM.signedInUser = nil // Manually set to nil to trigger UI change in AuthVM
+                                            // (AuthVM usually handles this on its own, but explicit is fine)
             } label: {
                 HStack {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -149,7 +179,7 @@ struct ProfileView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.red) // Use a distinct color for sign out
+                .background(Color.red)
                 .cornerRadius(10)
             }
             .padding(.top, 20)
@@ -157,7 +187,7 @@ struct ProfileView: View {
     }
 }
 
-// MARK: - Reusable Profile Option Row
+// ProfileOptionRow remains unchanged
 struct ProfileOptionRow: View {
     let icon: String
     let title: String
@@ -170,7 +200,7 @@ struct ProfileOptionRow: View {
                 Image(systemName: icon)
                     .font(.body)
                     .foregroundColor(.primary)
-                    .frame(width: 25) // Fixed width for alignment
+                    .frame(width: 25)
 
                 Text(title)
                     .font(.body)
@@ -186,14 +216,9 @@ struct ProfileOptionRow: View {
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 15)
-            .background(Color.white) // Or your app's background color for cards
+            .background(Color.white)
             .cornerRadius(10)
-            .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2) // Subtle shadow
+            .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
     }
 }
-
-// If Kingfisher isn't used or for previews, you might need a placeholder or
-// simple async image loader. For this example, Kingfisher is assumed.
-// You'll need to add Kingfisher to your project (via SPM or CocoaPods).
-// Example SPM: File > Add Packages... > search for "https://github.com/onevcat/Kingfisher.git"

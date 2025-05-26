@@ -1,16 +1,16 @@
 import SwiftUI
 import FirebaseAuth
 import AuthenticationServices
-
+import GoogleSignIn
+import FacebookLogin
 
 // MARK: – The updated SignUpView
 struct SignUpView: View {
-    @EnvironmentObject var authVM: AuthenticationViewModel
-    // Drives the full-screen cover when non-nil
-    @State private var signedInUser: SignedInUser? = nil
-    @StateObject private var viewModel = SignUpViewModel()
+    @EnvironmentObject var authVM: AuthenticationViewModel // Use EnvironmentObject
+    @StateObject private var viewModel = SignUpViewModel() // Your specific sign-up VM
     @StateObject private var appleAuthViewModel = AppleAuthViewModel()
     @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
+    @StateObject private var facebookAuthViewModel = FacebookAuthViewModel()
     @State private var isAgreed = false
     @State private var isSignInActive = false
 
@@ -32,16 +32,16 @@ struct SignUpView: View {
         .alert(viewModel.errorMessage, isPresented: $viewModel.showAlert) {
             Button("OK", role: .cancel) { }
         }
-        .fullScreenCover(item: $signedInUser) { user in
+        // This fullScreenCover will now react to authVM.user becoming non-nil
+        .fullScreenCover(item: $authVM.signedInUser) { signedInUser in
             HomeView()
-              .environmentObject(authVM)      // now authVM is in scope
+                .environmentObject(authVM) // Ensure authVM is passed down
         }
-
         .navigationDestination(isPresented: $isSignInActive) {
             SignInView()
-                   }
+                .environmentObject(authVM) // Pass authVM to SignInView
+        }
     }
-    
 
     // ─── Sections ────────────────────────────────────────────
 
@@ -87,8 +87,8 @@ struct SignUpView: View {
         HStack(alignment: .top) {
             Button { isAgreed.toggle() } label: {
                 Image(systemName: isAgreed
-                            ? "checkmark.square.fill"
-                            : "square")
+                    ? "checkmark.square.fill"
+                    : "square")
                     .font(.title3)
                     .foregroundColor(
                         isAgreed
@@ -117,6 +117,25 @@ struct SignUpView: View {
                     viewModel.showAlert = true
                 } else {
                     await viewModel.signUpUser()
+                    // If signUpUser was successful, authVM.user should be set
+                    if let firebaseUser = Auth.auth().currentUser, !viewModel.errorMessage.isEmpty {
+                        // Assuming SignUpViewModel also sets firebaseUser.displayName/email correctly
+                        // And you'll need to extract first and last name from fullName if not already handled
+                        let fullNameParts = viewModel.fullName.split(separator: " ").map(String.init)
+                        let firstName = fullNameParts.first
+                        let lastName = fullNameParts.count > 1 ? fullNameParts.last : nil
+
+                        var user = SignedInUser(
+                            id: firebaseUser.uid,
+                            displayName: firebaseUser.displayName,
+                            email: firebaseUser.email ?? "",
+                            firstName: firstName,
+                            lastName: lastName // Pass these to the SignedInUser
+                        )
+                        // This initial save to Firestore should be handled in SignUpViewModel's signUpUser
+                        // or immediately after creating SignedInUser.
+                        // For now, let's just make sure authVM.user is set.
+                    }
                 }
             }
         } label: {
@@ -164,10 +183,9 @@ struct SignUpView: View {
         HStack(spacing: 20) {
             Button {
                 Task {
-                    let success = await googleAuthViewModel.signInWithGoogle()
-                    if success {
+                    if let firebaseUser = await googleAuthViewModel.signInWithGoogle() {
                         print("Successfully signed up/in with Google")
-                        // Potentially update signedInUser here if your GoogleAuthViewModel handles user info
+                       // authVM.user = try await authVM.createSignedInUser(from: firebaseUser)
                     } else {
                         print(googleAuthViewModel.errorMessage)
                         viewModel.errorMessage = googleAuthViewModel.errorMessage // Show Google error in the app's alert
@@ -181,8 +199,16 @@ struct SignUpView: View {
             }
 
             Button {
-                // TODO: Implement Facebook Sign In
-                print("Facebook Sign In Tapped")
+                Task {
+                    // Assuming facebookAuthViewModel.signInWithFacebook() also returns FirebaseAuth.User?
+                    if let firebaseUser = await facebookAuthViewModel.signInWithFacebook() {
+                        print("Successfully signed in with Facebook")
+//                        viewModel.user = try await viewModel.createSignedInUser(from: firebaseUser)
+                    } else {
+                        viewModel.errorMessage = facebookAuthViewModel.errorMessage
+                        viewModel.showAlert = true
+                    }
+                }
             } label: {
                 Image("facebook_logo")
                     .resizable()
@@ -190,8 +216,19 @@ struct SignUpView: View {
             }
 
             Button {
-                // TODO: Implement Apple Sign In using appleAuthViewModel
-                appleAuthViewModel.startSignInWithAppleFlow()
+                Task {
+                               if let firebaseUser = await appleAuthViewModel.startSignInWithAppleFlow() {
+                                   print("Successfully signed up/in with Apple")
+                                   // REMOVE THIS LINE:
+                                   // authVM.user = try await authVM.createSignedInUser(from: firebaseUser)
+                                   // The authStateDidChangeListener will handle setting authVM.signedInUser
+                               } else {
+                                   // Apple sign-in failed or was cancelled
+                                   // The errorMessage should already be set by appleAuthViewModel
+                                   viewModel.errorMessage = appleAuthViewModel.errorMessage
+                                   viewModel.showAlert = true
+                               }
+                           }
             } label: {
                 Image("apple_logo")
                     .resizable()
@@ -221,7 +258,7 @@ struct SignUpView: View {
     }
 }
 
-
 #Preview {
     SignUpView()
+        .environmentObject(AuthenticationViewModel()) // Provide a dummy for preview
 }

@@ -1,3 +1,11 @@
+//
+//  ScheduleView.swift
+//  CityScout
+//
+//  Created by Umuco Auca on 26/05/2025.
+//
+import SwiftUI
+
 struct ScheduleView: View {
     @State private var selectedDate: Date = Date()
     @State private var scheduledEvents: [ScheduledEvent] = []
@@ -41,7 +49,7 @@ struct ScheduleView: View {
             }
         }
         .onAppear(perform: loadScheduledEvents)
-        .background(Color.white.edgesIgnoringSafeArea(.all)) // Ensure background for the whole view
+        .background(Color.white.edgesIgnoringSafeArea(.all))
     }
 
     private var filteredEvents: [ScheduledEvent] {
@@ -49,11 +57,9 @@ struct ScheduleView: View {
     }
 
     private func loadScheduledEvents() {
-        // Simulate loading scheduled events
-        // In a real app, you would fetch this from a database or API
         let calendar = Calendar.current
         var components = calendar.dateComponents([.year, .month, .day], from: Date())
-        components.day = 26 // May 26th
+        components.day = 26
         if let eventDate = calendar.date(from: components) {
             scheduledEvents = [
                 ScheduledEvent(date: eventDate, destination: Destination.sampleDestinations[0]),
@@ -62,7 +68,6 @@ struct ScheduleView: View {
             ]
         }
 
-        // Add an event for 22 October 2025 to match the image
         var octoberComponents = DateComponents()
         octoberComponents.year = 2025
         octoberComponents.month = 10
@@ -72,5 +77,11 @@ struct ScheduleView: View {
             scheduledEvents.append(ScheduledEvent(date: octoberEventDate, destination: Destination.sampleDestinations[1]))
             scheduledEvents.append(ScheduledEvent(date: octoberEventDate, destination: Destination.sampleDestinations[2]))
         }
+    }
+}
+
+struct ScheduleView_Previews: PreviewProvider {
+    static var previews: some View {
+        ScheduleView()
     }
 }
