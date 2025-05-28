@@ -185,10 +185,10 @@ struct RoundedCorners: Shape {
 #Preview {
     DestinationDetailView(destination: Destination(
         name: "Nyandungu Eco Park",
-        imageName: "EcoPark", // Changed to a more generic name for preview image
+        imageName: "Nyandungu", // Changed to a more generic name for preview image
         rating: 4.7,
         location: "Kigali, Nyandungu",
-        participantAvatars: ["thumb1","thumb2","thumb3","thumb4","thumb5","thumb6"], // Example image names
+        participantAvatars: ["Nyandungu","Nyandungu","Nyandungu","Nyandungu","Nyandungu","Nyandungu"], // Example image names
         description: "You will get a complete travel package on the beaches, including airline tickets, recommended hotel rooms, transportation, and everything you need for your holiday to the Greek Islands, for example. Explore the stunning landscapes and diverse wildlife that make this eco park a truly unique destination. Perfect for nature lovers and adventurers alike."
     ))
 }
