@@ -12,15 +12,10 @@ import FirebaseCore
 
 @MainActor
 class GoogleAuthViewModel: ObservableObject {
-    // authenticationState, user, signedInUser, displayName are no longer needed here
-    // as AuthenticationViewModel will be the single source of truth for the user state.
     @Published var errorMessage: String = ""
 
-    // No need for authStateHandler in this ViewModel, AuthenticationViewModel handles it.
-    // init() and deinit() methods are removed as well.
-
-    func signInWithGoogle() async -> FirebaseAuth.User? { // Changed return type to FirebaseAuth.User?
-        errorMessage = "" // Clear previous error
+    func signInWithGoogle() async -> FirebaseAuth.User? {
+        errorMessage = ""
 
         guard let clientID = FirebaseApp.app()?.options.clientID else {
             errorMessage = "Client ID not found in Firebase configuration. Make sure GoogleService-Info.plist is correctly set up."
@@ -60,7 +55,7 @@ class GoogleAuthViewModel: ObservableObject {
         }
     }
 
-    func signOutGoogleOnly() { // Renamed to avoid conflict if AuthenticationViewModel also has signOut
+    func signOutGoogleOnly() {
         GIDSignIn.sharedInstance.signOut()
         print("Google account signed out from GIDSignIn.")
     }

@@ -10,8 +10,6 @@ struct TopBarView: View {
                 if let user = authVM.signedInUser {
                     // Load profile image from URL if available, otherwise use default
                     if let profileImageURL = user.profilePictureURL {
-                        // You'll need an AsyncImage or similar image loading mechanism
-                        // For simplicity, let's use a placeholder or check for a local asset
                         AsyncImage(url: profileImageURL) { image in
                             image
                                 .resizable()

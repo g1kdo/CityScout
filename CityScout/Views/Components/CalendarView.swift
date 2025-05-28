@@ -1,8 +1,8 @@
 //
-//  CalendarView.swift
-//  CityScout
+//  CalendarView.swift
+//  CityScout
 //
-//  Created by Umuco Auca on 26/05/2025.
+//  Created by Umuco Auca on 26/05/2025.
 //
 import SwiftUI
 import Foundation // Make sure Foundation is imported for Date and Calendar operations
@@ -14,7 +14,7 @@ struct CalendarView: View {
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM YYYY" // Changed to YYYY to display full year
+        formatter.dateFormat = "MMMM yyyy" // Changed to yyyy to display full year
         return formatter
     }()
 
@@ -63,17 +63,14 @@ struct CalendarView: View {
             // Days Grid
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 10) {
                 ForEach(daysInMonth(for: currentDate), id: \.self) { date in
-                    if calendar.isDate(date, equalTo: currentDate, toGranularity: .month) {
-                        // Use the public isSameDayAs from the Date extension
+                    // Only show day numbers for dates within the current month, or if it's the `distantPast` placeholder
+                    if calendar.isDate(date, equalTo: currentDate, toGranularity: .month) || date == Date.distantPast {
                         DayCell(date: date, isSelected: date.isSameDayAs(selectedDate)) {
                             selectedDate = date
                         }
-                    } else if date == Date.distantPast { // Check for our placeholder
-                        Text("") // Empty cell for leading blanks
-                            .frame(maxWidth: .infinity, minHeight: 40)
                     } else {
-                        // Optionally handle trailing blank days if necessary
-                        Text("")
+                        // For days outside the current month (e.g., trailing days of the next month if needed)
+                        Text("") // Empty cell for non-relevant days
                             .frame(maxWidth: .infinity, minHeight: 40)
                     }
                 }
@@ -88,27 +85,22 @@ struct CalendarView: View {
 
         var dates: [Date] = []
 
-        // Add leading empty days for alignment
         let weekdayOfFirstDay = calendar.component(.weekday, from: firstDayOfMonth)
         // Adjust for Sunday = 1, Monday = 2, etc., to match your calendar's start day (e.g., Sunday)
         let numberOfLeadingBlanks = (weekdayOfFirstDay - calendar.firstWeekday + 7) % 7
         for _ in 0..<numberOfLeadingBlanks {
-            dates.append(Date.distantPast) // Use a distinct placeholder for blank days
+            dates.append(Date.distantPast) 
         }
 
-        // Add days of the month
-        // Corrected enumerateDates usage
-        calendar.enumerateDates(
-            //in: monthInterval,
-            startingAfter: <#Date#>, matching: DateComponents(hour: 0, minute: 0, second: 0),
-            matchingPolicy: .strict,
-            using: { date, _, stop in
-                
-                if let date = date {
-                    dates.append(date)
-                }
-            }
-        )
+        // --- FIX STARTS HERE ---
+        // Iterate through each day in the month interval
+        var currentDay = monthInterval.start
+        while currentDay < monthInterval.end {
+            dates.append(currentDay)
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: currentDay) else { break }
+            currentDay = nextDay
+        }
+        // --- FIX ENDS HERE ---
 
         return dates
     }
@@ -131,10 +123,14 @@ struct DayCell: View {
     var body: some View {
         Button(action: action) {
             VStack {
-                Text(String(calendar.component(.day, from: date)))
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white : .primary)
+                if date != Date.distantPast {
+                    Text(String(calendar.component(.day, from: date)))
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(isSelected ? .white : .primary)
+                } else {
+                    Text("") 
+                }
             }
             .frame(width: 40, height: 40)
             .background(isSelected ? Color(hex: "#FF7029") : Color.clear)

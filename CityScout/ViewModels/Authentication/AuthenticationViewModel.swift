@@ -27,7 +27,6 @@ class AuthenticationViewModel: ObservableObject {
 
     init() {
         registerAuthStateHandler()
-        // Immediately try to check for an existing user on initialization
         Task { await checkCurrentUser() }
     }
 

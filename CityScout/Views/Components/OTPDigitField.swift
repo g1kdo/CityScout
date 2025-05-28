@@ -11,14 +11,13 @@ struct OTPDigitField: View {
 
     var body: some View {
         TextField("", text: $text)
-            .font(.title2) // Larger font for the digit
+            .font(.title2) 
             .multilineTextAlignment(.center)
             .keyboardType(.numberPad)
             .frame(width: 60, height: 60)
             .background(Color(.systemGray6))
             .cornerRadius(10)
             .onChange(of: text) { oldValue, newValue in
-                // Ensure only one digit is entered
                 if newValue.count > 1 {
                     text = String(newValue.prefix(1))
                 }

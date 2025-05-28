@@ -36,7 +36,7 @@ extension Color {
     }
 }
 
-extension Date { // Made public
+extension Date { 
     static let weekDays: [String] = ["S", "M", "T", "W", "T", "F", "S"]
     
     func startOfMonth() -> Date {

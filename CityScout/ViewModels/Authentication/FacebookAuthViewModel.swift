@@ -1,32 +1,31 @@
 //
-//  FacebookAuthViewModel.swift
-//  CityScout
+//  FacebookAuthViewModel.swift
+//  CityScout
 //
-//  Created by Umuco Auca on 20/05/2025.
+//  Created by Umuco Auca on 20/05/2025.
 //
 
 import Foundation
 import FirebaseAuth
 import FBSDKLoginKit
-import FacebookCore
+import FacebookCore // Make sure FacebookCore is imported for GraphRequest
 
 @MainActor
 class FacebookAuthViewModel: ObservableObject {
     @Published var errorMessage: String = ""
     @Published var isLoading: Bool = false
-    // Removed: @Published var userEmail: String?
-    // Removed: @Published var signedInUser: SignedInUser?
-    // Removed: private var authStateHandler: AuthStateDidChangeListenerHandle?
-    // Removed: init() and deinit() as they are no longer needed for authStateListener here
 
-    func signInWithFacebook() async -> FirebaseAuth.User? { // Returns Firebase User on success
+    @Published var facebookUserName: String?
+    @Published var facebookUserProfilePictureURL: URL?
+
+    func signInWithFacebook() async -> FirebaseAuth.User? {
         await MainActor.run {
             isLoading = true
             errorMessage = ""
+            facebookUserName = nil // Clear previous data
+            facebookUserProfilePictureURL = nil // Clear previous data
         }
 
-        // The Facebook SDK's LoginManager.logIn handles token expiration and permissions.
-        // We'll just initiate the login flow.
         return await performFacebookLogin()
     }
 
@@ -34,7 +33,6 @@ class FacebookAuthViewModel: ObservableObject {
         return await withCheckedContinuation { continuation in
             let loginManager = LoginManager()
 
-            // Request permissions during login.
             loginManager.logIn(permissions: ["public_profile", "email"], from: nil) { [weak self] result, error in
                 guard let self = self else {
                     continuation.resume(returning: nil)
@@ -70,7 +68,12 @@ class FacebookAuthViewModel: ObservableObject {
                         return
                     }
 
-                    // Proceed to authenticate with Firebase
+                    let facebookProfile = await self.fetchFacebookUserProfile()
+                    self.facebookUserName = facebookProfile?.name
+                    self.facebookUserProfilePictureURL = facebookProfile?.profilePictureURL
+                    print("Fetched Facebook User Name: \(self.facebookUserName ?? "N/A")")
+                    print("Fetched Facebook Profile Picture URL: \(self.facebookUserProfilePictureURL?.absoluteString ?? "N/A")")
+
                     let firebaseUser = await self.authenticateFirebaseWithFacebook(accessToken: accessToken)
                     continuation.resume(returning: firebaseUser)
                 }
@@ -80,13 +83,18 @@ class FacebookAuthViewModel: ObservableObject {
 
     private func authenticateFirebaseWithFacebook(accessToken: String) async -> FirebaseAuth.User? {
         await MainActor.run {
-            errorMessage = "" // Clear error before Firebase auth attempt
+            errorMessage = ""
         }
         let credential = FacebookAuthProvider.credential(withAccessToken: accessToken)
 
         do {
             let authResult = try await Auth.auth().signIn(with: credential)
             print("Successfully signed in with Facebook and Firebase!")
+
+            print("Firebase User Display Name: \(authResult.user.displayName ?? "N/A")")
+            print("Firebase User Photo URL: \(authResult.user.photoURL?.absoluteString ?? "N/A")")
+
+
             return authResult.user // Return the Firebase User
         } catch {
             errorMessage = "Firebase Facebook Auth Error: \(error.localizedDescription)"
@@ -95,9 +103,44 @@ class FacebookAuthViewModel: ObservableObject {
         }
     }
 
-    // Only log out from Facebook SDK, Firebase Auth will be handled by AuthenticationViewModel
+
+    private func fetchFacebookUserProfile() async -> (name: String?, profilePictureURL: URL?)? {
+        return await withCheckedContinuation { continuation in
+            let graphRequest = GraphRequest(graphPath: "me", parameters: ["fields": "name,picture.type(large)"])
+
+            graphRequest.start { connection, result, error in
+                if let error = error {
+                    print("Graph API Error: \(error.localizedDescription)")
+                    self.errorMessage = "Failed to fetch Facebook profile: \(error.localizedDescription)"
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                if let result = result as? [String: Any] {
+                    let name = result["name"] as? String
+
+                    var profilePictureURL: URL?
+                    if let pictureData = result["picture"] as? [String: Any],
+                       let data = pictureData["data"] as? [String: Any],
+                       let urlString = data["url"] as? String,
+                       let url = URL(string: urlString) {
+                        profilePictureURL = url
+                    }
+
+                    continuation.resume(returning: (name: name, profilePictureURL: profilePictureURL))
+                } else {
+                    print("Failed to parse Facebook Graph API response.")
+                    self.errorMessage = "Failed to parse Facebook profile data."
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+
     func signOutFacebookOnly() {
         LoginManager().logOut()
         print("Facebook account signed out from FBSDKLoginKit.")
+        facebookUserName = nil
+        facebookUserProfilePictureURL = nil
     }
 }
