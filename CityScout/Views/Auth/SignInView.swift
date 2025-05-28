@@ -1,19 +1,17 @@
-//
-// SignInView.swift
-// CityScout
-//
-// Created by Umuco Auca on 30/04/2025.
-//
 import SwiftUI
 import FirebaseAuth
 import AuthenticationServices
+import GoogleSignIn // Added for GIDSignIn, needed for signOut if social is linked
+import FacebookLogin // Added for FacebookLogin, needed for signOut if social is linked
 
 struct SignInView: View {
-    @StateObject private var viewModel = AuthenticationViewModel()
+    @StateObject private var viewModel = AuthenticationViewModel() // Main auth VM
     @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
     @StateObject private var appleAuthViewModel = AppleAuthViewModel()
     @StateObject private var facebookAuthViewModel = FacebookAuthViewModel()
-    @State private var shouldNavigateHome = false
+
+    // No longer need shouldNavigateHome, we'll observe viewModel.user
+    // @State private var shouldNavigateHome = false
     @State private var isSignUpActive = false
 
     var body: some View {
@@ -31,38 +29,45 @@ struct SignInView: View {
             .padding(.top, 10)
         }
         .navigationBarHidden(true)
-        // Corrected alert binding:
         .alert(isPresented: Binding(
-                   get: { viewModel.showAlert || googleAuthViewModel.errorMessage.isEmpty == false || facebookAuthViewModel.errorMessage.isEmpty == false || appleAuthViewModel.errorMessage.isEmpty == false },
-                   set: { _ in
-                       if viewModel.showAlert { viewModel.errorMessage = ""; viewModel.showAlert = false }
-                       if googleAuthViewModel.errorMessage.isEmpty == false { googleAuthViewModel.errorMessage = "" }
-                       if facebookAuthViewModel.errorMessage.isEmpty == false { facebookAuthViewModel.errorMessage = "" }
-                       if appleAuthViewModel.errorMessage.isEmpty == false { appleAuthViewModel.errorMessage = "" }
-                   }
-               )) {
-                   // Determine which error message to show
-                   if !viewModel.errorMessage.isEmpty {
-                       Alert(title: Text("Sign In Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
-                   } else if !googleAuthViewModel.errorMessage.isEmpty {
-                       Alert(title: Text("Google Sign In Error"), message: Text(googleAuthViewModel.errorMessage), dismissButton: .default(Text("OK")))
-                   } else if !facebookAuthViewModel.errorMessage.isEmpty {
-                       Alert(title: Text("Facebook Sign In Error"), message: Text(facebookAuthViewModel.errorMessage), dismissButton: .default(Text("OK")))
-                   } else if !appleAuthViewModel.errorMessage.isEmpty {
-                       Alert(title: Text("Apple Sign In Error"), message: Text(appleAuthViewModel.errorMessage), dismissButton: .default(Text("OK")))
-                   } else {
-                       Alert(title: Text("Unknown Error"), message: Text("An unexpected error occurred."), dismissButton: .default(Text("OK")))
-                   }
-               }
-        .navigationDestination(isPresented: $shouldNavigateHome) {
-         HomeView()
+            get: { viewModel.showAlert || googleAuthViewModel.errorMessage.isEmpty == false || facebookAuthViewModel.errorMessage.isEmpty == false || appleAuthViewModel.errorMessage.isEmpty == false },
+            set: { _ in
+                if viewModel.showAlert { viewModel.errorMessage = ""; viewModel.showAlert = false }
+                if googleAuthViewModel.errorMessage.isEmpty == false { googleAuthViewModel.errorMessage = "" }
+                if facebookAuthViewModel.errorMessage.isEmpty == false { facebookAuthViewModel.errorMessage = "" }
+                if appleAuthViewModel.errorMessage.isEmpty == false { appleAuthViewModel.errorMessage = "" }
+            }
+        )) {
+            // Determine which error message to show
+            if !viewModel.errorMessage.isEmpty {
+                Alert(title: Text("Sign In Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
+            } else if !googleAuthViewModel.errorMessage.isEmpty {
+                Alert(title: Text("Google Sign In Error"), message: Text(googleAuthViewModel.errorMessage), dismissButton: .default(Text("OK")))
+            } else if !facebookAuthViewModel.errorMessage.isEmpty {
+                Alert(title: Text("Facebook Sign In Error"), message: Text(facebookAuthViewModel.errorMessage), dismissButton: .default(Text("OK")))
+            } else if !appleAuthViewModel.errorMessage.isEmpty {
+                Alert(title: Text("Apple Sign In Error"), message: Text(appleAuthViewModel.errorMessage), dismissButton: .default(Text("OK")))
+            } else {
+                Alert(title: Text("Unknown Error"), message: Text("An unexpected error occurred."), dismissButton: .default(Text("OK")))
+            }
+        }
+        // Observe changes to viewModel.user to navigate
+        .fullScreenCover(item: $viewModel.signedInUser) { signedInUser in
+            // Pass the signedInUser object to HomeView
+            HomeView()
+                .environmentObject(viewModel) // Pass the authentication view model
         }
         .navigationDestination(isPresented: $isSignUpActive) {
             SignUpView() // Assuming you have a SignUpView
+                .environmentObject(viewModel) // Pass authVM to SignUpView as well
+        }
+        .onAppear {
+            // Check if a user is already signed in when the view appears
+            Task {
+                await viewModel.checkCurrentUser()
+            }
         }
     }
-
-    // --- Sections (as provided in the previous good response) ---
 
     private var headerSection: some View {
         VStack(spacing: 15) {
@@ -110,9 +115,7 @@ struct SignInView: View {
         Button {
             Task {
                 await viewModel.signIn()
-                if viewModel.errorMessage.isEmpty {
-                    shouldNavigateHome = true // Navigate on successful sign-in
-                }
+                // No need to set shouldNavigateHome here, the .fullScreenCover will react to viewModel.user
             }
         } label: {
             Group {
@@ -150,12 +153,10 @@ struct SignInView: View {
         HStack(spacing: 20) {
             Button {
                 Task {
-                    let success = await googleAuthViewModel.signInWithGoogle()
-                    if success {
+                    if let firebaseUser = await googleAuthViewModel.signInWithGoogle() {
                         print("Successfully signed in with Google")
-                        shouldNavigateHome = true // Navigate on successful Google sign-in
+//                        viewModel.user = try await viewModel.createSignedInUser(from: firebaseUser)
                     } else {
-                        // Pass the Google error to the main viewModel's alert system
                         viewModel.errorMessage = googleAuthViewModel.errorMessage
                         viewModel.showAlert = true
                     }
@@ -166,27 +167,40 @@ struct SignInView: View {
                     .frame(width: 40, height: 40)
             }
             Button {
-                // TODO: Implement Facebook Sign In
                 Task {
-                               let success = await facebookAuthViewModel.signInWithFacebook()
-                               if success {
-                                   print("Successfully signed in with Facebook")
-                                   shouldNavigateHome = true // Navigate on successful Facebook sign-in
-                               } else {
-                                   // Pass the Facebook error to the main viewModel's alert system
-                                   viewModel.errorMessage = facebookAuthViewModel.errorMessage
-                                   viewModel.showAlert = true
-                               }
-                           }
+                    // Assuming facebookAuthViewModel.signInWithFacebook() also returns FirebaseAuth.User?
+                    if let firebaseUser = await facebookAuthViewModel.signInWithFacebook() {
+                        print("Successfully signed in with Facebook")
+//                        viewModel.user = try await viewModel.createSignedInUser(from: firebaseUser)
+                    } else {
+                        viewModel.errorMessage = facebookAuthViewModel.errorMessage
+                        viewModel.showAlert = true
+                    }
+                }
             } label: {
                 Image("facebook_logo")
                     .resizable()
                     .frame(width: 40, height: 40)
             }
+            // Apple Sign-in integration would also need to result in a `FirebaseAuth.User`
             Button {
-                appleAuthViewModel.startSignInWithAppleFlow()
-                // You'll need to handle Apple sign-in results and potentially
-                // set viewModel.errorMessage and viewModel.showAlert based on its outcome.
+               // appleAuthViewModel.startSignInWithAppleFlow() // This will likely need a completion handler or publisher
+                // You'll need to observe the appleAuthViewModel for successful sign-in
+                // and then call viewModel.createSignedInUser(from: firebaseUser)
+                // and set viewModel.user.
+                Task {
+                               if let firebaseUser = await appleAuthViewModel.startSignInWithAppleFlow() {
+                                   print("Successfully signed in with Apple")
+                                   // The authStateDidChangeListener in AuthenticationViewModel
+                                   // will automatically pick up this firebaseUser and
+                                   // update viewModel.signedInUser. No need to assign here.
+                               } else {
+                                   // Handle the case where Apple sign-in failed or was cancelled
+                                   // The errorMessage should already be set by appleAuthViewModel
+                                   viewModel.errorMessage = appleAuthViewModel.errorMessage
+                                   viewModel.showAlert = true
+                               }
+                           }
             } label: {
                 Image("apple_logo")
                     .resizable()
@@ -210,7 +224,6 @@ struct SignInView: View {
         .padding(.bottom, 20)
     }
 }
-
 
 #Preview {
     SignInView()

@@ -3,43 +3,64 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var vm = HomeViewModel()
+    @State private var navigateToProfile = false
+    @State private var selectedDestination: Destination?
     @State private var selectedTab: FooterTab = .home
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                
-                // Top Bar
-                TopBarView()
-                    .environmentObject(authVM)
-                    .padding(.bottom, 25) // Custom bottom spacing for top bar
+            ZStack {
+                VStack(spacing: 0) {
+                    TopBarView()
+                        .environmentObject(authVM)
+                        .padding(.bottom, 25)
 
-                // Headline Section
-                headlineSection
-                    .padding(.bottom, 25) // Spacing below headline
+                    currentTabView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                // Section Header
-                sectionHeader
-                    .padding(.bottom, 35) // Spacing below section header
+                    FooterView(selected: $selectedTab)
+                }
+                .padding(.top, safeAreaTop())
+                .background(Color.white).ignoresSafeArea()
+                .navigationBarHidden(true)
 
-                // Carousel Section
-                carouselSection
-                    .padding(.bottom, 65) // Spacing below carousel
-
-                Spacer()
-
-                // Footer
-                FooterView(selected: $selectedTab)
+                // 🔐 Hidden navigation trigger
+                NavigationLink(
+                    destination: ProfileView().environmentObject(authVM),
+                    isActive: $navigateToProfile,
+                    label: { EmptyView() }
+                )
+                .hidden()
             }
-            .padding(.top, safeAreaTop()) // Keep safe area padding at the top
-            .background(Color.white).ignoresSafeArea()
-            .navigationBarHidden(true)
+            .onChange(of: selectedTab) { oldValue, newTab in
+                if newTab == .profile {
+                    navigateToProfile = true
+                }
+            }
+            .onChange(of: navigateToProfile) { oldValue, isActive in
+                if !isActive {
+                    selectedTab = .home // Reset to a default tab after going back
+                }
+            }
             .onAppear {
                 Task { await vm.loadDestinations() }
             }
+            .navigationDestination(isPresented: Binding<Bool>(
+                get: { selectedDestination != nil },
+                set: { if !$0 { selectedDestination = nil } }
+            )) {
+                if let dest = selectedDestination {
+                    DestinationDetailView(destination: dest)
+                }
+            }
+
+        
         }
+
+
     }
 
+    // Your existing HomeView sections go here, unchanged:
     // MARK: Headline—flush left
     private var headlineSection: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -81,12 +102,18 @@ struct HomeView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
                 ForEach(vm.destinations) { dest in
-                    DestinationCard(destination: dest)
+                    Button(action: {
+                        selectedDestination = dest
+                    }) {
+                        DestinationCard(destination: dest)
+                    }
+                    .buttonStyle(PlainButtonStyle()) // Prevent default button style interference
                 }
             }
             .padding(.horizontal)
         }
     }
+
 
     private func safeAreaTop() -> CGFloat {
         UIApplication.shared.connectedScenes
@@ -95,10 +122,44 @@ struct HomeView: View {
             .windows.first?
             .safeAreaInsets.top ?? 0
     }
+    
+    @ViewBuilder
+        private var currentTabView: some View { // This is the new helper property
+            switch selectedTab {
+            case .home:
+                VStack(spacing: 0) {
+                    headlineSection
+                        .padding(.bottom, 25)
+                    sectionHeader
+                        .padding(.bottom, 35)
+                    carouselSection
+                        .padding(.bottom, 65)
+                    Spacer()
+                }
+            case .calendar:
+                VStack {
+                    //Text("Calendar View Content")
+                    ScheduleView()
+                    Spacer()
+                }
+            case .search:
+                VStack {
+                    Text("Search View Content")
+                    Spacer()
+                }
+            case .saved:
+                VStack {
+                    Text("Saved View Content")
+                    Spacer()
+                }
+            case .profile:
+                Color.clear
+            }
+        }
 }
+
 
 #Preview {
     HomeView()
         .environmentObject(AuthenticationViewModel())
-
 }

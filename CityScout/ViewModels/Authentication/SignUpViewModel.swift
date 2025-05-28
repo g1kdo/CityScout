@@ -7,54 +7,79 @@
 
 import Foundation
 import FirebaseAuth
+import FirebaseFirestore
 
 @MainActor
 class SignUpViewModel: ObservableObject {
     @Published var fullName = ""
-    @Published var email = ""
+    @Published var email = "" // Corrected 'var email' from 'var var email'
     @Published var password = ""
     @Published var isLoading = false
     @Published var errorMessage = ""
-    @Published var successMessage = "" // New property for success
+    @Published var successMessage = ""
     @Published var showAlert = false
-    @Published var signedInUser: SignedInUser? = nil // Assuming SignedInUser is defined elsewhere
 
-    func signUpUser() async {
+    private var db = Firestore.firestore()
+
+    func signUpUser() async -> FirebaseAuth.User? {
+        defer {
+            isLoading = false
+        }
+
         guard !fullName.isEmpty, !email.isEmpty, !password.isEmpty else {
             errorMessage = "All fields must be filled."
-            showAlert = true // Show alert for validation error
-            return
+            showAlert = true
+            return nil
         }
 
         isLoading = true
-        errorMessage = "" // Clear previous error
-        successMessage = "" // Clear previous success
+        errorMessage = ""
+        successMessage = ""
 
         do {
             let result = try await Auth.auth().createUser(withEmail: email, password: password)
-            let fbUser = result.user
 
-            let profileChange = fbUser.createProfileChangeRequest()
+            // FIX: Explicitly declare fbUser as Optional<User> and cast result.user
+            // This forces the compiler to correctly treat it as an Optional.
+            let fbUser: FirebaseAuth.User? = result.user as FirebaseAuth.User?
+
+            guard let validFbUser = fbUser else { // This is line 46 now (approx, depending on line changes)
+                let error = NSError(domain: "SignUpViewModel", code: 5, userInfo: [NSLocalizedDescriptionKey: "Firebase user object is nil after successful sign-up."])
+                errorMessage = getAuthErrorMessage(error: error)
+                showAlert = true
+                return nil
+            }
+
+            let profileChange = validFbUser.createProfileChangeRequest()
             profileChange.displayName = fullName
             try await profileChange.commitChanges()
 
-            signedInUser = SignedInUser(
-                id: fbUser.uid,
-                displayName: fullName,
-                email: fbUser.email ?? "(unknown email)"
-            )
-            successMessage = "Account created successfully! Welcome \(fullName)." // Set success message
-            showAlert = true // Show success alert
-        } catch {
-            errorMessage = getAuthErrorMessage(error: error) // Use helper to get user-friendly message
-            showAlert = true // Show error alert
-            signedInUser = nil
-        }
+            let fullNameParts = fullName.split(separator: " ", maxSplits: 1).map(String.init)
+            let firstName = fullNameParts.first ?? ""
+            let lastName = fullNameParts.count > 1 ? fullNameParts[1] : ""
 
-        isLoading = false
+            let userData: [String: Any] = [
+                "email": validFbUser.email ?? "",
+                "displayName": fullName,
+                "firstName": firstName,
+                "lastName": lastName,
+                "uid": validFbUser.uid,
+                "createdAt": Timestamp()
+            ]
+
+            try await db.collection("users").document(validFbUser.uid).setData(userData)
+
+            successMessage = "Account created successfully! Welcome \(fullName)."
+            showAlert = true
+            print("Sign up successful. Returning Firebase User.")
+            return validFbUser
+        } catch {
+            errorMessage = getAuthErrorMessage(error: error)
+            showAlert = true
+            return nil
+        }
     }
 
-    // Helper to get more user-friendly Firebase Auth error messages
     private func getAuthErrorMessage(error: Error) -> String {
         if let errorCode = AuthErrorCode(rawValue: (error as NSError).code) {
             switch errorCode {
@@ -64,7 +89,6 @@ class SignUpViewModel: ObservableObject {
                 return "The email address is not valid."
             case .weakPassword:
                 return "The password is too weak. Please use a stronger password (at least 6 characters)."
-            // Add more cases as needed for specific AuthErrorCode values
             default:
                 return "Sign up failed: \(error.localizedDescription)"
             }

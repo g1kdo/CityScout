@@ -16,7 +16,6 @@ struct NotificationBell: View {
                 .font(.system(size: 20))
                 .foregroundColor(.black)
         }
-        // Place the badge on the top trailing of the ZStack
         .overlay(alignment: .topTrailing) {
             if unreadCount > 0 {
                 Text(unreadCount > 99 ? "99+" : "\(unreadCount)")
