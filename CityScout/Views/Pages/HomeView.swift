@@ -7,6 +7,8 @@ struct HomeView: View {
     @State private var selectedDestination: Destination?
     @State private var selectedTab: FooterTab = .home
 
+    @State private var showSearchView: Bool = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -24,7 +26,7 @@ struct HomeView: View {
                 .background(Color.white).ignoresSafeArea()
                 .navigationBarHidden(true)
 
-                // 🔐 Hidden navigation trigger
+                // 🔐 Hidden navigation trigger for ProfileView
                 NavigationLink(
                     destination: ProfileView().environmentObject(authVM),
                     isActive: $navigateToProfile,
@@ -35,11 +37,20 @@ struct HomeView: View {
             .onChange(of: selectedTab) { oldValue, newTab in
                 if newTab == .profile {
                     navigateToProfile = true
+                } else if newTab == .search {
+                    showSearchView = true
+                    // No need to set selectedTab here, it's already .search
                 }
             }
             .onChange(of: navigateToProfile) { oldValue, isActive in
                 if !isActive {
-                    selectedTab = .home // Reset to a default tab after going back
+                    selectedTab = .home
+                }
+            }
+            // MARK: NEW: Add onChange for showSearchView
+            .onChange(of: showSearchView) { oldValue, isPresented in
+                if !isPresented {
+                    selectedTab = .home
                 }
             }
             .onAppear {
@@ -53,11 +64,11 @@ struct HomeView: View {
                     DestinationDetailView(destination: dest)
                 }
             }
-
-        
+            .fullScreenCover(isPresented: $showSearchView){
+                SearchView()
+                    .environmentObject(vm)
+            }
         }
-
-
     }
 
     // Your existing HomeView sections go here, unchanged:
@@ -122,42 +133,37 @@ struct HomeView: View {
             .windows.first?
             .safeAreaInsets.top ?? 0
     }
-    
-    @ViewBuilder
-        private var currentTabView: some View { // This is the new helper property
-            switch selectedTab {
-            case .home:
-                VStack(spacing: 0) {
-                    headlineSection
-                        .padding(.bottom, 25)
-                    sectionHeader
-                        .padding(.bottom, 35)
-                    carouselSection
-                        .padding(.bottom, 65)
-                    Spacer()
-                }
-            case .calendar:
-                VStack {
-                    //Text("Calendar View Content")
-                    ScheduleView()
-                    Spacer()
-                }
-            case .search:
-                VStack {
-                    Text("Search View Content")
-                    Spacer()
-                }
-            case .saved:
-                VStack {
-                    Text("Saved View Content")
-                    Spacer()
-                }
-            case .profile:
-                Color.clear
-            }
-        }
-}
 
+    @ViewBuilder
+    private var currentTabView: some View {
+        switch selectedTab {
+        case .home:
+            VStack(spacing: 0) {
+                headlineSection
+                    .padding(.bottom, 25)
+                sectionHeader
+                    .padding(.bottom, 35)
+                carouselSection
+                    .padding(.bottom, 65)
+                Spacer()
+            }
+        case .calendar:
+            VStack {
+                ScheduleView()
+                Spacer()
+            }
+        case .search:
+            Color.clear
+        case .saved:
+            VStack {
+                Text("Saved View Content")
+                Spacer()
+            }
+        case .profile:
+            Color.clear
+        }
+    }
+}
 
 #Preview {
     HomeView()
