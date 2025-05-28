@@ -1,16 +1,15 @@
 import Foundation
-import FirebaseFirestore // Keep this if you're using Firestore in other parts of your app
+import FirebaseFirestore
 
-struct Destination: Identifiable, Codable { // Added Codable for consistency, useful for persistence or network
-    let id: String // Changed to String to better accommodate Firestore document IDs
+struct Destination: Identifiable, Codable, Equatable {
+    let id: String
     let name: String
     let imageName: String
     let rating: Double
     let location: String
-    let participantAvatars: [String] // these will be local asset names too
+    let participantAvatars: [String]
     let description: String
 
-    // Initializer to create a Destination from Firestore data
     init?(documentId: String, data: [String: Any]) {
         guard let name = data["name"] as? String,
               let imageName = data["imageName"] as? String,
@@ -29,7 +28,6 @@ struct Destination: Identifiable, Codable { // Added Codable for consistency, us
         self.description = description
     }
 
-    // Default initializer for creating local instances or samples
     init(id: String = UUID().uuidString, name: String, imageName: String, rating: Double, location: String, participantAvatars: [String], description: String) {
         self.id = id
         self.name = name
@@ -40,10 +38,17 @@ struct Destination: Identifiable, Codable { // Added Codable for consistency, us
         self.description = description
     }
 
-    // Static sample data using your new structure
+    // Static sample data (updated to match HomeViewModel's data more closely, for consistency)
     static let sampleDestinations: [Destination] = [
-        Destination(name: "Nyandungu Eco Park", imageName: "nyandungu_eco_park", rating: 4.5, location: "Kigali, Nyandungu", participantAvatars: ["avatar1", "avatar2"], description: "A beautiful eco-tourism park with wetlands and walking trails."),
-        Destination(name: "Kigali Genocide Memorial", imageName: "kigali_genocide_memorial", rating: 4.8, location: "Kigali, Gisozi", participantAvatars: ["avatar3", "avatar4"], description: "A poignant memorial honoring the victims of the 1994 Rwandan Genocide."),
-        Destination(name: "Kimironko Market", imageName: "kimironko_market", rating: 4.2, location: "Kigali, Kimironko", participantAvatars: ["avatar5", "avatar6"], description: "A vibrant and bustling local market offering a wide array of goods.")
+        Destination(id: "nyandungu", name: "Nyandungu Eco Park", imageName: "Nyandungu", rating: 4.8, location: "Kigali, Nyandungu", participantAvatars: ["LocalAvatarImage"], description: "A beautiful eco-tourism park."),
+        Destination(id: "convention", name: "Kigali Convention Center", imageName: "Convention", rating: 4.8, location: "Kigali, Bugesera", participantAvatars: ["LocalAvatarImage"], description: "The logo of Rwanda."),
+        Destination(id: "kimironko", name: "Kimironko Market", imageName: "KimironkoMarket", rating: 4.3, location: "Kigali, Kimironko", participantAvatars: ["LocalAvatarImage"], description: "A vibrant local market."),
+        Destination(id: "niyoart", name: "Niyo Art Gallery", imageName: "Artgallery", rating: 4.5, location: "Kigali, Kacyiru", participantAvatars: ["LocalAvatarImage"], description: "Showcases contemporary Rwandan art."),
+        Destination(id: "aonang", name: "Aonang Villa Resort", imageName: "AonangVillaResort", rating: 4.7, location: "Patras, Greece", participantAvatars: ["LocalAvatarImage"], description: "Luxurious resort in Greece."),
+        Destination(id: "serena", name: "Serena Resort", imageName: "SerenaResort", rating: 4.6, location: "Rubavu", participantAvatars: ["LocalAvatarImage"], description: "Lakeside escape in Rubavu."),
+        Destination(id: "kachura", name: "Kachura Resort", imageName: "KachuraResort", rating: 4.4, location: "NewPort, Rhode Island", participantAvatars: ["LocalAvatarImage"], description: "Charming coastal resort."),
+        Destination(id: "shakarudu", name: "Shakarudu Resort", imageName: "ShakaruduResort", rating: 4.9, location: "Sharjah, Dubai", participantAvatars: ["LocalAvatarImage"], description: "Exquisite resort in Dubai."),
+        Destination(id: "niladri", name: "Niladri Reservoir", imageName: "NiladriReservoir", rating: 4.1, location: "Tekergat, Sunamgnj", participantAvatars: ["LocalAvatarImage"], description: "A scenic reservoir."),
+        Destination(id: "casa", name: "Casa Las Tirtugas", imageName: "CasaLasTirtugas", rating: 4.6, location: "Av Damero, Mexico", participantAvatars: ["LocalAvatarImage"], description: "A beautiful retreat in Mexico.")
     ]
 }

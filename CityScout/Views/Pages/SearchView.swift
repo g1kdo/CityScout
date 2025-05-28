@@ -8,7 +8,7 @@ struct SearchView: View {
         VStack(spacing: 20) {
             SearchHeaderView(title: "Search") {
                 homeVM.searchText = ""
-                dismiss() 
+                dismiss()
             }
             .padding(.top, 10)
 
@@ -19,13 +19,11 @@ struct SearchView: View {
 
             if homeVM.isLoading {
                 ProgressView("Searching...")
-            } else if let errorMessage = homeVM.errorMessage { // Correct
+            } else if let errorMessage = homeVM.errorMessage {
                 Text(errorMessage)
                     .foregroundColor(.red)
                     .padding()
             } else if homeVM.searchText.isEmpty && homeVM.searchResults.isEmpty {
-                // This condition might need adjustment if you always want to show something when searchResults is empty,
-                // even if searchText is also empty (e.g., initial state or no results loaded yet).
                 Spacer()
                 Text("Start typing to find places...")
                     .foregroundColor(.gray)
@@ -36,20 +34,17 @@ struct SearchView: View {
                     .foregroundColor(.gray)
                 Spacer()
             } else {
-                // Section for "Search Places" or similar
-//                Text("Search Places")
-//                    .font(.headline)
-//                    .fontWeight(.bold)
-//                    .frame(maxWidth: .infinity, alignment: .leading)
-//                    .padding(.horizontal)
-//                    .padding(.top, 10)
-
                 // Grid of search results
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                         ForEach(homeVM.searchResults) { destination in
                             NavigationLink(destination: DestinationDetailView(destination: destination)) {
-                                DestinationSearchCard(destination: destination)
+                                DestinationSearchCard(
+                                    destination: destination,
+                                    isFavorite: homeVM.isFavorite(destination: destination)
+                                ) {
+                                    homeVM.toggleFavorite(destination: destination) // Toggle action
+                                }
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
@@ -63,13 +58,6 @@ struct SearchView: View {
         }
         .background(Color.white.ignoresSafeArea())
         .navigationBarHidden(true)
-        .onAppear {
-            // homeVM.isSearching = true // If 'isSearching' isn't needed or is managed differently, remove it
-            // Ensure search results are loaded or updated on appear if necessary
-            // For now, loadDestinations in HomeView handles initial population
-            // You might want to call homeVM.filterDestinations(for: homeVM.searchText) here
-            // if you want to re-run the filter when the search view appears again with existing text.
-        }
         .onDisappear {
             homeVM.searchText = ""
         }
@@ -78,7 +66,7 @@ struct SearchView: View {
 
 #Preview {
     let vm = HomeViewModel()
-    Task { await vm.loadDestinations() }
+    Task { await vm.loadDestinations() } 
     return SearchView()
         .environmentObject(vm)
 }

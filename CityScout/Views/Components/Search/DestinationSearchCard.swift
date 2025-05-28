@@ -1,26 +1,39 @@
 //
-//  DestinationSearchCard.swift
-//  CityScout
+//   DestinationSearchCard.swift
+//   CityScout
 //
-//  Created by Umuco Auca on 28/05/2025.
+//   Created by Umuco Auca on 28/05/2025.
 //
-
 
 import SwiftUI
 
 struct DestinationSearchCard: View {
     let destination: Destination
+    var isFavorite: Bool
+    let onFavoriteTapped: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(destination.imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 150, height: 120)
-                .cornerRadius(10)
-                .clipped()
-                .contentShape(Rectangle())
-                .drawingGroup()
+            ZStack(alignment: .topTrailing) {
+                
+                Image(destination.imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 150, height: 120)
+                    .cornerRadius(10)
+                    .clipped()
+                    .contentShape(Rectangle())
+                    .drawingGroup()
+
+                Button(action: onFavoriteTapped) {
+                    Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 16))
+                        .foregroundColor(isFavorite ? .red : .white)
+                        .shadow(radius: 2)
+                        .padding(6)
+                }
+                .padding(4)
+            }
 
             Text(destination.name)
                 .font(.subheadline)
@@ -49,7 +62,11 @@ struct DestinationSearchCard: View {
 }
 
 #Preview {
-    DestinationSearchCard(destination: Destination.sampleDestinations[0])
-        .previewLayout(.sizeThatFits)
-        .padding()
+    DestinationSearchCard(
+        destination: Destination.sampleDestinations[0],
+        isFavorite: true, // For preview
+        onFavoriteTapped: { print("Search card favorite tapped!") }
+    )
+    .previewLayout(.sizeThatFits)
+    .padding()
 }

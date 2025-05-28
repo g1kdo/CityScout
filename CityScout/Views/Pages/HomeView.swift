@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var selectedTab: FooterTab = .home
 
     @State private var showSearchView: Bool = false
+    @State private var showPopularPlacesView: Bool = false 
 
     var body: some View {
         NavigationStack {
@@ -26,7 +27,6 @@ struct HomeView: View {
                 .background(Color.white).ignoresSafeArea()
                 .navigationBarHidden(true)
 
-                // 🔐 Hidden navigation trigger for ProfileView
                 NavigationLink(
                     destination: ProfileView().environmentObject(authVM),
                     isActive: $navigateToProfile,
@@ -39,7 +39,6 @@ struct HomeView: View {
                     navigateToProfile = true
                 } else if newTab == .search {
                     showSearchView = true
-                    // No need to set selectedTab here, it's already .search
                 }
             }
             .onChange(of: navigateToProfile) { oldValue, isActive in
@@ -47,10 +46,14 @@ struct HomeView: View {
                     selectedTab = .home
                 }
             }
-            // MARK: NEW: Add onChange for showSearchView
             .onChange(of: showSearchView) { oldValue, isPresented in
                 if !isPresented {
                     selectedTab = .home
+                }
+            }
+            .onChange(of: showPopularPlacesView) { oldValue, isPresented in
+                if !isPresented {
+                    selectedTab = .home // Reset tab when PopularPlacesView is dismissed
                 }
             }
             .onAppear {
@@ -64,6 +67,10 @@ struct HomeView: View {
                     DestinationDetailView(destination: dest)
                 }
             }
+            .navigationDestination(isPresented: $showPopularPlacesView) {
+                PopularPlacesView()
+                    .environmentObject(vm) // Pass the HomeViewModel
+            }
             .fullScreenCover(isPresented: $showSearchView){
                 SearchView()
                     .environmentObject(vm)
@@ -71,8 +78,6 @@ struct HomeView: View {
         }
     }
 
-    // Your existing HomeView sections go here, unchanged:
-    // MARK: Headline—flush left
     private var headlineSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Explore the")
@@ -95,20 +100,20 @@ struct HomeView: View {
         .padding(.horizontal)
     }
 
-    // MARK: Section Header
     private var sectionHeader: some View {
         HStack {
             Text("Best Destinations")
                 .font(.headline).bold()
             Spacer()
-            Button("View all") { }
-                .font(.subheadline)
-                .foregroundColor(Color(hex: "#FF7029"))
+            Button("View all") {
+                showPopularPlacesView = true // Trigger navigation to PopularPlacesView
+            }
+            .font(.subheadline)
+            .foregroundColor(Color(hex: "#FF7029"))
         }
         .padding(.horizontal)
     }
 
-    // MARK: Carousel
     private var carouselSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
@@ -116,15 +121,17 @@ struct HomeView: View {
                     Button(action: {
                         selectedDestination = dest
                     }) {
-                        DestinationCard(destination: dest)
+                       
+                        HomeDestinationCard(destination: dest, isFavorite: vm.isFavorite(destination: dest)) {
+                            vm.toggleFavorite(destination: dest)
+                        }
                     }
-                    .buttonStyle(PlainButtonStyle()) // Prevent default button style interference
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(.horizontal)
         }
     }
-
 
     private func safeAreaTop() -> CGFloat {
         UIApplication.shared.connectedScenes
@@ -155,10 +162,8 @@ struct HomeView: View {
         case .search:
             Color.clear
         case .saved:
-            VStack {
-                Text("Saved View Content")
-                Spacer()
-            }
+            FavoritePlacesView()
+                .environmentObject(vm) // Pass the HomeViewModel
         case .profile:
             Color.clear
         }

@@ -1,11 +1,21 @@
+//
+//  HomeDestinationCard.swift
+//  CityScout
+//
+//  Created by Umuco Auca on 28/05/2025.
+//
+
+
 import SwiftUI
 
-struct DestinationCard: View {
+struct HomeDestinationCard: View {
     let destination: Destination
+    var isFavorite: Bool
+    let onFavoriteTapped: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // ─── Image ──────────────────────────────────────────
+            // --- Image ---
             ZStack(alignment: .topTrailing) {
                 Image(destination.imageName)
                     .resizable()
@@ -14,21 +24,24 @@ struct DestinationCard: View {
                     .clipped()
                     .cornerRadius(16)
 
-                Image(systemName: "bookmark")
-                    .font(.system(size: 20))
-                    .padding(12)
-                    .background(Color.white.opacity(0.8))
-                    .clipShape(Circle())
-                    .padding(10)
+                Button(action: onFavoriteTapped) {
+                    Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 20))
+                        .foregroundColor(isFavorite ? .red : .primary)
+                        .padding(12)
+                        .background(Color.white.opacity(0.8))
+                        .clipShape(Circle())
+                }
+                .padding(10)
             }
 
-            // ─── Title & Rating ──────────────────────────────────
+            // --- Title & Rating ---
             HStack {
                 Text(destination.name)
                     .font(.headline)
-                    .lineLimit(1)                     // Prevent wrapping
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 HStack(spacing: 4) {
                     Image(systemName: "star.fill")
                         .foregroundColor(.yellow)
@@ -38,7 +51,7 @@ struct DestinationCard: View {
             }
             .padding(.horizontal, 12)
 
-            // ─── Location & Avatars ─────────────────────────────
+            // --- Location & Avatars ---
             HStack {
                 HStack(spacing: 4) {
                     Image(systemName: "mappin.and.ellipse")
@@ -46,7 +59,7 @@ struct DestinationCard: View {
                     Text(destination.location)
                         .font(.subheadline)
                         .foregroundColor(.gray)
-                        .lineLimit(1)                 // Prevent wrapping
+                        .lineLimit(1)
                 }
 
                 Spacer()
@@ -68,11 +81,29 @@ struct DestinationCard: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
         }
-        .frame(width: 260)                          // Fixed width ensures uniform layout
+        .frame(width: 260) 
         .background(Color.white)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
     }
 }
 
+#Preview {
+    HomeDestinationCard(
+        destination: Destination.sampleDestinations[0],
+        isFavorite: false, // For preview
+        onFavoriteTapped: { print("Home card favorite tapped!") }
+    )
+    .previewLayout(.sizeThatFits)
+    .padding()
+}
 
+#Preview {
+    HomeDestinationCard(
+        destination: Destination.sampleDestinations[1],
+        isFavorite: true, // For preview
+        onFavoriteTapped: { print("Home card favorite tapped!") }
+    )
+    .previewLayout(.sizeThatFits)
+    .padding()
+}
