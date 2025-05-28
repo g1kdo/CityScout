@@ -15,14 +15,13 @@ struct DestinationDetailView: View {
                 .frame(width: UIScreen.main.bounds.width, height: headerHeight)
                 .clipped()
                 .ignoresSafeArea(edges: .top)
-            
+
             // "Details" text at the top, mimicking the image
             Text("Details")
                 .font(.headline)
                 .foregroundColor(.white)
                 .padding(.top, safeAreaTop() + 10) // Adjust padding to match image
                 .frame(maxWidth: .infinity, alignment: .center) // Center the text
-
 
             // 2. Detail content panel overlapping image
             VStack(spacing: 0) {
@@ -54,25 +53,29 @@ struct DestinationDetailView: View {
                                 Image(systemName: "mappin.and.ellipse")
                                     .font(.subheadline) // Adjust font size
                                     .foregroundColor(.gray) // Adjust color
+                              
                                 Text(destination.location)
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                             }
-                            // Removed spacer here to keep elements close
+                          
                             HStack(spacing: 4) {
                                 Image(systemName: "star.fill")
                                     .foregroundColor(.yellow)
                                 Text(String(format: "%.1f", destination.rating))
                                     .font(.subheadline)
+
                                 Text("(\(2498))") // Hardcoded 2498 as per image
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             }
                             Spacer() // Push price to the right
+
                             Text("$59/Person")
                                 .font(.subheadline)
                                 .foregroundColor(Color(hex: "#24BAEC"))
                         }
+
 
                         // Gallery thumbnails
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -87,6 +90,7 @@ struct DestinationDetailView: View {
                                 }
                                 if destination.participantAvatars.count > 5 {
                                     let more = destination.participantAvatars.count - 5
+                                  
                                     Text("+\(more)")
                                         .font(.subheadline).bold()
                                         .frame(width: 60, height: 60)
@@ -109,6 +113,7 @@ struct DestinationDetailView: View {
                                 Button("Read More") { showFullDescription = true }
                                     .font(.subheadline)
                                     .foregroundColor(Color(hex: "#FF7029")) // Keeping existing color
+
                             }
                         }
 
