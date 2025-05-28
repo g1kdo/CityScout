@@ -21,7 +21,6 @@ struct TopBarView: View {
                                 .frame(width: 32, height: 32)
                         }
                     } else {
-                        // Fallback to local avatar image if no URL
                         Image("LocalAvatarImage")
                             .resizable()
                             .scaledToFill()
@@ -33,7 +32,6 @@ struct TopBarView: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                 } else {
-                    // Show a placeholder or loading indicator when user is not yet loaded
                     ProgressView()
                         .frame(width: 32, height: 32)
                 }

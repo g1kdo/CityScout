@@ -16,30 +16,12 @@ struct DestinationDetailView: View {
                 .clipped()
                 .ignoresSafeArea(edges: .top)
 
-            // Navigation bar overlay with title
-            HStack {
-                Button(action: { /* pop navigation */ }) {
-                    Image(systemName: "chevron.left")
-                        .font(.title2)
-                        .foregroundColor(.white)
-                        .padding(10)
-                        .background(Circle().fill(Color.black.opacity(0.3)))
-                }
-                Spacer()
-                Text("Details")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                Spacer()
-                Button(action: { /* bookmark action */ }) {
-                    Image(systemName: "bookmark")
-                        .font(.title2)
-                        .foregroundColor(.white)
-                        .padding(10)
-                        .background(Circle().fill(Color.black.opacity(0.3)))
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top, safeAreaTop())
+            // "Details" text at the top, mimicking the image
+            Text("Details")
+                .font(.headline)
+                .foregroundColor(.white)
+                .padding(.top, safeAreaTop() + 10) // Adjust padding to match image
+                .frame(maxWidth: .infinity, alignment: .center) // Center the text
 
             // 2. Detail content panel overlapping image
             VStack(spacing: 0) {
@@ -57,53 +39,67 @@ struct DestinationDetailView: View {
                                     .foregroundColor(.gray)
                             }
                             Spacer()
-                            AvatarViewLocal(imageName: "LocalAvatarImage", size: 44)
+                            // Assuming 'LocalAvatarImage' is the image of the person
+                            Image("LocalAvatarImage") // Replace with actual image name if different
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 44, height: 44)
+                                .clipShape(Circle())
                         }
 
                         // Info row: location, rating, price
-                        HStack(spacing: 16) {
+                        HStack(spacing: 8) { // Reduced spacing
                             HStack(spacing: 4) {
                                 Image(systemName: "mappin.and.ellipse")
+                                    .font(.subheadline) // Adjust font size
+                                    .foregroundColor(.gray) // Adjust color
+                              
                                 Text(destination.location)
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                             }
+                          
                             HStack(spacing: 4) {
                                 Image(systemName: "star.fill")
                                     .foregroundColor(.yellow)
                                 Text(String(format: "%.1f", destination.rating))
                                     .font(.subheadline)
-                                Text("(\(destination.participantAvatars.count))")
+
+                                Text("(\(2498))") // Hardcoded 2498 as per image
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             }
-                            Spacer()
+                            Spacer() // Push price to the right
+
                             Text("$59/Person")
                                 .font(.subheadline)
                                 .foregroundColor(Color(hex: "#24BAEC"))
                         }
 
-                        // Gallery thumbnails with +N
+
+                        // Gallery thumbnails
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
-                                let items = destination.participantAvatars.prefix(4)
-                                ForEach(Array(items), id: \.self) { img in
-                                    Image(img)
+                                // Assuming your 'img1', 'img2', etc., are the images for the thumbnails
+                                ForEach(0..<min(destination.participantAvatars.count, 5), id: \.self) { index in
+                                    Image(destination.participantAvatars[index])
                                         .resizable()
-                                        .aspectRatio(1, contentMode: .fill)
+                                        .aspectRatio(contentMode: .fill)
                                         .frame(width: 60, height: 60)
                                         .cornerRadius(12)
                                 }
-                                if destination.participantAvatars.count > 4 {
-                                    let more = destination.participantAvatars.count - 4
+                                if destination.participantAvatars.count > 5 {
+                                    let more = destination.participantAvatars.count - 5
+                                  
                                     Text("+\(more)")
                                         .font(.subheadline).bold()
                                         .frame(width: 60, height: 60)
                                         .background(Color.gray.opacity(0.2))
                                         .cornerRadius(12)
+                                        .foregroundColor(.black) // Ensure text is visible
                                 }
                             }
-                            .padding(.vertical, 8)
+                            .padding(.vertical, 8) // This padding looks good
                         }
 
                         // About section
@@ -113,10 +109,11 @@ struct DestinationDetailView: View {
                             Text(showFullDescription ? (destination.description ?? "") : shortDescription)
                                 .font(.body)
                                 .foregroundColor(.gray)
-                            if !showFullDescription {
+                            if !showFullDescription && (destination.description ?? "").count > 200 { // Only show "Read More" if description is actually truncated
                                 Button("Read More") { showFullDescription = true }
                                     .font(.subheadline)
-                                    .foregroundColor(Color(hex: "#FF7029"))
+                                    .foregroundColor(Color(hex: "#FF7029")) // Keeping existing color
+
                             }
                         }
 
@@ -145,12 +142,14 @@ struct DestinationDetailView: View {
                 .padding(.bottom, safeAreaBottom())
             }
         }
+        .ignoresSafeArea() // Ignore safe area for the whole ZStack to allow image to go to very top
     }
 
     private var shortDescription: String {
         let text = destination.description ?? "No description available."
-        if text.count > 200 && !showFullDescription {
-            let idx = text.index(text.startIndex, offsetBy: 200)
+        // Using a hardcoded length for truncation based on the image's appearance
+        if text.count > 150 && !showFullDescription { // Adjusted truncation length
+            let idx = text.index(text.startIndex, offsetBy: 150)
             return String(text[..<idx]) + "..."
         }
         return text
@@ -186,10 +185,10 @@ struct RoundedCorners: Shape {
 #Preview {
     DestinationDetailView(destination: Destination(
         name: "Nyandungu Eco Park",
-        imageName: "Nyandungu",
+        imageName: "EcoPark", // Changed to a more generic name for preview image
         rating: 4.7,
         location: "Kigali, Nyandungu",
-        participantAvatars: ["img1","img2","img3","img4","img5","img6"],
-        description: "You will get a complete travel package on the beaches..."
+        participantAvatars: ["thumb1","thumb2","thumb3","thumb4","thumb5","thumb6"], // Example image names
+        description: "You will get a complete travel package on the beaches, including airline tickets, recommended hotel rooms, transportation, and everything you need for your holiday to the Greek Islands, for example. Explore the stunning landscapes and diverse wildlife that make this eco park a truly unique destination. Perfect for nature lovers and adventurers alike."
     ))
 }
