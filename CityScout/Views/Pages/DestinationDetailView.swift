@@ -1,194 +1,230 @@
 import SwiftUI
 
 struct DestinationDetailView: View {
-    let destination: Destination
-    @State private var showFullDescription = false
-    private let detailCornerRadius: CGFloat = 24
-    private let headerHeight: CGFloat = 350
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            // 1. Fullscreen header image
-            Image(destination.imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: UIScreen.main.bounds.width, height: headerHeight)
-                .clipped()
-                .ignoresSafeArea(edges: .top)
-
-            // "Details" text at the top, mimicking the image
-            Text("Details")
-                .font(.headline)
-                .foregroundColor(.white)
-                .padding(.top, safeAreaTop() + 10) // Adjust padding to match image
-                .frame(maxWidth: .infinity, alignment: .center) // Center the text
-
-            // 2. Detail content panel overlapping image
-            VStack(spacing: 0) {
-                Spacer().frame(height: headerHeight - detailCornerRadius)
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        // Title & avatar
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(destination.name)
-                                    .font(.title2).bold()
-                                Text(destination.location)
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                            }
-                            Spacer()
-                            // Assuming 'LocalAvatarImage' is the image of the person
-                            Image("LocalAvatarImage") // Replace with actual image name if different
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 44, height: 44)
-                                .clipShape(Circle())
-                        }
-
-                        // Info row: location, rating, price
-                        HStack(spacing: 8) { // Reduced spacing
-                            HStack(spacing: 4) {
-                                Image(systemName: "mappin.and.ellipse")
-                                    .font(.subheadline) // Adjust font size
-                                    .foregroundColor(.gray) // Adjust color
-                              
-                                Text(destination.location)
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                            }
-                          
-                            HStack(spacing: 4) {
-                                Image(systemName: "star.fill")
-                                    .foregroundColor(.yellow)
-                                Text(String(format: "%.1f", destination.rating))
-                                    .font(.subheadline)
-
-                                Text("(\(2498))") // Hardcoded 2498 as per image
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            Spacer() // Push price to the right
-
-                            Text("$59/Person")
-                                .font(.subheadline)
-                                .foregroundColor(Color(hex: "#24BAEC"))
-                        }
+  let destination: Destination
+  @State private var showFullDescription = false
+    @Environment(\.dismiss) private var dismiss
 
 
-                        // Gallery thumbnails
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                // Assuming your 'img1', 'img2', etc., are the images for the thumbnails
-                                ForEach(0..<min(destination.participantAvatars.count, 5), id: \.self) { index in
-                                    Image(destination.participantAvatars[index])
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 60, height: 60)
-                                        .cornerRadius(12)
-                                }
-                                if destination.participantAvatars.count > 5 {
-                                    let more = destination.participantAvatars.count - 5
-                                  
-                                    Text("+\(more)")
-                                        .font(.subheadline).bold()
-                                        .frame(width: 60, height: 60)
-                                        .background(Color.gray.opacity(0.2))
-                                        .cornerRadius(12)
-                                        .foregroundColor(.black) // Ensure text is visible
-                                }
-                            }
-                            .padding(.vertical, 8) // This padding looks good
-                        }
+  // tweak these to taste
+  private let headerHeight: CGFloat = 350
+  private let detailCornerRadius: CGFloat  = 32
+  private let overlapAmount: CGFloat = 60
 
-                        // About section
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("About Destination")
-                                .font(.headline)
-                            Text(showFullDescription ? (destination.description ?? "") : shortDescription)
-                                .font(.body)
-                                .foregroundColor(.gray)
-                            if !showFullDescription && (destination.description ?? "").count > 200 { // Only show "Read More" if description is actually truncated
-                                Button("Read More") { showFullDescription = true }
-                                    .font(.subheadline)
-                                    .foregroundColor(Color(hex: "#FF7029")) // Keeping existing color
+  var body: some View {
+    ZStack(alignment: .top) {
+      // ── 1) Header Image ─────────────────────
+      Image(destination.imageName)
+        .resizable()
+        .scaledToFill()
+        .frame(height: headerHeight)
+        .frame(maxWidth: .infinity)
+        .clipped()
+       
+        .ignoresSafeArea(edges: .top)
+     
 
-                            }
-                        }
-
-                        Spacer().frame(height: 0)
-                    }
-                    .padding()
-                    .background(
-                        Color.white
-                            .clipShape(RoundedCorners(radius: detailCornerRadius, corners: [.topLeft, .topRight]))
-                    )
-                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: -4)
-                }
-
-                // Book Now button outside container
-                Button(action: { /* book action */ }) {
-                    Text("Book Now")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(hex: "#24BAEC"))
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 16)
-                .padding(.bottom, safeAreaBottom())
-            }
+      // ── 2) Custom Nav Bar ───────────────────
+      HStack {
+          Button {
+              dismiss()
+          }
+          label: {
+          Image(systemName: "chevron.left")
+            .foregroundColor(.white)
+            .padding(8)
+            .background(Circle().fill(Color.black.opacity(0.3)))
         }
-        .ignoresSafeArea() // Ignore safe area for the whole ZStack to allow image to go to very top
-    }
-
-    private var shortDescription: String {
-        let text = destination.description ?? "No description available."
-        // Using a hardcoded length for truncation based on the image's appearance
-        if text.count > 150 && !showFullDescription { // Adjusted truncation length
-            let idx = text.index(text.startIndex, offsetBy: 150)
-            return String(text[..<idx]) + "..."
+        Spacer()
+        Text("Details")
+          .font(.headline)
+          .foregroundColor(.white)
+        Spacer()
+        Button { /* bookmark */ } label: {
+          Image(systemName: "bookmark")
+            .foregroundColor(.white)
+            .padding(8)
+            .background(Circle().fill(Color.black.opacity(0.3)))
         }
-        return text
-    }
+      }
+      .padding(.horizontal)
+     
 
-    private func safeAreaTop() -> CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 0
-    }
+      // ── 3) Overlapping Card + Button ────────
+      VStack(spacing: 0) {
+        // push down so card overlaps by exactly overlapAmount
+        Spacer().frame(height: headerHeight - overlapAmount)
 
-    private func safeAreaBottom() -> CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.bottom ?? 0
-    }
-}
-
-// Shape to round specific corners
-struct RoundedCorners: Shape {
-    var radius: CGFloat
-    var corners: UIRectCorner
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
+        // white card
+        VStack(spacing: 16) {
+          headerRow
+          statsRow
+          galleryRow
+          aboutRow
+            
+          Spacer(minLength: 0)
+        }
+        .padding()
+        .background(
+          Color.white
+            .clipShape(
+              RoundedCorners(radius: detailCornerRadius, corners: [.topLeft, .topRight])
+            )
         )
-        return Path(path.cgPath)
+        .offset(y: -(detailCornerRadius))
+
+        // Book Now button
+        Button("Book Now") { /* book action */ }
+          .font(.headline)
+          .foregroundColor(.white)
+          .frame(maxWidth: .infinity)
+          .padding()
+          .background(Color(hex: "#24BAEC"))
+          .cornerRadius(12)
+          .padding(.horizontal)
+          .padding(.bottom, safeBottom())
+      }
     }
+  }
+
+  // ── Sections ───────────────────────────────
+
+  private var headerRow: some View {
+    HStack {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(destination.name)
+          .font(.title2).bold()
+        Text(destination.location)
+          .font(.subheadline)
+          .foregroundColor(.gray)
+      }
+      Spacer()
+      Image("LocalAvatarImage")
+        .resizable()
+        .frame(width: 44, height: 44)
+        .clipShape(Circle())
+    }
+  }
+
+  private var statsRow: some View {
+    HStack(spacing: 16) {
+      HStack(spacing: 4) {
+        Image(systemName: "mappin.and.ellipse")
+        Text(destination.location)
+      }
+      .font(.subheadline).foregroundColor(.gray)
+
+      HStack(spacing: 4) {
+        Image(systemName: "star.fill").foregroundColor(.yellow)
+        Text(String(format: "%.1f", destination.rating))
+        Text("(2498)")
+      }
+      .font(.subheadline)
+      .foregroundColor(.gray)
+
+      Spacer()
+
+      Text("$59/Person")
+        .font(.subheadline)
+        .foregroundColor(Color(hex: "#24BAEC"))
+    }
+  }
+
+  private var galleryRow: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 12) {
+        let thumbs = destination.participantAvatars.prefix(5)
+        ForEach(Array(thumbs), id: \.self) { img in
+          Image(img)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 60, height: 60)
+            .cornerRadius(12)
+        }
+        if destination.participantAvatars.count > 5 {
+          let more = destination.participantAvatars.count - 5
+          Text("+\(more)")
+            .font(.subheadline).bold()
+            .frame(width: 60, height: 60)
+            .background(Color.gray.opacity(0.2))
+            .cornerRadius(12)
+            .foregroundColor(.black)
+        }
+      }
+      .padding(.vertical, 8)
+    }
+  }
+
+  private var aboutRow: some View {
+      VStack(alignment: .leading, spacing: 4) {
+        let full = destination.description
+        let truncated = String(full.prefix(150)) + "…"
+
+        Text(showFullDescription ? full : truncated)
+          .font(.body)
+          .foregroundColor(.gray)
+
+        if !showFullDescription && full.count > 150 {
+          Button("Read More") {
+            withAnimation { showFullDescription = true }
+          }
+          .font(.subheadline)
+          .foregroundColor(Color(hex: "#FF7029"))
+        }
+      }
+
+      
+  }
+
+  // ── Safe-area helpers ──────────────────────
+
+    private func safeTop() -> CGFloat {
+      UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .first?
+        .windows
+        .first?
+        .safeAreaInsets.top ?? 0
+    }
+
+    private func safeBottom() -> CGFloat {
+      UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .first?
+        .windows
+        .first?
+        .safeAreaInsets.bottom ?? 0
+    }
+
 }
 
-#Preview {
-    DestinationDetailView(destination: Destination(
+// ── Only helper in this file ───────────────
+
+struct RoundedCorners: Shape {
+  var radius: CGFloat
+  var corners: UIRectCorner
+  func path(in rect: CGRect) -> Path {
+    Path(UIBezierPath(
+      roundedRect: rect,
+      byRoundingCorners: corners,
+      cornerRadii: CGSize(width: radius, height: radius)
+    ).cgPath)
+  }
+}
+
+// ── Preview ─────────────────────────────────
+
+struct DestinationDetailView_Previews: PreviewProvider {
+  static var previews: some View {
+    DestinationDetailView(destination:
+      Destination(
         name: "Nyandungu Eco Park",
-        imageName: "Nyandungu", // Changed to a more generic name for preview image
+        imageName: "Nyandungu",
         rating: 4.7,
-        location: "Kigali, Nyandungu",
-        participantAvatars: ["Nyandungu","Nyandungu","Nyandungu","Nyandungu","Nyandungu","Nyandungu"], // Example image names
-        description: "You will get a complete travel package on the beaches, including airline tickets, recommended hotel rooms, transportation, and everything you need for your holiday to the Greek Islands, for example. Explore the stunning landscapes and diverse wildlife that make this eco park a truly unique destination. Perfect for nature lovers and adventurers alike."
-    ))
+        location:    "Kigali, Nyandungu",
+        participantAvatars: Array(repeating: "Nyandungu", count: 8),
+        description: String(repeating: "This is an amazing spot. ", count: 20)
+      )
+    )
+  }
 }

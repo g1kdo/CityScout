@@ -1,11 +1,13 @@
 import SwiftUI
 
-struct ExactReplicaPageView: View {
+struct OnMapView: View {
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 // MARK: - 1. Main Background Image (Full Screen)
-                Image("Convention")
+                Image("NyandunguMap")
                     .resizable()
                     .scaledToFill()
                     .frame(minWidth: geometry.size.width, minHeight: geometry.size.height)
@@ -19,14 +21,15 @@ struct ExactReplicaPageView: View {
                 // MARK: - 3. Top Navigation Bar
                 VStack {
                     HStack {
-                        // Back Button
-                        Button(action: {
-                            print("Back button tapped")
-                        }) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white)
+                        Button {
+                            dismiss()
                         }
+                        label: {
+                        Image(systemName: "chevron.left")
+                          .foregroundColor(.white)
+                          .padding(13)
+                          .background(Circle().fill(Color.black.opacity(0.3)))
+                      }
 
                         Spacer()
 
@@ -38,12 +41,11 @@ struct ExactReplicaPageView: View {
                         Spacer()
 
                         // Three Dots Menu Button
-                        Button(action: {
-                            print("Ellipsis menu tapped")
-                        }) {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white)
+                        Button { /* bookmark */ } label: {
+                          Image(systemName: "ellipsis")
+                            .foregroundColor(.white)
+                            .padding(15)
+                            .background(Circle().fill(Color.black.opacity(0.3)))
                         }
                     }
                     .padding(.horizontal, 20)
@@ -52,21 +54,9 @@ struct ExactReplicaPageView: View {
                     Spacer()
                 }
 
-                // MARK: - 4. La-Hotel Card with connecting line and dot
+                // MARK: - 4. La-Hotel Card with connecting vector
                 ZStack {
-                    // Connecting line from card to dot
-                    Path { path in
-                        let cardX = geometry.size.width * 0.75
-                        let cardY = geometry.size.height * 0.25
-                        let dotX = geometry.size.width * 0.85
-                        let dotY = geometry.size.height * 0.35
-                        
-                        path.move(to: CGPoint(x: cardX + 20, y: cardY + 30))
-                        path.addLine(to: CGPoint(x: dotX, y: dotY))
-                    }
-                    .stroke(Color.white.opacity(0.6), lineWidth: 2)
-                    
-                    // La-Hotel Card
+                    // Card itself
                     HStack(spacing: 12) {
                         Image("Convention")
                             .resizable()
@@ -76,52 +66,44 @@ struct ExactReplicaPageView: View {
                             .clipped()
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("La-Hotel")
+                            Text("Raddison Blu")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.white)
 
-                            Text("2.09 mi")
+                            Text("2.09 m")
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray)
                         }
-                        
+
                         Spacer()
                     }
                     .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.black.opacity(0.8))
+                            .fill(Color.black.opacity(0.6))
                     )
-                    .frame(width: 160)
+                    .frame(width: 180)
                     .position(
                         x: geometry.size.width * 0.75,
                         y: geometry.size.height * 0.25
                     )
-                    
-                    // Blue dot for La-Hotel
-                    Circle()
-                        .fill(Color.cyan)
-                        .frame(width: 12, height: 12)
+
+                    // → Your vector image (line + dot) just below the card
+                    Image("pointer_icon")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        // tweak width/height to match design
+                        .frame(width: 120, height: 60)
+                        // position so it anchors at the bottom center of the card
                         .position(
-                            x: geometry.size.width * 0.85,
-                            y: geometry.size.height * 0.35
+                            x: geometry.size.width * 0.75,
+                            y: (geometry.size.height * 0.25) + 60// 30 = half card height + some gap
                         )
                 }
+
               
-                // MARK: - 5. Lemon Garden Card with connecting line and dot
+                // MARK: - 5. Lemon Garden Card with connecting vector
                 ZStack {
-                    // Connecting line from card to dot
-                    Path { path in
-                        let cardX = geometry.size.width * 0.35
-                        let cardY = geometry.size.height * 0.55
-                        let dotX = geometry.size.width * 0.15
-                        let dotY = geometry.size.height * 0.7
-                        
-                        path.move(to: CGPoint(x: cardX - 20, y: cardY + 30))
-                        path.addLine(to: CGPoint(x: dotX, y: dotY))
-                    }
-                    .stroke(Color.white.opacity(0.6), lineWidth: 2)
-                    
                     // Lemon Garden Card
                     HStack(spacing: 12) {
                         Image("Convention")
@@ -136,35 +118,34 @@ struct ExactReplicaPageView: View {
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.white)
 
-                            Text("2.09 mi")
+                            Text("2.09 m")
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray)
                         }
-                        
+
                         Spacer()
                     }
                     .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.black.opacity(0.8))
+                            .fill(Color.black.opacity(0.6))
                     )
                     .frame(width: 180)
                     .position(
                         x: geometry.size.width * 0.35,
                         y: geometry.size.height * 0.55
                     )
-                    
-                    // Blue dot for Lemon Garden
-                    Circle()
-                        .fill(Color.cyan)
-                        .frame(width: 12, height: 12)
+
+                    // Connector vector under Lemon Garden—replace vectorAsset with your asset
+                    Image("pointer_icon")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 120, height: 60)
                         .position(
-                            x: geometry.size.width * 0.15,
-                            y: geometry.size.height * 0.7
+                            x: geometry.size.width * 0.35,
+                            y: (geometry.size.height * 0.55) + 65  // tweak 30 to fit exactly
                         )
                 }
-
-              
 
                 // MARK: - 7. Bottom Information Card
                 VStack {
@@ -227,7 +208,7 @@ struct ExactReplicaPageView: View {
                                                 .strokeBorder(Color.white, lineWidth: 2)
                                         )
                                         .overlay(
-                                            Image("avatar_\(index)")
+                                            Image("LocalAvatarImage")
                                                 .resizable()
                                                 .aspectRatio(contentMode: .fill)
                                                 .frame(width: 28, height: 28)
@@ -309,6 +290,6 @@ struct ExactReplicaPageView: View {
 // MARK: - Preview
 struct ExactReplicaPageView_Previews: PreviewProvider {
     static var previews: some View {
-        ExactReplicaPageView()
+            OnMapView()
     }
 }
