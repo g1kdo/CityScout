@@ -1,10 +1,4 @@
-//
-//  AuthenticationViewModel.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 07/05/2025.
-//
-
+// ViewModels/AuthenticationViewModel.swift
 import Foundation
 import FirebaseAuth
 import SwiftUI
@@ -19,11 +13,14 @@ class AuthenticationViewModel: ObservableObject {
     @Published var showAlert: Bool = false
     @Published var isAuthenticating = false
     @Published var isAuthenticated = false
+
     @Published var user: User? // Firebase User object
     @Published var signedInUser: SignedInUser? // Your custom app-specific user object
 
     private var authStateHandler: AuthStateDidChangeListenerHandle?
     private var db = Firestore.firestore() // Firestore instance
+
+    private let appId: String = "cityscoutapp-935ad"
 
     init() {
         registerAuthStateHandler()
@@ -41,6 +38,9 @@ class AuthenticationViewModel: ObservableObject {
             authStateHandler = Auth.auth().addStateDidChangeListener { [weak self] _, firebaseUser in
                 guard let self = self else { return }
                 self.user = firebaseUser
+                self.isAuthenticating = true // Set to true while fetching user data
+
+                // Set isAuthenticated immediately based on Firebase user presence
                 self.isAuthenticated = firebaseUser != nil
 
                 // Attempt to create/update SignedInUser from Firebase user
@@ -48,14 +48,19 @@ class AuthenticationViewModel: ObservableObject {
                     Task {
                         do {
                             self.signedInUser = try await self.createSignedInUser(from: fbUser)
+                            // isAuthenticated is already set above, no need to re-set here unless logic changes
                             print("AuthenticationViewModel: SignedInUser updated for: \(self.signedInUser?.email ?? "N/A")")
                         } catch {
                             print("AuthenticationViewModel: Error creating SignedInUser from Firebase user: \(error.localizedDescription)")
                             self.signedInUser = nil // Clear if there's an error
+                            self.isAuthenticated = false // Ensure false if creation fails
                         }
+                        self.isAuthenticating = false // Done fetching
                     }
                 } else {
                     self.signedInUser = nil // No Firebase user, no SignedInUser
+                    self.isAuthenticated = false
+                    self.isAuthenticating = false // Done fetching
                 }
             }
         }
@@ -67,29 +72,53 @@ class AuthenticationViewModel: ObservableObject {
             id: firebaseUser.uid,
             displayName: firebaseUser.displayName,
             email: firebaseUser.email ?? "",
-            profilePictureURL: firebaseUser.photoURL
+            profilePictureURL: firebaseUser.photoURL // This will now correctly convert URL to String
         )
 
         // Attempt to fetch additional profile data from Firestore
-        let docRef = db.collection("users").document(firebaseUser.uid)
+        // CORRECTED FIRESTORE PATH:
+        // Using the structure: /artifacts/{appId}/users/{userId}/userProfiles/{userId}
+        let docRef = db.collection("artifacts").document(appId).collection("users").document(firebaseUser.uid).collection("userProfiles").document(firebaseUser.uid)
         do {
             let document = try await docRef.getDocument()
             if document.exists {
                 let data = document.data() ?? [:]
-                user.updateWithProfileData(data) // Assume SignedInUser has this method
-
-                // Override displayName if firstName and lastName are available in Firestore
-                if let firstName = user.firstName, !firstName.isEmpty {
-                    let lastName = user.lastName ?? ""
-                    user.displayName = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespacesAndNewlines)
-                }
+                user.updateWithProfileData(data) // Update SignedInUser with Firestore data
+                print("AuthenticationViewModel: Firestore profile data fetched for \(firebaseUser.email ?? "N/A").")
+            } else {
+                print("AuthenticationViewModel: No Firestore profile data found for \(firebaseUser.email ?? "N/A"). Creating new document.")
+                // If no Firestore document exists, ensure the initial user object is saved to Firestore
+                // This handles cases where a user signs in but hasn't created a profile yet.
+                // The SignedInUser struct must conform to Encodable for setData(from:)
+                try docRef.setData(from: user, merge: true) // Use merge to avoid overwriting if partial data exists
             }
         } catch {
-            print("Error fetching additional user data from Firestore: \(error.localizedDescription)")
-            // Continue even if Firestore fetch fails, as user might still be logged in.
+            print("AuthenticationViewModel: Error fetching or setting initial user data from Firestore: \(error.localizedDescription)")
+            // Continue even if Firestore fetch/set fails, as user might still be logged in via Auth.
         }
         return user
     }
+
+    // New method to explicitly refresh signedInUser from Firestore
+    func refreshSignedInUserFromFirestore() async {
+        guard let firebaseUser = Auth.auth().currentUser else {
+            print("AuthenticationViewModel: No Firebase user to refresh from Firestore.")
+            self.signedInUser = nil
+            return
+        }
+        isAuthenticating = true // Use isAuthenticating for loading state
+        errorMessage = ""
+        do {
+            self.signedInUser = try await createSignedInUser(from: firebaseUser)
+            print("AuthenticationViewModel: SignedInUser refreshed from Firestore.")
+            errorMessage = "" // Clear any previous error
+        } catch {
+            errorMessage = "Failed to refresh user data: \(error.localizedDescription)"
+            print("AuthenticationViewModel: Error refreshing user from Firestore: \(error.localizedDescription)")
+        }
+        isAuthenticating = false // Use isAuthenticating for loading state
+    }
+
 
     func signIn() async {
         guard !email.isEmpty, !password.isEmpty else {
@@ -98,7 +127,7 @@ class AuthenticationViewModel: ObservableObject {
             return
         }
 
-        isAuthenticating = true
+        isAuthenticating = true // Use isAuthenticating
         errorMessage = ""
         successMessage = ""
 
@@ -111,7 +140,7 @@ class AuthenticationViewModel: ObservableObject {
             errorMessage = getAuthErrorMessage(error: error)
             showAlert = true
         }
-        isAuthenticating = false
+        isAuthenticating = false // Use isAuthenticating
     }
 
     func signOut() {
@@ -129,7 +158,7 @@ class AuthenticationViewModel: ObservableObject {
     // Helper to check for existing user on app launch
     func checkCurrentUser() async {
         if let firebaseUser = Auth.auth().currentUser {
-            isAuthenticating = true
+            isAuthenticating = true // Use isAuthenticating
             do {
                 self.signedInUser = try await createSignedInUser(from: firebaseUser)
                 self.isAuthenticated = true
@@ -140,7 +169,7 @@ class AuthenticationViewModel: ObservableObject {
                 self.isAuthenticated = false
                 try? Auth.auth().signOut() // Force sign out if data load fails
             }
-            isAuthenticating = false
+            isAuthenticating = false // Use isAuthenticating
         } else {
             self.signedInUser = nil
             self.isAuthenticated = false

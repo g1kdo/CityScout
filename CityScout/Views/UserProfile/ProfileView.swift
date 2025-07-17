@@ -1,13 +1,19 @@
 // Views/ProfileView.swift
 import SwiftUI
-import Kingfisher // Still using Kingfisher for loading images from URLs
+import Kingfisher
+import FirebaseStorage // ADD THIS IMPORT // For potential direct image loading or caching
 
+// MARK: - ProfileOptionRow
+// This struct defines a reusable row for profile options,
+// including an icon, title, and an optional chevron.
+
+
+// MARK: - ProfileView
 struct ProfileView: View {
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var authVM: AuthenticationViewModel // Access shared authentication state
-    @StateObject var viewModel = ProfileViewModel() // Initialize without 'user'
+    @EnvironmentObject var authVM: AuthenticationViewModel
+    @StateObject var viewModel = ProfileViewModel()
     @State private var isShowingEditProfile = false
-
 
     var body: some View {
         NavigationStack {
@@ -22,7 +28,6 @@ struct ProfileView: View {
             }
             .navigationBarHidden(true)
             .fullScreenCover(isPresented: $isShowingEditProfile) {
-                // Pass the same viewModel, and inject authVM as environment
                 EditProfileView(viewModel: viewModel)
                     .environmentObject(authVM)
             }
@@ -32,21 +37,14 @@ struct ProfileView: View {
             viewModel.setup(with: authVM.signedInUser)
         }
         .onChange(of: authVM.signedInUser?.id) { oldId, newId in
-            // React to changes in the signedInUser from AuthenticationViewModel
-            // If the user logs out (id becomes empty), handle navigation
             if newId == nil || newId?.isEmpty == true {
-                // This `ProfileView` instance might not be the direct one navigating
-                // the app to sign-in, but it reflects the state.
-                // The parent (HomeView) will likely handle navigation to sign-in.
                 print("User signed out from ProfileView. Handling transition if needed.")
             } else {
                 // If the user re-authenticates or updates, refresh data
                 viewModel.setup(with: authVM.signedInUser)
             }
         }
-        // Observe changes to authVM.signedInUser to trigger UI updates for profile details
         .onChange(of: authVM.signedInUser) { oldUser, newUser in
-            // This sink is crucial for ProfileView to react when AuthVM updates its user
             if let user = newUser {
                 viewModel.setup(with: user) // Re-setup if the user object itself changes
             } else {
@@ -56,6 +54,7 @@ struct ProfileView: View {
                 viewModel.location = ""
                 viewModel.mobileNumber = ""
                 viewModel.profileImage = nil
+                viewModel.currentProfileImageURL = nil // Clear URL
             }
         }
     }
@@ -63,9 +62,8 @@ struct ProfileView: View {
     private var headerSection: some View {
         HStack {
             Button {
-                 dismiss()
+                dismiss()
             } label: {
-                
                 Image(systemName: "chevron.left")
                     .font(.title2)
                     .foregroundColor(.primary)
@@ -83,7 +81,6 @@ struct ProfileView: View {
             Button {
                 isShowingEditProfile = true
             } label: {
-                
                 Image(systemName: "pencil")
                     .font(.title2)
                     .foregroundColor(.primary)
@@ -96,7 +93,7 @@ struct ProfileView: View {
 
     private var profileInfoSection: some View {
         VStack(spacing: 10) {
-            // Prefer viewModel.profileImage if set (from PhotosPicker or loaded from URL cache)
+            // Priority 1: Use the locally selected/loaded image if available (from PhotosPicker or Firebase Storage)
             if let image = viewModel.profileImage {
                 Image(uiImage: image)
                     .resizable()
@@ -105,22 +102,25 @@ struct ProfileView: View {
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
             }
-            // Fallback to Kingfisher for URL from authVM if viewModel.profileImage isn't set
-            else if let url = authVM.signedInUser?.profilePictureURL { // Use authVM for the URL
+            // Priority 2: Fallback to Kingfisher for the currentProfileImageURL (which could be from Firestore or social login)
+            else if let url = viewModel.currentProfileImageURL { // Use viewModel's URL
                 KFImage(url)
+                    // Apply placeholder directly to KFImage before other modifiers
+                    .placeholder {
+                        Image(systemName: "person.circle.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 120, height: 120)
+                            .foregroundColor(.gray)
+                    }
                     .resizable()
                     .scaledToFill()
                     .frame(width: 120, height: 120)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
-//                    .placeholder {
-//                        Image(systemName: "person.circle.fill")
-//                            .resizable()
-//                            .scaledToFit()
-//                            .frame(width: 120, height: 120)
-//                            .foregroundColor(.gray)
-//                    }
-            } else {
+            }
+            // Priority 3: Default placeholder image
+            else {
                 Image(systemName: "person.circle.fill")
                     .resizable()
                     .scaledToFit()
@@ -128,10 +128,19 @@ struct ProfileView: View {
                     .foregroundColor(.gray)
             }
 
-            Text(authVM.signedInUser?.displayName ?? "\(viewModel.firstName) \(viewModel.lastName)".trimmingCharacters(in: .whitespacesAndNewlines))
-                .font(.title.bold())
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            // Display name logic: Prioritize user-set first/last name if available,
+            // otherwise fall back to authVM.signedInUser?.displayName (from social login)
+            Text({
+                let fullName = "\(viewModel.firstName) \(viewModel.lastName)".trimmingCharacters(in: .whitespacesAndNewlines)
+                if !fullName.isEmpty {
+                    return fullName
+                } else {
+                    return authVM.signedInUser?.displayName ?? "User Name" // Fallback if no names set
+                }
+            }())
+            .font(.title.bold())
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
 
             Text(authVM.signedInUser?.email ?? "N/A")
                 .font(.body)
@@ -167,9 +176,8 @@ struct ProfileView: View {
             Spacer()
 
             Button {
-                viewModel.signOut() // This will clear the `Auth.auth().currentUser`
+                viewModel.signOut()
                 authVM.signedInUser = nil // Manually set to nil to trigger UI change in AuthVM
-                                            // (AuthVM usually handles this on its own, but explicit is fine)
             } label: {
                 HStack {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -183,42 +191,6 @@ struct ProfileView: View {
                 .cornerRadius(10)
             }
             .padding(.top, 20)
-        }
-    }
-}
-
-// ProfileOptionRow remains unchanged
-struct ProfileOptionRow: View {
-    let icon: String
-    let title: String
-    var showChevron: Bool = true
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 15) {
-                Image(systemName: icon)
-                    .font(.body)
-                    .foregroundColor(.primary)
-                    .frame(width: 25)
-
-                Text(title)
-                    .font(.body)
-                    .foregroundColor(.primary)
-
-                Spacer()
-
-                if showChevron {
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 15)
-            .background(Color.white)
-            .cornerRadius(10)
-            .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
     }
 }
