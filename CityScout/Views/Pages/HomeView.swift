@@ -161,8 +161,8 @@ struct HomeView: View {
             }
         case .search:
             Color.clear
-        case .saved:
-            FavoritePlacesView()
+        case .review:
+            ReviewView()
                 .environmentObject(vm) // Pass the HomeViewModel
         case .profile:
             Color.clear

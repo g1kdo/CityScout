@@ -49,8 +49,7 @@ struct ProfileView: View {
                 viewModel.setup(with: user) // Re-setup if the user object itself changes
             } else {
                 // User logged out, clear local state if necessary
-                viewModel.firstName = ""
-                viewModel.lastName = ""
+                viewModel.displayName = ""
                 viewModel.location = ""
                 viewModel.mobileNumber = ""
                 viewModel.profileImage = nil
@@ -131,7 +130,7 @@ struct ProfileView: View {
             // Display name logic: Prioritize user-set first/last name if available,
             // otherwise fall back to authVM.signedInUser?.displayName (from social login)
             Text({
-                let fullName = "\(viewModel.firstName) \(viewModel.lastName)".trimmingCharacters(in: .whitespacesAndNewlines)
+                let fullName = "\(viewModel.displayName)".trimmingCharacters(in: .whitespacesAndNewlines)
                 if !fullName.isEmpty {
                     return fullName
                 } else {
@@ -153,9 +152,11 @@ struct ProfileView: View {
             ProfileOptionRow(icon: "person", title: "Profile") {
                 // This might navigate to the same profile view (redundant for now)
             }
-            ProfileOptionRow(icon: "bookmark", title: "Bookmarked") {
-                // Navigate to bookmarked content
-            }
+            NavigationLink(destination: FavoritePlacesView().environmentObject(HomeViewModel())) { // Ensure HomeViewModel is passed
+                            ProfileOptionRow(icon: "bookmark", title: "Bookmarked") {
+                                // Action is now handled by NavigationLink
+                            }
+                        }
             ProfileOptionRow(icon: "globe", title: "Previous Trips") {
                 // Navigate to previous trips
             }

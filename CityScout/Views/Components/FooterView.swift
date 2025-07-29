@@ -19,13 +19,13 @@ struct RoundedTopShape: Shape {
 }
 
 enum FooterTab: CaseIterable {
-    case home, calendar, search, saved, profile
+    case home, calendar, search, review, profile
     var iconName: String {
         switch self {
         case .home:      return "house"
         case .calendar:  return "calendar"
         case .search:    return "magnifyingglass"
-        case .saved:  return "bookmark.fill"
+        case .review:  return "star.fill"
         case .profile:   return "person.crop.circle"
         }
     }
@@ -34,7 +34,7 @@ enum FooterTab: CaseIterable {
         case .home:     return "Home"
         case .calendar: return "Calendar"
         case .search:   return ""
-        case .saved: return "Saved"
+        case .review: return "Reviews"
         case .profile:  return "Profile"
         }
     }

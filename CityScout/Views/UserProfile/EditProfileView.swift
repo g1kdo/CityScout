@@ -19,9 +19,8 @@ struct EditProfileView: View {
             ScrollView {
                 VStack(spacing: 30) {
                     headerSection
-                    profilePictureSection
+                    profilePictureSection // This section will now handle photo editing
                     fieldsSection
-                    locationButtonSection // New section for location button
                     saveButton
                 }
                 .padding(.horizontal)
@@ -113,49 +112,93 @@ struct EditProfileView: View {
 
     private var profilePictureSection: some View {
         VStack(spacing: 10) {
-            // Display viewModel.profileImage (the selected/loaded image)
-            // or currentProfileImageURL (the existing image)
-            if let image = viewModel.profileImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 120, height: 120)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
-            } else if let url = viewModel.currentProfileImageURL { // Fallback to existing URL
-                // Use Kingfisher for loading the existing image from URL
-                KFImage(url)
-                    .placeholder {
-                        Image(systemName: "person.circle.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 120, height: 120)
-                            .foregroundColor(.gray)
-                    }
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 120, height: 120)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
-            } else {
-                // Fallback to default if no image is selected/loaded
-                Image(systemName: "person.circle.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 120, height: 120)
-                    .foregroundColor(.gray)
+            // Profile Picture with overlayed edit button
+            ZStack(alignment: .bottomTrailing) { // Use ZStack for overlay
+                // The actual profile picture display logic
+                if let image = viewModel.profileImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 120, height: 120)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
+                } else if let url = viewModel.currentProfileImageURL {
+                    KFImage(url)
+                        .placeholder {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 120, height: 120)
+                                .foregroundColor(.gray)
+                        }
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 120, height: 120)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
+                } else {
+                    Image(systemName: "person.circle.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 120, height: 120)
+                        .foregroundColor(.gray)
+                }
+
+                // The "pen" icon (PhotosPicker button)
+                PhotosPicker(selection: $viewModel.selectedPhotoItem, matching: .images) {
+                    Image(systemName: "pencil.circle.fill") // Pen icon
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 35, height: 35)
+                        .foregroundColor(Color.white)
+                        .background(Color.black) 
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color(.systemGray5), lineWidth: 1)) // Subtle border
+                }
+                .offset(x: 5, y: 5) // Offset to position the icon
             }
 
-            // Display current display name from authVM, or construct from local fields
-            Text(authVM.signedInUser?.displayName ?? "\(viewModel.firstName) \(viewModel.lastName)".trimmingCharacters(in: .whitespacesAndNewlines))
+            // Display current display name from viewModel
+            Text(viewModel.displayName.isEmpty ? "Your Name" : viewModel.displayName)
                 .font(.title.bold())
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
-            PhotosPicker(selection: $viewModel.selectedPhotoItem, matching: .images) {
-                Text("Change Profile Picture")
-                    .font(.subheadline.bold())
-                    .foregroundColor(Color(hex: "#FF7029")) // Assuming you have a Color(hex:) extension
+            // Moved "Get Current Location" button here, styled as less noticeable text
+            Button {
+                // Request location when button is tapped
+                if locationManager.authorizationStatus == .notDetermined {
+                    locationManager.requestLocationAuthorization()
+                } else if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
+                    locationManager.startUpdatingLocation()
+                } else {
+                    // If denied or restricted, show alert to guide user to settings
+                    locationManager.locationError = "Location access denied. Please enable it in Settings."
+                    showingLocationAlert = true
+                }
+            } label: {
+                HStack(spacing: 5) { // Reduced spacing for a more compact look
+                    Image(systemName: "location.fill")
+                        .font(.caption) // Smaller icon
+                        .foregroundColor(Color(hex: "#FF7029"))
+                    Text(locationManager.isLoadingLocation ? "Fetching Location..." : "Get Current Location")
+                        .font(.subheadline.bold())
+                        .foregroundColor(Color(hex: "#FF7029"))
+                }
+                .font(.caption) // Smaller font for the text
+                .foregroundColor(.gray) // Gray color to make it less noticeable
+            }
+            .disabled(locationManager.isLoadingLocation) // Disable button while loading
+            .opacity(locationManager.isLoadingLocation ? 0.6 : 1.0)
+            .padding(.top, 0) // No top padding needed as it's directly below
+            .padding(.bottom, 10) // Add padding to separate from fields below
+
+            // Display location error if any (moved here from original locationButtonSection)
+            if let error = locationManager.locationError, !error.isEmpty {
+                Text(error)
+                    .font(.caption2) // Even smaller font for error
+                    .foregroundColor(.red)
+                    .padding(.top, 0) // No top padding
             }
         }
     }
@@ -163,16 +206,9 @@ struct EditProfileView: View {
     private var fieldsSection: some View {
         VStack(spacing: 20) {
             FloatingField(
-                label: "First Name",
-                placeholder: "Enter your first name",
-                text: $viewModel.firstName
-            )
-            .autocapitalization(.words)
-
-            FloatingField(
-                label: "Last Name",
-                placeholder: "Enter your last name",
-                text: $viewModel.lastName
+                label: "Full Name or Display Name",
+                placeholder: "Enter your full name or display name",
+                text: $viewModel.displayName // Now binding to displayName
             )
             .autocapitalization(.words)
 
@@ -189,45 +225,6 @@ struct EditProfileView: View {
                 text: $viewModel.mobileNumber,
                 keyboardType: .phonePad
             )
-        }
-    }
-
-    private var locationButtonSection: some View {
-        VStack {
-            Button {
-                // Request location when button is tapped
-                if locationManager.authorizationStatus == .notDetermined {
-                    locationManager.requestLocationAuthorization()
-                } else if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
-                    locationManager.startUpdatingLocation()
-                } else {
-                    // If denied or restricted, show alert to guide user to settings
-                    locationManager.locationError = "Location access denied. Please enable it in Settings."
-                    showingLocationAlert = true
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "location.fill")
-                    Text(locationManager.isLoadingLocation ? "Fetching Location..." : "Get Current Location")
-                }
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color(hex: "#24BAEC"))
-                .cornerRadius(10)
-            }
-            .disabled(locationManager.isLoadingLocation) // Disable button while loading
-            .opacity(locationManager.isLoadingLocation ? 0.6 : 1.0)
-            .padding(.top, 10)
-
-            // Display location error if any
-            if let error = locationManager.locationError, !error.isEmpty {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .padding(.top, 5)
-            }
         }
     }
 
@@ -259,4 +256,3 @@ struct EditProfileView: View {
         showingSaveAlert = true
     }
 }
-

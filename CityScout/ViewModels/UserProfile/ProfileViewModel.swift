@@ -2,7 +2,7 @@
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseStorage 
+import FirebaseStorage
 import Combine
 import PhotosUI
 import GoogleSignIn
@@ -12,8 +12,7 @@ import _PhotosUI_SwiftUI
 
 @MainActor
 class ProfileViewModel: ObservableObject {
-    @Published var firstName: String = ""
-    @Published var lastName: String = ""
+    @Published var displayName: String = "" // New: for full name or display name
     @Published var location: String = ""
     @Published var mobileNumber: String = ""
     @Published var isLoading: Bool = false
@@ -33,15 +32,14 @@ class ProfileViewModel: ObservableObject {
     private var storage = Storage.storage() // Initialize Firebase Storage
     private var cancellables = Set<AnyCancellable>()
 
-    private let appId: String = "cityscoutapp-935ad" // Example: Use your Firebase Project ID here
+   // private let appId: String = "cityscoutapp-935ad" // Example: Use your Firebase Project ID here
 
     init() { }
 
     func setup(with user: SignedInUser?) {
         guard let user = user else {
             // Clear all fields if no user is provided (e.g., user logged out)
-            self.firstName = ""
-            self.lastName = ""
+            self.displayName = "" // Clear display name
             self.location = ""
             self.mobileNumber = ""
             self.profileImage = nil
@@ -50,8 +48,7 @@ class ProfileViewModel: ObservableObject {
         }
 
         // Initialize editable fields with current user data.
-        self.firstName = user.firstName ?? ""
-        self.lastName = user.lastName ?? ""
+        self.displayName = user.displayName ?? "" // Use displayName
         self.location = user.location ?? ""
         self.mobileNumber = user.mobileNumber ?? ""
 
@@ -82,15 +79,17 @@ class ProfileViewModel: ObservableObject {
         isLoading = true
         // CORRECTED FIRESTORE PATH:
         // Using the structure: /artifacts/{appId}/users/{userId}/userProfiles/{userId}
-        db.collection("artifacts").document(appId).collection("users").document(currentUID).collection("userProfiles").document(currentUID).getDocument { [weak self] document, error in
+//        db.collection("artifacts").document(appId).collection("users").document(currentUID).collection("userProfiles").document(currentUID).getDocument { [weak self] document, error in
+
+        db.collection("users").document(currentUID).getDocument { [weak self] document, error in
+
             guard let self = self else { return }
             self.isLoading = false
             if let document = document, document.exists {
                 let data = document.data() ?? [:]
 
                 // Update local fields directly from Firestore data
-                self.firstName = data["firstName"] as? String ?? self.firstName
-                self.lastName = data["lastName"] as? String ?? self.lastName
+                self.displayName = data["displayName"] as? String ?? self.displayName // Use displayName from Firestore
                 self.location = data["location"] as? String ?? self.location
                 self.mobileNumber = data["mobileNumber"] as? String ?? self.mobileNumber
 
@@ -134,12 +133,11 @@ class ProfileViewModel: ObservableObject {
         errorMessage = ""
 
         var updatedFields: [String: Any] = [
-            "firstName": firstName,
-            "lastName": lastName,
+            "displayName": displayName, // Use displayName
             "location": location,
             "mobileNumber": mobileNumber
         ]
-        
+
         var newPhotoURL: URL? = nil
 
         do {
@@ -160,17 +158,16 @@ class ProfileViewModel: ObservableObject {
             }
 
             // Update Firebase Auth display name
-            let newDisplayName = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespacesAndNewlines)
             let changeRequest = firebaseUser.createProfileChangeRequest()
 
             var authProfileChanged = false
 
-            if firebaseUser.displayName != newDisplayName {
-                changeRequest.displayName = newDisplayName
+            if firebaseUser.displayName != displayName {
+                changeRequest.displayName = displayName // Set display name
                 authProfileChanged = true
-                print("Firebase Auth display name set for update: \(newDisplayName)")
+                print("Firebase Auth display name set for update: \(displayName)")
             }
-            
+
             // Update Firebase Auth photoURL if a new one was uploaded
             // ONLY if newPhotoURL is set (meaning a custom image was uploaded)
             if let uploadedPhotoURL = newPhotoURL, firebaseUser.photoURL?.absoluteString != uploadedPhotoURL.absoluteString {
@@ -201,7 +198,10 @@ class ProfileViewModel: ObservableObject {
 
             // CORRECTED FIRESTORE PATH:
             // Using the structure: /artifacts/{appId}/users/{userId}/userProfiles/{userId}
-            try await db.collection("artifacts").document(appId).collection("users").document(firebaseUser.uid).collection("userProfiles").document(firebaseUser.uid).setData(updatedFields, merge: true)
+//            try await db.collection("artifacts").document(appId).collection("users").document(firebaseUser.uid).collection("userProfiles").document(firebaseUser.uid).setData(updatedFields, merge: true)
+
+            try await db.collection("users").document(firebaseUser.uid).setData(updatedFields, merge: true)
+
             print("Profile updated successfully in Firestore.")
 
             isLoading = false
@@ -255,7 +255,8 @@ class ProfileViewModel: ObservableObject {
 
         // CORRECTED STORAGE PATH:
         // Using the structure: /artifacts/{appId}/users/{userId}/profile_images/{fileName}
-        let storageRef = storage.reference().child("artifacts/\(appId)/users/\(userID)/profile_images/\(userID).jpg")
+//        let storageRef = storage.reference().child("artifacts/\(appId)/users/\(userID)/profile_images/\(userID).jpg")
+        let storageRef = storage.reference().child("users/\(userID)/profile_images/\(userID).jpg")
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
 
@@ -292,8 +293,7 @@ class ProfileViewModel: ObservableObject {
             LoginManager().logOut()
 
             // Reset local state
-            self.firstName = ""
-            self.lastName = ""
+            self.displayName = "" // Clear display name
             self.location = ""
             self.mobileNumber = ""
             self.profileImage = nil

@@ -128,9 +128,7 @@ struct SignUpView: View {
                         var user = SignedInUser(
                             id: firebaseUser.uid,
                             displayName: firebaseUser.displayName,
-                            email: firebaseUser.email ?? "",
-                            firstName: firstName,
-                            lastName: lastName // Pass these to the SignedInUser
+                            email: firebaseUser.email ?? ""
                         )
                         // This initial save to Firestore should be handled in SignUpViewModel's signUpUser
                         // or immediately after creating SignedInUser.

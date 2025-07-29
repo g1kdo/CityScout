@@ -20,7 +20,7 @@ class AuthenticationViewModel: ObservableObject {
     private var authStateHandler: AuthStateDidChangeListenerHandle?
     private var db = Firestore.firestore() // Firestore instance
 
-    private let appId: String = "cityscoutapp-935ad"
+   // private let appId: String = "cityscoutapp-935ad"
 
     init() {
         registerAuthStateHandler()
@@ -70,7 +70,7 @@ class AuthenticationViewModel: ObservableObject {
     func createSignedInUser(from firebaseUser: FirebaseAuth.User) async throws -> SignedInUser {
         var user = SignedInUser(
             id: firebaseUser.uid,
-            displayName: firebaseUser.displayName,
+            displayName: firebaseUser.displayName, // Initialize with Firebase Auth's display name
             email: firebaseUser.email ?? "",
             profilePictureURL: firebaseUser.photoURL // This will now correctly convert URL to String
         )
@@ -78,12 +78,16 @@ class AuthenticationViewModel: ObservableObject {
         // Attempt to fetch additional profile data from Firestore
         // CORRECTED FIRESTORE PATH:
         // Using the structure: /artifacts/{appId}/users/{userId}/userProfiles/{userId}
-        let docRef = db.collection("artifacts").document(appId).collection("users").document(firebaseUser.uid).collection("userProfiles").document(firebaseUser.uid)
+//        let docRef = db.collection("artifacts").document(appId).collection("users").document(firebaseUser.uid).collection("userProfiles").document(firebaseUser.uid)
+
+        let docRef = db.collection("users").document(firebaseUser.uid)
+
         do {
             let document = try await docRef.getDocument()
             if document.exists {
                 let data = document.data() ?? [:]
-                user.updateWithProfileData(data) // Update SignedInUser with Firestore data
+                // Update SignedInUser with Firestore data, now using displayName
+                user.updateWithProfileData(data)
                 print("AuthenticationViewModel: Firestore profile data fetched for \(firebaseUser.email ?? "N/A").")
             } else {
                 print("AuthenticationViewModel: No Firestore profile data found for \(firebaseUser.email ?? "N/A"). Creating new document.")
