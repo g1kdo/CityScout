@@ -7,13 +7,19 @@
 import SwiftUI
 
 struct FavoritePlacesView: View {
-    @Environment(\.dismiss) var dismiss // To dismiss the view
-    @EnvironmentObject var homeVM: HomeViewModel // Ensure HomeViewModel is available in the environment
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authVM: AuthenticationViewModel // Still need authVM for the user ID
+
+    // Use a @StateObject to create a new instance of the FavoritesViewModel for this view
+    @StateObject private var viewModel = FavoritesViewModel()
 
     var body: some View {
-        NavigationStack { // Wrap with NavigationStack for a proper navigation bar
+        NavigationStack {
             VStack(spacing: 0) {
-                if homeVM.favorites.isEmpty {
+                if viewModel.isLoading {
+                    ProgressView("Loading favorites...")
+                        .padding()
+                } else if viewModel.favorites.isEmpty {
                     Spacer()
                     Text("No favorite places yet. Bookmark your favorites!")
                         .font(.headline)
@@ -24,10 +30,11 @@ struct FavoritePlacesView: View {
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                            ForEach(homeVM.favorites) { destination in
+                            ForEach(viewModel.favorites) { destination in
                                 NavigationLink(destination: DestinationDetailView(destination: destination)) {
-                                    PopularFavoriteDestinationCard(destination: destination, isFavorite: homeVM.isFavorite(destination: destination)) {
-                                        homeVM.toggleFavorite(destination: destination)
+                                    // Use the local viewModel to check favorite status and toggle
+                                    PopularFavoriteDestinationCard(destination: destination, isFavorite: viewModel.isFavorite(destination: destination)) {
+                                        viewModel.toggleFavorite(destination: destination)
                                     }
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -38,17 +45,25 @@ struct FavoritePlacesView: View {
                     }
                 }
             }
-            .navigationTitle("Bookmarked Places") // Set the title for the navigation bar
-            .navigationBarTitleDisplayMode(.inline) // Make the title inline
+            .navigationTitle("Bookmarked Places")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        dismiss() // Dismiss the current view (go back)
+                        dismiss()
                     } label: {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.primary)
                     }
                 }
+            }
+            .onAppear {
+                // When the view appears, tell the viewModel to fetch the favorites
+                viewModel.setup(with: authVM.signedInUser?.id)
+            }
+            // Listen for changes in the user's ID (e.g., sign out/in)
+            .onChange(of: authVM.signedInUser?.id) { _, newId in
+                viewModel.setup(with: newId)
             }
             .background(Color.white.ignoresSafeArea())
         }

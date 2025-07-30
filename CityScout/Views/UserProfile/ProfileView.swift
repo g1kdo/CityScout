@@ -14,6 +14,7 @@ struct ProfileView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject var viewModel = ProfileViewModel()
     @State private var isShowingEditProfile = false
+    @State private var isShowingBookmarked = false
 
     var body: some View {
         NavigationStack {
@@ -29,6 +30,10 @@ struct ProfileView: View {
             .navigationBarHidden(true)
             .fullScreenCover(isPresented: $isShowingEditProfile) {
                 EditProfileView(viewModel: viewModel)
+                    .environmentObject(authVM)
+            }
+            .fullScreenCover(isPresented: $isShowingBookmarked) {
+                FavoritePlacesView()
                     .environmentObject(authVM)
             }
         }
@@ -152,11 +157,11 @@ struct ProfileView: View {
             ProfileOptionRow(icon: "person", title: "Profile") {
                 // This might navigate to the same profile view (redundant for now)
             }
-            NavigationLink(destination: FavoritePlacesView().environmentObject(HomeViewModel())) { // Ensure HomeViewModel is passed
-                            ProfileOptionRow(icon: "bookmark", title: "Bookmarked") {
-                                // Action is now handled by NavigationLink
-                            }
-                        }
+
+            ProfileOptionRow(icon: "bookmark", title: "Bookmarked") {
+                isShowingBookmarked = true
+            }
+
             ProfileOptionRow(icon: "globe", title: "Previous Trips") {
                 // Navigate to previous trips
             }

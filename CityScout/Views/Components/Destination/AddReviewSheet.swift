@@ -6,35 +6,42 @@
 //
 
 
-// Views/ReviewView.swift (within the same file as ReviewView or its own)
+// Views/AddReviewSheet.swift
 import SwiftUI
-// Sheet for adding a new review
+
 struct AddReviewSheet: View {
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var authVM: AuthenticationViewModel // Added to access signed-in user
+    @EnvironmentObject var authVM: AuthenticationViewModel
     @ObservedObject var viewModel: ReviewViewModel
-
+    
+    let reviewToEdit: ReviewViewModel.Review?
+    
     @State private var selectedDestinationName: String = ""
     @State private var reviewComment: String = ""
     @State private var starRating: Int = 0
     @State private var showingAlert = false
     @State private var alertMessage = ""
 
+    private var isEditMode: Bool {
+        reviewToEdit != nil
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    Text("Add Your Review")
+                    Text(isEditMode ? "Edit Your Review" : "Add Your Review")
                         .font(.title2.bold())
                         .padding(.top, 20)
-
+                    
                     VStack(alignment: .leading) {
                         Text("Destination Name")
                             .font(.subheadline.bold())
                         TextField("e.g., Lake Kivu", text: $selectedDestinationName)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .disabled(isEditMode)
                     }
-
+                    
                     VStack(alignment: .leading) {
                         Text("Your Rating")
                             .font(.subheadline.bold())
@@ -49,7 +56,7 @@ struct AddReviewSheet: View {
                             }
                         }
                     }
-
+                    
                     VStack(alignment: .leading) {
                         Text("Your Comment")
                             .font(.subheadline.bold())
@@ -61,39 +68,43 @@ struct AddReviewSheet: View {
                             )
                             .padding(1)
                     }
-
+                    
                     Button {
                         Task {
-                            guard let currentUser = authVM.signedInUser else {
+                            guard let currentUser = authVM.signedInUser,
+                                  let authorId = currentUser.id else {
                                 alertMessage = "You must be logged in to submit a review."
                                 showingAlert = true
                                 return
                             }
-                            guard let authorId = currentUser.id else {
-                                alertMessage = "Your user ID could not be found."
-                                showingAlert = true
-                                return
-                            }
-                            let authorName = currentUser.displayName ?? "Anonymous User" // Use display name, or fallback
-
+                            
                             if selectedDestinationName.isEmpty || reviewComment.isEmpty || starRating == 0 {
                                 alertMessage = "Please fill in all fields and provide a rating."
                                 showingAlert = true
+                                return
+                            }
+                            
+                            var success = false
+                            if isEditMode, let review = reviewToEdit {
+                                success = await viewModel.editReview(review: review, newComment: reviewComment, newRating: starRating)
                             } else {
-                                let success = await viewModel.submitReview(
+                                success = await viewModel.addReview(
                                     destinationId: UUID().uuidString,
                                     destinationName: selectedDestinationName,
                                     rating: starRating,
-                                    comment: reviewComment
-                                //    authorId: authorId    // Pass current user's ID
-                                //    authorName: authorName    // Pass current user's display name
+                                    comment: reviewComment,
+                                    authorId: authorId,
+                                    authorDisplayName: currentUser.displayName ?? "Anonymous",
+                                    // CORRECTED LINE: Use the computed property
+                                    authorProfilePictureURL: currentUser.profilePictureAsURL
                                 )
-                                if success {
-                                    dismiss()
-                                } else {
-                                    alertMessage = viewModel.errorMessage ?? "Failed to submit review."
-                                    showingAlert = true
-                                }
+                            }
+                            
+                            if success {
+                                dismiss()
+                            } else {
+                                alertMessage = viewModel.errorMessage ?? "Failed to submit review."
+                                showingAlert = true
                             }
                         }
                     } label: {
@@ -101,7 +112,7 @@ struct AddReviewSheet: View {
                             if viewModel.isLoading {
                                 ProgressView()
                             } else {
-                                Text("Submit Review")
+                                Text(isEditMode ? "Update Review" : "Submit Review")
                                     .font(.headline.bold())
                                     .foregroundColor(.white)
                             }
@@ -115,6 +126,13 @@ struct AddReviewSheet: View {
                     .opacity(viewModel.isLoading ? 0.6 : 1.0)
                 }
                 .padding()
+            }
+            .onAppear {
+                if isEditMode, let review = reviewToEdit {
+                    self.selectedDestinationName = review.destinationName
+                    self.reviewComment = review.comment
+                    self.starRating = review.rating
+                }
             }
             .alert("Submission Error", isPresented: $showingAlert) {
                 Button("OK") { }

@@ -1,76 +1,177 @@
-//
-//  ReviewViewModel.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 29/07/2025.
-//
-
-
 // ViewModels/ReviewViewModel.swift
 import Foundation
-import SwiftUI // For @Published
+import SwiftUI
+import FirebaseFirestore
 
-@MainActor // Ensure updates happen on the main thread
+@MainActor
 class ReviewViewModel: ObservableObject {
-    @Published var reviews: [Review] = [] // Example: An array to hold reviews
+    @Published var reviews: [Review] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
-    // You might have a struct for your Review data, e.g.:
-    struct Review: Identifiable, Codable {
-        let id: String
+    // Firestore collection reference
+    private let db = Firestore.firestore()
+    private let reviewsCollection = "reviews"
+
+    // New struct for the Review data model
+    // Conforms to Codable for easy Firestore interaction
+    struct Review: Identifiable, Codable, Equatable {
+        @DocumentID var id: String? // Firestore document ID
+        let destinationId: String
         let destinationName: String
-        let rating: Int // 1-5 stars
+        let rating: Int
         let comment: String
         let authorId: String
-        let timestamp: Date
-
-        // Example initializer for placeholder data
-        init(id: String = UUID().uuidString, destinationName: String, rating: Int, comment: String, authorId: String, timestamp: Date = Date()) {
-            self.id = id
-            self.destinationName = destinationName
-            self.rating = rating
-            self.comment = comment
-            self.authorId = authorId
-            self.timestamp = timestamp
+        let authorDisplayName: String // Add display name
+        var authorProfilePictureURL: URL? // Add profile picture URL
+        var timestamp: Date
+        var agrees: Int = 0 // Count of "agree" reactions
+        var disagrees: Int = 0 // Count of "disagree" reactions
+        var reactedUsers: [String: String] = [:] // Tracks which user reacted
+        
+        static func == (lhs: Review, rhs: Review) -> Bool {
+            lhs.id == rhs.id // Only compare IDs for equality
         }
     }
 
-    init() {
-        // Load placeholder reviews for demonstration
-        loadPlaceholderReviews()
-    }
-
-    func loadPlaceholderReviews() {
+    // Function to fetch reviews from Firestore
+    func fetchReviews() {
         isLoading = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self = self else { return }
-            self.reviews = [
-                Review(destinationName: "Volcanoes National Park", rating: 5, comment: "Absolutely breathtaking! The gorilla trekking was an unforgettable experience. Highly recommend!", authorId: "user123"),
-                Review(destinationName: "Lake Kivu", rating: 4, comment: "Beautiful lake, great for a relaxing getaway. The boat ride was lovely, but the food options were limited.", authorId: "user123"),
-                Review(destinationName: "Kigali Genocide Memorial", rating: 5, comment: "A deeply moving and important place. Essential for understanding Rwanda's history. Very well presented.", authorId: "user123")
-            ]
-            self.isLoading = false
-        }
+        db.collection(reviewsCollection)
+            .order(by: "timestamp", descending: true)
+            .addSnapshotListener { [weak self] querySnapshot, error in
+                guard let self = self else { return }
+                self.isLoading = false
+
+                if let error = error {
+                    self.errorMessage = "Error fetching reviews: \(error.localizedDescription)"
+                    return
+                }
+
+                guard let documents = querySnapshot?.documents else {
+                    self.reviews = []
+                    return
+                }
+
+                // Convert Firestore documents to Review objects
+                self.reviews = documents.compactMap { doc -> Review? in
+                    try? doc.data(as: Review.self)
+                }
+            }
     }
 
-    // You would add functions here to actually fetch reviews from Firestore,
-    // submit new reviews, etc.
-    func submitReview(destinationId: String, destinationName: String, rating: Int, comment: String) async -> Bool {
-        // Placeholder for actual submission logic
+    // Function to add a new review to Firestore
+    func addReview(destinationId: String, destinationName: String, rating: Int, comment: String, authorId: String, authorDisplayName: String, authorProfilePictureURL: URL?) async -> Bool {
         isLoading = true
         errorMessage = nil
+
+        let newReview = Review(
+            destinationId: destinationId,
+            destinationName: destinationName,
+            rating: rating,
+            comment: comment,
+            authorId: authorId,
+            authorDisplayName: authorDisplayName,
+            authorProfilePictureURL: authorProfilePictureURL,
+            timestamp: Date()
+        )
+
         do {
-            // Simulate network call
-            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
-            let newReview = Review(destinationName: destinationName, rating: rating, comment: comment, authorId: "currentUser", timestamp: Date())
-            reviews.insert(newReview, at: 0) // Add to the top
+            _ = try db.collection(reviewsCollection).addDocument(from: newReview)
             isLoading = false
             return true
         } catch {
             errorMessage = "Failed to submit review: \(error.localizedDescription)"
             isLoading = false
             return false
+        }
+    }
+
+    // Function to delete a review
+    func deleteReview(review: Review) async {
+        guard let reviewId = review.id else { return }
+        do {
+            try await db.collection(reviewsCollection).document(reviewId).delete()
+        } catch {
+            print("Error deleting review: \(error.localizedDescription)")
+            errorMessage = "Failed to delete review."
+        }
+    }
+    
+    // Function to edit a review
+    func editReview(review: Review, newComment: String, newRating: Int) async -> Bool {
+        guard let reviewId = review.id else { return false }
+        do {
+            let data: [String: Any] = [
+                "comment": newComment,
+                "rating": newRating,
+                "timestamp": Timestamp(date: Date()) // Update timestamp on edit
+            ]
+            try await db.collection(reviewsCollection).document(reviewId).updateData(data)
+            return true
+        } catch {
+            print("Error editing review: \(error.localizedDescription)")
+            errorMessage = "Failed to edit review."
+            return false
+        }
+    }
+    
+    // Function to add a reaction (agree/disagree)
+    func reactToReview(review: Review, userId: String, reaction: String) async {
+        guard let reviewId = review.id else { return }
+        let docRef = db.collection(reviewsCollection).document(reviewId)
+
+        do {
+            try await db.runTransaction({ (transaction, errorPointer) -> Any? in
+                let document: DocumentSnapshot
+                do {
+                    document = try transaction.getDocument(docRef)
+                } catch let fetchError as NSError {
+                    errorPointer?.pointee = fetchError
+                    return nil
+                }
+
+                guard let oldReview = try? document.data(as: Review.self) else {
+                    let error = NSError(domain: "AppError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unable to retrieve review data from snapshot."])
+                    errorPointer?.pointee = error
+                    return nil
+                }
+                
+                var newAgrees = oldReview.agrees
+                var newDisagrees = oldReview.disagrees
+                var newReactedUsers = oldReview.reactedUsers
+
+                let oldReaction = newReactedUsers[userId]
+
+                if oldReaction == reaction {
+                    // User is toggling off their reaction
+                    if reaction == "agree" {
+                        newAgrees -= 1
+                    } else if reaction == "disagree" {
+                        newDisagrees -= 1
+                    }
+                    newReactedUsers.removeValue(forKey: userId)
+                } else {
+                    // User is adding a new reaction or changing it
+                    if oldReaction == "agree" {
+                        newAgrees -= 1
+                    } else if oldReaction == "disagree" {
+                        newDisagrees -= 1
+                    }
+                    
+                    if reaction == "agree" {
+                        newAgrees += 1
+                    } else if reaction == "disagree" {
+                        newDisagrees += 1
+                    }
+                    newReactedUsers[userId] = reaction
+                }
+                
+                transaction.updateData(["agrees": newAgrees, "disagrees": newDisagrees, "reactedUsers": newReactedUsers], forDocument: docRef)
+                return nil
+            })
+        } catch {
+            print("Transaction failed: \(error)")
         }
     }
 }

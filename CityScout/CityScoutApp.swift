@@ -18,6 +18,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Configure Firebase
         FirebaseApp.configure()
         print("Firebase configured")
+        let settings = FirestoreSettings()
+        // Set the cache size to 200 MB
+        settings.cacheSizeBytes = Int64(truncating: NSNumber(value: 200 * 1024 * 1024))
+        Firestore.firestore().settings = settings
 
         // Initialize Facebook SDK
         ApplicationDelegate.shared.application(
