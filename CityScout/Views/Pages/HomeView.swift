@@ -3,13 +3,14 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var vm = HomeViewModel()
+    @StateObject private var favoritesVM = FavoritesViewModel()
     @State private var navigateToProfile = false
     @State private var selectedDestination: Destination?
     @State private var selectedTab: FooterTab = .home
-
+    
     @State private var showSearchView: Bool = false
-    @State private var showPopularPlacesView: Bool = false 
-
+    @State private var showPopularPlacesView: Bool = false
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -17,16 +18,16 @@ struct HomeView: View {
                     TopBarView()
                         .environmentObject(authVM)
                         .padding(.bottom, 25)
-
+                    
                     currentTabView
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+                    
                     FooterView(selected: $selectedTab)
                 }
                 .padding(.top, safeAreaTop())
                 .background(Color.white).ignoresSafeArea()
                 .navigationBarHidden(true)
-
+                
                 NavigationLink(
                     destination: ProfileView().environmentObject(authVM),
                     isActive: $navigateToProfile,
@@ -57,8 +58,12 @@ struct HomeView: View {
                 }
             }
             .onAppear {
-                Task { await vm.loadDestinations() }
-            }
+                        favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
+                    }
+            .onChange(of: authVM.user?.uid) { oldValue, newUserId in
+                        favoritesVM.subscribeToFavorites(for: newUserId)
+                    }
+            
             .navigationDestination(isPresented: Binding<Bool>(
                 get: { selectedDestination != nil },
                 set: { if !$0 { selectedDestination = nil } }
@@ -76,8 +81,10 @@ struct HomeView: View {
                     .environmentObject(vm)
             }
         }
+        .environmentObject(vm)
+        .environmentObject(favoritesVM)
     }
-
+    
     private var headlineSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Explore the")
@@ -99,7 +106,7 @@ struct HomeView: View {
         }
         .padding(.horizontal)
     }
-
+    
     private var sectionHeader: some View {
         HStack {
             Text("Best Destinations")
@@ -113,26 +120,30 @@ struct HomeView: View {
         }
         .padding(.horizontal)
     }
-
+    
     private var carouselSection: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 16) {
-                ForEach(vm.destinations) { dest in
-                    Button(action: {
-                        selectedDestination = dest
-                    }) {
-                       
-                        HomeDestinationCard(destination: dest, isFavorite: vm.isFavorite(destination: dest)) {
-                            vm.toggleFavorite(destination: dest)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(vm.destinations) { dest in
+                        Button(action: {
+                            selectedDestination = dest
+                        }) {
+                            HomeDestinationCard(
+                                destination: dest,
+                                isFavorite: favoritesVM.isFavorite(destination: dest)
+                            ) {
+                                Task {
+                                    await favoritesVM.toggleFavorite(destination: dest)
+                                }
+                            }
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle())
                 }
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
         }
-    }
-
+    
     private func safeAreaTop() -> CGFloat {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -140,7 +151,7 @@ struct HomeView: View {
             .windows.first?
             .safeAreaInsets.top ?? 0
     }
-
+    
     @ViewBuilder
     private var currentTabView: some View {
         switch selectedTab {
@@ -150,8 +161,18 @@ struct HomeView: View {
                     .padding(.bottom, 25)
                 sectionHeader
                     .padding(.bottom, 35)
-                carouselSection
-                    .padding(.bottom, 65)
+                
+                // Display loading, error, or data
+                if vm.isLoading {
+                    ProgressView("Loading Destinations...")
+                        .frame(height: 300)
+                } else if let errorMessage = vm.errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                } else {
+                    carouselSection
+                        .padding(.bottom, 65)
+                }
                 Spacer()
             }
         case .calendar:
@@ -163,7 +184,8 @@ struct HomeView: View {
             Color.clear
         case .review:
             ReviewView()
-                .environmentObject(vm) // Pass the HomeViewModel
+                .environmentObject(vm) // Pass the new destination VM
+                .environmentObject(favoritesVM)    // Pass the new favorites VM
         case .profile:
             Color.clear
         }

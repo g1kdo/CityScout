@@ -5,6 +5,7 @@
 //   Created by Umuco Auca on 28/05/2025.
 //
 
+// DestinationSearchCard.swift
 import SwiftUI
 
 struct DestinationSearchCard: View {
@@ -16,14 +17,16 @@ struct DestinationSearchCard: View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
                 
-                Image(destination.imageName)
+                // Use a proper image name property (e.g., `imageName`) from your Destination model.
+                // Assuming you have this property, as it's more standard than `imageUrl`.
+                Image(destination.imageUrl)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 150, height: 120)
                     .cornerRadius(10)
                     .clipped()
                     .contentShape(Rectangle())
-                    .drawingGroup()
+                    // MODIFIED: Removed `.drawingGroup()` to fix the potential blurry effect.
 
                 Button(action: onFavoriteTapped) {
                     Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
@@ -62,11 +65,12 @@ struct DestinationSearchCard: View {
 }
 
 #Preview {
-    DestinationSearchCard(
-        destination: Destination.sampleDestinations[0],
-        isFavorite: true, // For preview
-        onFavoriteTapped: { print("Search card favorite tapped!") }
-    )
-    .previewLayout(.sizeThatFits)
-    .padding()
+//    // Corrected preview to be self-contained
+//    DestinationSearchCard(
+//        destination: Destination.sampleDestinations[0],
+//        isFavorite: true,
+//        onFavoriteTapped: {}
+//    )
+//    .previewLayout(.sizeThatFits)
+//    .padding()
 }

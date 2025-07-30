@@ -16,7 +16,7 @@ struct PopularFavoriteDestinationCard: View { // New card type
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                Image(destination.imageName)
+                Image(destination.imageUrl)
                     .resizable()
                     .scaledToFill()
                     .frame(height: 120)
@@ -71,21 +71,21 @@ struct PopularFavoriteDestinationCard: View { // New card type
 }
 
 #Preview {
-    PopularFavoriteDestinationCard(
-        destination: Destination.sampleDestinations[0],
-        isFavorite: false, // For preview
-        onFavoriteTapped: { print("Popular/Favorite card favorite tapped!") }
-    )
-    .previewLayout(.sizeThatFits)
-    .padding()
+//    PopularFavoriteDestinationCard(
+//        destination: Destination.sampleDestinations[0],
+//        isFavorite: false, // For preview
+//        onFavoriteTapped: { print("Popular/Favorite card favorite tapped!") }
+//    )
+//    .previewLayout(.sizeThatFits)
+//    .padding()
 }
 
 #Preview {
-    PopularFavoriteDestinationCard(
-        destination: Destination.sampleDestinations[1],
-        isFavorite: true, // For preview
-        onFavoriteTapped: { print("Popular/Favorite card favorite tapped!") }
-    )
-    .previewLayout(.sizeThatFits)
-    .padding()
+//    PopularFavoriteDestinationCard(
+//        destination: Destination.sampleDestinations[1],
+//        isFavorite: true, // For preview
+//        onFavoriteTapped: { print("Popular/Favorite card favorite tapped!") }
+//    )
+//    .previewLayout(.sizeThatFits)
+//    .padding()
 }

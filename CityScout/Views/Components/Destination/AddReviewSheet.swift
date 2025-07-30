@@ -67,6 +67,7 @@ struct AddReviewSheet: View {
                                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                             )
                             .padding(1)
+                            .disableAutocorrection(false)
                     }
                     
                     Button {

@@ -7,22 +7,29 @@
 
 
 import SwiftUI
+import FirebaseAuth
 
 // MARK: - Forgot Password View
 
 struct ForgotPasswordView: View {
+    @EnvironmentObject var authVM: AuthenticationViewModel
     @State private var email: String = ""
     @State private var showCheckEmailState: Bool = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    @State private var isSignInActive: Bool = false
+
 
     var body: some View {
-        NavigationView { // Added NavigationView for the back button
-            VStack(spacing: 25) { // Increased spacing for visual separation
-                // Back button (only shown in check email state)
+        NavigationStack { // Added NavigationView for the back button
+            VStack(spacing: 25) {
+                
                 if showCheckEmailState {
                     HStack {
                         Button(action: {
                             // Action to go back or dismiss
                             showCheckEmailState = false // For example, go back to initial form
+                            
                         }) {
                             Image(systemName: "chevron.left")
                                 .font(.title2)
@@ -32,8 +39,18 @@ struct ForgotPasswordView: View {
                     }
                     .padding(.horizontal)
                 } else {
-                    // Placeholder for alignment if no back button
-                    Spacer().frame(height: 44) // Approximate height of a nav bar item
+                    HStack {
+                        Button(action: {
+                            isSignInActive = true
+                            
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .font(.title2)
+                                .foregroundColor(.black)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal)
                 }
 
 
@@ -74,33 +91,60 @@ struct ForgotPasswordView: View {
                         .padding(.horizontal, 40)
 
                     // The email field in this state is not a button but a display
-                    FloatingField(label: "Email Address", placeholder: "example@cityscout.com", text: .constant("example@cityscout.com"))
+                    FloatingField(label: "Email Address", placeholder: "example@cityscout.com", text: $email)
                         .padding(.horizontal)
                         .padding(.top, 20) // Spacing from text above
                         .padding(.bottom, 50) // Space before the very bottom if other elements were there
 
                 } else {
                     // Initial form state UI
-                    FloatingField(label: "Email Address", placeholder: "example@cityscout.com", text: $email, keyboardType: .emailAddress)
-                        .padding(.horizontal) // Apply horizontal padding to the field
-                        .padding(.bottom, 30) // More space before button
+                    FloatingField(label: "Email Address", placeholder: "example@cityscout.com", text: $email, keyboardType: .emailAddress, autocapitalization: .never)
+                        .padding(.horizontal)
+                        .padding(.bottom, 30)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
 
                     PrimaryButton(title: "Reset Password") {
-                        // Simulate sending email and transition to the check email state
-                        email = "www.uihut@gmail.com" // Update email for the next state
-                        showCheckEmailState = true
-                        print("Reset password button tapped, transitioning to check email state.")
+                        resetPassword()
                     }
-                    .padding(.horizontal) // Apply horizontal padding to the button
+                    .padding(.horizontal)
                 }
 
                 Spacer() // Pushes content towards center
             }
-            .navigationBarHidden(true) // Hide default navigation bar to use custom back button
+            .navigationBarBackButtonHidden(true)
             .navigationBarTitleDisplayMode(.inline)
+            .alert(isPresented: $showAlert) {
+                Alert(title: Text("Notice"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
+            }
+
+        }
+        .navigationDestination(isPresented: $isSignInActive) {
+            SignInView()
+                .environmentObject(authVM) // Pass authVM to SignInView
+        }
+    }
+    
+    func resetPassword() {
+        guard !email.isEmpty else {
+            alertMessage = "Please enter your email address."
+            showAlert = true
+            return
+        }
+
+        Auth.auth().sendPasswordReset(withEmail: email) { error in
+            if let error = error {
+                alertMessage = error.localizedDescription
+                showAlert = true
+            } else {
+                showCheckEmailState = true
+            }
         }
     }
 }
+
+
+
 
 #Preview {
     ForgotPasswordView()

@@ -9,12 +9,32 @@ import SwiftUI
 import Firebase
 import FacebookCore
 import FBSDKCoreKit
+import FirebaseFirestore
+import FirebaseAppCheck
+import FirebaseAppCheckInterop
+
+// Define your AppCheckDebugProviderFactory
+#if targetEnvironment(simulator)
+class AppCheckDebugProviderFactory: NSObject, AppCheckProviderFactory {
+    func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
+        let debugProvider = AppCheckDebugProvider(app: app)
+        print("AppCheck Debug Token: \(debugProvider?.localDebugToken())")
+        return debugProvider
+    }
+}
+#endif
+
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
+       
+        #if targetEnvironment(simulator)
+       let providerFactory = AppCheckDebugProviderFactory()
+       AppCheck.setAppCheckProviderFactory(providerFactory)
+       #endif
         // Configure Firebase
         FirebaseApp.configure()
         print("Firebase configured")

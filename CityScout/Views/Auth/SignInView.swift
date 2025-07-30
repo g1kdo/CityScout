@@ -13,6 +13,7 @@ struct SignInView: View {
     // No longer need shouldNavigateHome, we'll observe viewModel.user
     // @State private var shouldNavigateHome = false
     @State private var isSignUpActive = false
+    @State private var isForgotPasswordActive = false
 
     var body: some View {
         ScrollView {
@@ -61,6 +62,10 @@ struct SignInView: View {
             SignUpView() // Assuming you have a SignUpView
                 .environmentObject(viewModel) // Pass authVM to SignUpView as well
         }
+        .navigationDestination(isPresented: $isForgotPasswordActive) {
+            ForgotPasswordView()
+                .environmentObject(viewModel)
+        }
         .onAppear {
             // Check if a user is already signed in when the view appears
             Task {
@@ -103,8 +108,7 @@ struct SignInView: View {
         HStack {
             Spacer()
             Button("Forgot Password?") {
-                // TODO: Implement forgot password action
-                print("Forgot Password Tapped")
+                isForgotPasswordActive = true
             }
             .font(.caption)
             .foregroundColor(Color(hex: "#FF7029"))

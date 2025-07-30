@@ -6,10 +6,12 @@
 //
 
 
+// PopularPlacesView.swift
 import SwiftUI
 
 struct PopularPlacesView: View {
     @EnvironmentObject var homeVM: HomeViewModel
+    @EnvironmentObject var favoritesVM: FavoritesViewModel // NEW: Add the Favorites ViewModel
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
@@ -28,9 +30,13 @@ struct PopularPlacesView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                     ForEach(homeVM.destinations) { destination in
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
-                            // Use PopularFavoriteDestinationCard for Popular Places
-                            PopularFavoriteDestinationCard(destination: destination, isFavorite: homeVM.isFavorite(destination: destination)) {
-                                homeVM.toggleFavorite(destination: destination)
+                            PopularFavoriteDestinationCard(
+                                destination: destination,
+                                isFavorite: favoritesVM.isFavorite(destination: destination) // MODIFIED: Use favoritesVM
+                            ) {
+                                Task {
+                                    await favoritesVM.toggleFavorite(destination: destination) // MODIFIED: Use favoritesVM
+                                }
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -46,8 +52,10 @@ struct PopularPlacesView: View {
 }
 
 #Preview {
-    let vm = HomeViewModel()
-    Task { await vm.loadDestinations() }
+    // You can now create a more accurate preview with both view models
+    let homeVM = HomeViewModel()
+    let favoritesVM = FavoritesViewModel()
     return PopularPlacesView()
-        .environmentObject(vm)
+        .environmentObject(homeVM)
+        .environmentObject(favoritesVM)
 }

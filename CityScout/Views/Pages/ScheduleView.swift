@@ -8,7 +8,8 @@ import SwiftUI
 
 struct ScheduleView: View {
     @State private var selectedDate: Date = Date()
-    @State private var scheduledEvents: [ScheduledEvent] = []
+    @EnvironmentObject var authVM: AuthenticationViewModel
+    @StateObject private var scheduleVM = ScheduleViewModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -48,36 +49,24 @@ struct ScheduleView: View {
                 }
             }
         }
-        .onAppear(perform: loadScheduledEvents)
+        .onAppear {
+               if let userId = authVM.user?.uid {
+                   scheduleVM.subscribeToSchedule(for: userId)
+               }
+           }
+           .onChange(of: authVM.user?.uid) { oldValue, newUserId in
+               if let userId = newUserId {
+                   scheduleVM.subscribeToSchedule(for: userId)
+               }
+           }
         .background(Color.white.edgesIgnoringSafeArea(.all))
     }
 
     private var filteredEvents: [ScheduledEvent] {
-        scheduledEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+        // Make sure you're accessing the scheduledEvents from your @StateObject scheduleVM
+        scheduleVM.scheduledEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
     }
 
-    private func loadScheduledEvents() {
-        let calendar = Calendar.current
-        var components = calendar.dateComponents([.year, .month, .day], from: Date())
-        components.day = 26
-        if let eventDate = calendar.date(from: components) {
-            scheduledEvents = [
-                ScheduledEvent(date: eventDate, destination: Destination.sampleDestinations[0]),
-                ScheduledEvent(date: eventDate, destination: Destination.sampleDestinations[1]),
-                ScheduledEvent(date: eventDate, destination: Destination.sampleDestinations[2])
-            ]
-        }
-
-        var octoberComponents = DateComponents()
-        octoberComponents.year = 2025
-        octoberComponents.month = 10
-        octoberComponents.day = 22
-        if let octoberEventDate = calendar.date(from: octoberComponents) {
-            scheduledEvents.append(ScheduledEvent(date: octoberEventDate, destination: Destination.sampleDestinations[0]))
-            scheduledEvents.append(ScheduledEvent(date: octoberEventDate, destination: Destination.sampleDestinations[1]))
-            scheduledEvents.append(ScheduledEvent(date: octoberEventDate, destination: Destination.sampleDestinations[2]))
-        }
-    }
 }
 
 struct ScheduleView_Previews: PreviewProvider {

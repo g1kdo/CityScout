@@ -1,7 +1,9 @@
+// SearchView.swift
 import SwiftUI
 
 struct SearchView: View {
     @EnvironmentObject var homeVM: HomeViewModel
+    @EnvironmentObject var favoritesVM: FavoritesViewModel // NEW: Add the Favorites ViewModel
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
@@ -41,9 +43,11 @@ struct SearchView: View {
                             NavigationLink(destination: DestinationDetailView(destination: destination)) {
                                 DestinationSearchCard(
                                     destination: destination,
-                                    isFavorite: homeVM.isFavorite(destination: destination)
+                                    isFavorite: favoritesVM.isFavorite(destination: destination) // MODIFIED: Use favoritesVM
                                 ) {
-                                    homeVM.toggleFavorite(destination: destination) // Toggle action
+                                    Task {
+                                        await favoritesVM.toggleFavorite(destination: destination) // MODIFIED: Use favoritesVM
+                                    }
                                 }
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -65,8 +69,8 @@ struct SearchView: View {
 }
 
 #Preview {
-    let vm = HomeViewModel()
-    Task { await vm.loadDestinations() } 
-    return SearchView()
-        .environmentObject(vm)
+//    let vm = DestinationViewModel()
+//    Task { await vm.loadDestinations() } 
+//    return SearchView()
+//        .environmentObject(vm)
 }

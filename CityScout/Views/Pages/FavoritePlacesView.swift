@@ -4,6 +4,12 @@
 // Created by Umuco Auca on 28/05/2025.
 //
 
+// FavoritePlacesView.swift
+// CityScout
+//
+// Created by Umuco Auca on 28/05/2025.
+//
+
 import SwiftUI
 
 struct FavoritePlacesView: View {
@@ -16,34 +22,8 @@ struct FavoritePlacesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if viewModel.isLoading {
-                    ProgressView("Loading favorites...")
-                        .padding()
-                } else if viewModel.favorites.isEmpty {
-                    Spacer()
-                    Text("No favorite places yet. Bookmark your favorites!")
-                        .font(.headline)
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                    Spacer()
-                } else {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                            ForEach(viewModel.favorites) { destination in
-                                NavigationLink(destination: DestinationDetailView(destination: destination)) {
-                                    // Use the local viewModel to check favorite status and toggle
-                                    PopularFavoriteDestinationCard(destination: destination, isFavorite: viewModel.isFavorite(destination: destination)) {
-                                        viewModel.toggleFavorite(destination: destination)
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 20)
-                    }
-                }
+                // MODIFIED: Calling the new computed property to simplify the body
+                favoritesContent
             }
             .navigationTitle("Bookmarked Places")
             .navigationBarTitleDisplayMode(.inline)
@@ -58,23 +38,64 @@ struct FavoritePlacesView: View {
                 }
             }
             .onAppear {
-                // When the view appears, tell the viewModel to fetch the favorites
-                viewModel.setup(with: authVM.signedInUser?.id)
+                // MODIFIED: Use the new subscribeToFavorites method
+                viewModel.subscribeToFavorites(for: authVM.signedInUser?.id)
             }
-            // Listen for changes in the user's ID (e.g., sign out/in)
+            // MODIFIED: Use the new subscribeToFavorites method
             .onChange(of: authVM.signedInUser?.id) { _, newId in
-                viewModel.setup(with: newId)
+                viewModel.subscribeToFavorites(for: newId)
             }
             .background(Color.white.ignoresSafeArea())
+        }
+    }
+
+    // NEW: Break down the complex conditional view logic into a computed property
+    @ViewBuilder
+    private var favoritesContent: some View {
+        if viewModel.isLoading {
+            ProgressView("Loading favorites...")
+                .padding()
+        } else if viewModel.favorites.isEmpty {
+            Spacer()
+            Text("No favorite places yet. Bookmark your favorites!")
+                .font(.headline)
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+                .padding()
+            Spacer()
+        } else {
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                    ForEach(viewModel.favorites) { destination in
+                        NavigationLink(destination: DestinationDetailView(destination: destination)) {
+                            PopularFavoriteDestinationCard(
+                                destination: destination,
+                                isFavorite: viewModel.isFavorite(destination: destination)
+                            ) {
+                                // MODIFIED: Wrap the async function call in a Task
+                                Task {
+                                    await viewModel.toggleFavorite(destination: destination)
+                                }
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
         }
     }
 }
 
 #Preview {
-    let vm = HomeViewModel()
-    Task { await vm.loadDestinations() }
-    vm.toggleFavorite(destination: Destination.sampleDestinations[0])
-    vm.toggleFavorite(destination: Destination.sampleDestinations[2])
+    // You can now create a more accurate preview with mock data
+    // Assuming you have a way to create a mock FavoritesViewModel with sample data
+    let mockFavoritesVM = FavoritesViewModel()
+    // To see the view with data, you would manually set favorites like so:
+    // mockFavoritesVM.favorites = [Destination.sampleDestinations[0], Destination.sampleDestinations[2]]
+    
     return FavoritePlacesView()
-        .environmentObject(vm)
+        .environmentObject(AuthenticationViewModel())
+        .environmentObject(mockFavoritesVM)
 }

@@ -4,22 +4,40 @@
 //
 //  Created by Umuco Auca on 26/05/2025.
 //
+
+
 import SwiftUI
 
 struct ScheduleEventRow: View {
     let event: ScheduledEvent
 
     var body: some View {
-        HStack(alignment: .top, spacing: 15) {
-            Image(event.destination.imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 80, height: 80)
-                .cornerRadius(10)
-                .clipped()
+        HStack(alignment: .center, spacing: 15) { // Changed alignment to .center for vertical centering of image and text block
+            // MODIFIED: Use AsyncImage to load from URL
+            AsyncImage(url: URL(string: event.destination.imageUrl)) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    // A more prominent placeholder for failed load
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundColor(.red)
+                @unknown default:
+                    EmptyView()
+                }
+            }
+            .frame(width: 80, height: 80)
+            .cornerRadius(10)
+            .clipped() // Ensures content is clipped to the rounded corners
 
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
+            VStack(alignment: .leading, spacing: 5) { // Spacing between calendar, title, and location
+                HStack(spacing: 4) { // Tighter spacing for icon and text
                     Image(systemName: "calendar")
                         .font(.caption)
                         .foregroundColor(.gray)
@@ -27,22 +45,37 @@ struct ScheduleEventRow: View {
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
+                
+                // Limit destination name to max 2 lines
                 Text(event.destination.name)
                     .font(.headline)
-                HStack {
+                    .lineLimit(2) // Allow up to 2 lines
+                    .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion, prevent horizontal clipping if too long
+                
+                HStack(spacing: 4) { // Tighter spacing for icon and text
                     Image(systemName: "location.fill")
                         .font(.caption)
                         .foregroundColor(.gray)
+                    // Limit location to max 1 line to keep it concise
                     Text(event.destination.location)
                         .font(.caption)
                         .foregroundColor(.gray)
+                        .lineLimit(1) // Keep location on a single line
+                        .truncationMode(.tail) // Add ellipsis if too long
                 }
             }
-            Spacer()
+            // Use .layoutPriority to ensure this VStack takes up available space
+            // but still leaves room for the chevron
+            .layoutPriority(1) // Give this VStack higher priority to take space
+
+            Spacer() // Pushes the chevron to the end
+
             Image(systemName: "chevron.right")
                 .foregroundColor(.gray)
+                .font(.caption) // Make chevron slightly smaller to align with text visually
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10) // Slightly more vertical padding
+        .padding(.horizontal) // Apply horizontal padding directly here to ensure content is inside
         .background(Color.white)
         .cornerRadius(10)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
@@ -50,15 +83,31 @@ struct ScheduleEventRow: View {
 
     private func formattedDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "d MMMM yyyy"
+        // Example: "26 May 2025, 3:30 PM"
+        formatter.dateFormat = "d MMM yyyy, h:mm a" // Abbreviated month for brevity
         return formatter.string(from: date)
     }
 }
 
 struct ScheduleEventRow_Previews: PreviewProvider {
     static var previews: some View {
-        ScheduleEventRow(event: ScheduledEvent(date: Date(), destination: Destination.sampleDestinations[0]))
-            .padding()
-           // .previewLayout(.sizeThatFits)
+        // You'll need to define ScheduledEvent and Destination for this preview to work
+        // Using a sample event for the preview
+        ScheduleEventRow(event: ScheduledEvent(
+            id: UUID().uuidString,
+            date: Date(),
+            destination: Destination(
+                id: UUID().uuidString,
+                name: "Very Long Destination Name That Might Wrap And Wrap",
+                imageUrl: "https://picsum.photos/80/80", // Use a placeholder image URL for preview
+                rating: 4.5,
+                location: "A Slightly Longer Location Name",
+                participantAvatars: [],
+                description: "",
+                price: 0
+            )
+        ))
+        .previewLayout(.sizeThatFits)
+        .padding() // Add padding to the preview to see the shadow and layout
     }
 }
