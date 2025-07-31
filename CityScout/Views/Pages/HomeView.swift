@@ -96,17 +96,31 @@ struct HomeView: View {
     }
 
     // MARK: Section Header
+    @State private var showAllPopular = false
+
     private var sectionHeader: some View {
         HStack {
             Text("Best Destinations")
                 .font(.headline).bold()
             Spacer()
-            Button("View all") { }
-                .font(.subheadline)
-                .foregroundColor(Color(hex: "#FF7029"))
+            Button("View all") {
+                showAllPopular = true
+            }
+            .font(.subheadline)
+            .foregroundColor(Color(hex: "#FF7029"))
+            // use a hidden NavigationLink to trigger navigation
+            .background(
+                NavigationLink(
+                    destination: PopularPlacesView(),
+                    isActive: $showAllPopular,
+                    label: { EmptyView() }
+                )
+                .hidden()
+            )
         }
         .padding(.horizontal)
     }
+
 
     // MARK: Carousel
     private var carouselSection: some View {
