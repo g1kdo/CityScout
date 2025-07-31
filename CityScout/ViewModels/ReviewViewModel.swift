@@ -9,32 +9,36 @@ class ReviewViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
-    // Firestore collection reference
+    // New properties for destination search
+    @Published var destinationSuggestions: [Destination] = []
+    @Published var isSearchingDestinations: Bool = false
+    @Published var destinationSearchError: String?
+
+    // Firestore collection references
     private let db = Firestore.firestore()
     private let reviewsCollection = "reviews"
-
-    // New struct for the Review data model
-    // Conforms to Codable for easy Firestore interaction
+    private let destinationsCollection = "destinations" // Assuming your destinations are in a collection named "destinations"
+    
     struct Review: Identifiable, Codable, Equatable {
-        @DocumentID var id: String? // Firestore document ID
-        let destinationId: String
-        let destinationName: String
-        let rating: Int
-        let comment: String
-        let authorId: String
-        let authorDisplayName: String // Add display name
-        var authorProfilePictureURL: URL? // Add profile picture URL
-        var timestamp: Date
-        var agrees: Int = 0 // Count of "agree" reactions
-        var disagrees: Int = 0 // Count of "disagree" reactions
-        var reactedUsers: [String: String] = [:] // Tracks which user reacted
-        
-        static func == (lhs: Review, rhs: Review) -> Bool {
-            lhs.id == rhs.id // Only compare IDs for equality
+            @DocumentID var id: String? // Firestore document ID
+            let destinationId: String
+            let destinationName: String
+            let rating: Int
+            let comment: String
+            let authorId: String
+            let authorDisplayName: String // Add display name
+            var authorProfilePictureURL: URL? // Add profile picture URL
+            var timestamp: Date
+            var agrees: Int = 0 // Count of "agree" reactions
+            var disagrees: Int = 0 // Count of "disagree" reactions
+            var reactedUsers: [String: String] = [:] // Tracks which user reacted
+            
+            static func == (lhs: Review, rhs: Review) -> Bool {
+                lhs.id == rhs.id // Only compare IDs for equality
+            }
         }
-    }
 
-    // Function to fetch reviews from Firestore
+
     func fetchReviews() {
         isLoading = true
         db.collection(reviewsCollection)
@@ -53,20 +57,19 @@ class ReviewViewModel: ObservableObject {
                     return
                 }
 
-                // Convert Firestore documents to Review objects
                 self.reviews = documents.compactMap { doc -> Review? in
                     try? doc.data(as: Review.self)
                 }
             }
     }
 
-    // Function to add a new review to Firestore
+    // Function to add a new review to Firestore (modify to accept destinationId from selected suggestion)
     func addReview(destinationId: String, destinationName: String, rating: Int, comment: String, authorId: String, authorDisplayName: String, authorProfilePictureURL: URL?) async -> Bool {
         isLoading = true
         errorMessage = nil
 
         let newReview = Review(
-            destinationId: destinationId,
+            destinationId: destinationId, // Use the provided destinationId
             destinationName: destinationName,
             rating: rating,
             comment: comment,
@@ -87,7 +90,7 @@ class ReviewViewModel: ObservableObject {
         }
     }
 
-    // Function to delete a review
+    // Function to delete a review (keep as is)
     func deleteReview(review: Review) async {
         guard let reviewId = review.id else { return }
         do {
@@ -98,7 +101,7 @@ class ReviewViewModel: ObservableObject {
         }
     }
     
-    // Function to edit a review
+    // Function to edit a review (keep as is)
     func editReview(review: Review, newComment: String, newRating: Int) async -> Bool {
         guard let reviewId = review.id else { return false }
         do {
@@ -116,7 +119,7 @@ class ReviewViewModel: ObservableObject {
         }
     }
     
-    // Function to add a reaction (agree/disagree)
+    // Function to add a reaction (agree/disagree) (keep as is)
     func reactToReview(review: Review, userId: String, reaction: String) async {
         guard let reviewId = review.id else { return }
         let docRef = db.collection(reviewsCollection).document(reviewId)
@@ -172,6 +175,77 @@ class ReviewViewModel: ObservableObject {
             })
         } catch {
             print("Transaction failed: \(error)")
+        }
+    }
+
+    // New function to fetch destination suggestions
+    func fetchDestinationSuggestions(query: String) {
+        if query.isEmpty {
+            destinationSuggestions = []
+            isSearchingDestinations = false
+            return
+        }
+
+        isSearchingDestinations = true
+        destinationSearchError = nil
+
+        let lowercasedQuery = query.lowercased()
+
+        // Fetch all destinations and filter client-side for "contains" search
+        // Firestore doesn't directly support "contains" for arbitrary strings efficiently.
+        // For production, if you have thousands of destinations, consider:
+        // 1. Algolia/Elasticsearch for rich text search.
+        // 2. Maintaining a searchable denormalized field (e.g., lowercase, remove spaces)
+        // 3. Using a "starts-with" query if that fits your needs:
+        //    .whereField("name", isGreaterThanOrEqualTo: lowercasedQuery)
+        //    .whereField("name", isLessThanOrEqualTo: lowercasedQuery + "~") // '~' is a character after all other characters
+
+        db.collection(destinationsCollection)
+            .getDocuments { [weak self] snapshot, error in
+                guard let self = self else { return }
+                self.isSearchingDestinations = false
+
+                if let error = error {
+                    self.destinationSearchError = "Error fetching destinations: \(error.localizedDescription)"
+                    self.destinationSuggestions = []
+                    return
+                }
+
+                guard let documents = snapshot?.documents else {
+                    self.destinationSuggestions = []
+                    return
+                }
+
+                let allDestinations = documents.compactMap { doc -> Destination? in
+                    try? doc.data(as: Destination.self)
+                }
+
+                // Filter destinations whose name contains the query (case-insensitive)
+                self.destinationSuggestions = allDestinations.filter {
+                    $0.name.lowercased().contains(lowercasedQuery)
+                }
+            }
+    }
+
+    // New function to update a user's profile picture across all their reviews
+    func updateReviewsProfilePicture(userId: String, newPictureURL: URL?) async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            let querySnapshot = try await db.collection(reviewsCollection)
+                .whereField("authorId", isEqualTo: userId)
+                .getDocuments()
+
+            for document in querySnapshot.documents {
+                let docRef = db.collection(reviewsCollection).document(document.documentID)
+                try await docRef.updateData(["authorProfilePictureURL": newPictureURL?.absoluteString as Any])
+            }
+            isLoading = false
+            print("Successfully updated profile pictures for reviews by user: \(userId)")
+        } catch {
+            errorMessage = "Failed to update profile pictures for reviews: \(error.localizedDescription)"
+            isLoading = false
+            print("Error updating profile pictures for reviews: \(error.localizedDescription)")
         }
     }
 }

@@ -1,4 +1,3 @@
-// DestinationDetailView.swift
 import SwiftUI
 
 struct DestinationDetailView: View {
@@ -8,6 +7,7 @@ struct DestinationDetailView: View {
 
     @State private var showFullDescription = false
     @State private var showBookingSheet = false // State to control the booking sheet presentation
+    @State private var showOnMapView = false // New state for showing OnMapView
 
     private let detailCornerRadius: CGFloat = 24
     private let headerHeight: CGFloat = 350
@@ -34,6 +34,9 @@ struct DestinationDetailView: View {
                 }
             }
             .ignoresSafeArea(edges: .top)
+            .onTapGesture {
+                showOnMapView = true // Present OnMapView when image is tapped
+            }
             
             // "Details" text at the top, mimicking the image
             Text("Details")
@@ -156,6 +159,9 @@ struct DestinationDetailView: View {
                 .environmentObject(authVM) // Pass authVM to BookingView
                 .environmentObject(bookingVM) // Pass bookingVM to BookingView
         }
+        .fullScreenCover(isPresented: $showOnMapView) {
+            OnMapView(destination: destination) // Present OnMapView as a full-screen cover
+        }
     }
 
     private var shortDescription: String {
@@ -179,7 +185,8 @@ struct DestinationDetailView: View {
             .first?.windows.first?.safeAreaInsets.bottom ?? 0
     }
 }
-// Shape to round specific corners
+
+// Shape to round specific corners (Existing, keep this)
 struct RoundedCorners: Shape {
     var radius: CGFloat
     var corners: UIRectCorner
@@ -192,14 +199,3 @@ struct RoundedCorners: Shape {
         return Path(path.cgPath)
     }
 }
-
-//#Preview {
-//    DestinationDetailView(destination: Destination(
-//        name: "Nyandungu Eco Park",
-//        imageName: "EcoPark", // Changed to a more generic name for preview image
-//        rating: 4.7,
-//        location: "Kigali, Nyandungu",
-//        participantAvatars: ["thumb1","thumb2","thumb3","thumb4","thumb5","thumb6"], // Example image names
-//        description: "You will get a complete travel package on the beaches, including airline tickets, recommended hotel rooms, transportation, and everything you need for your holiday to the Greek Islands, for example. Explore the stunning landscapes and diverse wildlife that make this eco park a truly unique destination. Perfect for nature lovers and adventurers alike."
-//    ))
-//}

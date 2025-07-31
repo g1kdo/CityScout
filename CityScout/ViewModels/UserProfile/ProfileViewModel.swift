@@ -12,12 +12,12 @@ import _PhotosUI_SwiftUI
 
 @MainActor
 class ProfileViewModel: ObservableObject {
-    @Published var displayName: String = "" // New: for full name or display name
+    @Published var displayName: String = ""
     @Published var location: String = ""
     @Published var mobileNumber: String = ""
     @Published var isLoading: Bool = false
     @Published var errorMessage: String = ""
-    @Published var showingImagePicker: Bool = false // This might not be strictly needed with PhotosPicker
+    @Published var showingImagePicker: Bool = false
     @Published var selectedPhotoItem: PhotosPickerItem? = nil {
         didSet {
             Task {
@@ -25,21 +25,24 @@ class ProfileViewModel: ObservableObject {
             }
         }
     }
-    @Published var profileImage: UIImage? // The image to display/upload (locally)
-    @Published var currentProfileImageURL: URL? // Store the current URL, whether from social or custom upload
+    @Published var profileImage: UIImage?
+    @Published var currentProfileImageURL: URL?
 
     private var db = Firestore.firestore()
-    private var storage = Storage.storage() // Initialize Firebase Storage
+    private var storage = Storage.storage()
     private var cancellables = Set<AnyCancellable>()
 
-   // private let appId: String = "cityscoutapp-935ad" // Example: Use your Firebase Project ID here
-
-    init() { }
+    private var reviewViewModel: ReviewViewModel
+     
+     // Initializer to inject ReviewViewModel
+    init(reviewViewModel: ReviewViewModel) {
+         self.reviewViewModel = reviewViewModel
+     }
+    
 
     func setup(with user: SignedInUser?) {
         guard let user = user else {
-            // Clear all fields if no user is provided (e.g., user logged out)
-            self.displayName = "" // Clear display name
+            self.displayName = ""
             self.location = ""
             self.mobileNumber = ""
             self.profileImage = nil
@@ -47,13 +50,10 @@ class ProfileViewModel: ObservableObject {
             return
         }
 
-        // Initialize editable fields with current user data.
-        self.displayName = user.displayName ?? "" // Use displayName
+        self.displayName = user.displayName ?? ""
         self.location = user.location ?? ""
         self.mobileNumber = user.mobileNumber ?? ""
 
-        // Use the helper property `profilePictureAsURL` from SignedInUser
-        // This prioritizes the Firestore-stored URL (if exists) over Firebase Auth's photoURL
         if let customOrSocialPhotoURL = user.profilePictureAsURL {
             self.currentProfileImageURL = customOrSocialPhotoURL
             loadImageFromURL(customOrSocialPhotoURL)
@@ -62,7 +62,6 @@ class ProfileViewModel: ObservableObject {
             self.currentProfileImageURL = nil
         }
 
-        // Fetch additional profile data from Firestore (if needed, otherwise rely on SignedInUser data)
         if let userID = user.id, !userID.isEmpty {
             fetchProfileData(for: userID)
         }
@@ -77,28 +76,20 @@ class ProfileViewModel: ObservableObject {
         }
 
         isLoading = true
-        // CORRECTED FIRESTORE PATH:
-        // Using the structure: /artifacts/{appId}/users/{userId}/userProfiles/{userId}
-//        db.collection("artifacts").document(appId).collection("users").document(currentUID).collection("userProfiles").document(currentUID).getDocument { [weak self] document, error in
-
         db.collection("users").document(currentUID).getDocument { [weak self] document, error in
-
             guard let self = self else { return }
             self.isLoading = false
             if let document = document, document.exists {
                 let data = document.data() ?? [:]
 
-                // Update local fields directly from Firestore data
-                self.displayName = data["displayName"] as? String ?? self.displayName // Use displayName from Firestore
+                self.displayName = data["displayName"] as? String ?? self.displayName
                 self.location = data["location"] as? String ?? self.location
                 self.mobileNumber = data["mobileNumber"] as? String ?? self.mobileNumber
 
-                // Update the local image URL if a URL string is found in Firestore.
                 if let photoURLString = data["profilePictureURL"] as? String, let url = URL(string: photoURLString) {
                     self.currentProfileImageURL = url
                     self.loadImageFromURL(url)
                 } else if let socialPhotoURL = Auth.auth().currentUser?.photoURL {
-                    // Fallback to Firebase Auth's photoURL (which might be from social login)
                     self.currentProfileImageURL = socialPhotoURL
                     self.loadImageFromURL(socialPhotoURL)
                 } else {
@@ -113,8 +104,6 @@ class ProfileViewModel: ObservableObject {
             } else {
                 self.errorMessage = "Profile data not found. It might be a new user or not yet saved."
                 print("Profile data not found in Firestore for user: \(currentUID)")
-                // If no profile data exists in Firestore, but user is logged in via social,
-                // ensure we still display the social profile picture if available.
                 if let socialPhotoURL = Auth.auth().currentUser?.photoURL {
                     self.currentProfileImageURL = socialPhotoURL
                     self.loadImageFromURL(socialPhotoURL)
@@ -133,7 +122,7 @@ class ProfileViewModel: ObservableObject {
         errorMessage = ""
 
         var updatedFields: [String: Any] = [
-            "displayName": displayName, // Use displayName
+            "displayName": displayName,
             "location": location,
             "mobileNumber": mobileNumber
         ]
@@ -142,20 +131,23 @@ class ProfileViewModel: ObservableObject {
 
         do {
             // Upload new profile image to Firebase Storage if selected
-            if let image = profileImage, selectedPhotoItem != nil { // Check if a new image was actually selected
+            if let image = profileImage, selectedPhotoItem != nil {
                 newPhotoURL = try await uploadProfileImage(image, for: firebaseUser.uid)
                 updatedFields["profilePictureURL"] = newPhotoURL?.absoluteString // Store the storage URL in Firestore
                 print("New profile image uploaded and URL obtained: \(newPhotoURL?.absoluteString ?? "N/A")")
             } else if profileImage == nil && selectedPhotoItem == nil && currentProfileImageURL != nil {
-                // Scenario: User had a custom image, but now no new image is selected and no PhotosPickerItem.
-                // This could imply they want to remove their custom image.
-                // You might want to delete the old image from storage and clear the URL.
-                // For now, if profileImage is nil and selectedPhotoItem is nil, we assume no change
-                // or a desire to revert to social if that was the original.
-                // To explicitly remove a custom image, you'd need a "Remove Photo" button.
-                // If you want to clear it from Firestore when `profileImage` is nil and `selectedPhotoItem` is nil,
-                // you would set `updatedFields["profilePictureURL"] = FieldValue.delete()`
+                // If a custom image was previously set (currentProfileImageURL is not nil)
+                // and the user has explicitly cleared the PhotosPicker selection (selectedPhotoItem is nil),
+                // and profileImage is now nil (meaning it was not re-loaded from a URL or selected),
+                // it implies the user wants to remove their custom profile picture.
+                // We should remove it from Firestore and potentially Storage.
+                // This requires a more explicit "clear photo" action to be safe,
+                // but for now, we'll set it to nil in Firestore.
+                updatedFields["profilePictureURL"] = FieldValue.delete() // Remove the field from Firestore
+                newPhotoURL = nil // Ensure newPhotoURL is nil so Firebase Auth photoURL is also cleared or reverts to social.
+                print("Custom profile image explicitly removed.")
             }
+
 
             // Update Firebase Auth display name
             let changeRequest = firebaseUser.createProfileChangeRequest()
@@ -163,30 +155,31 @@ class ProfileViewModel: ObservableObject {
             var authProfileChanged = false
 
             if firebaseUser.displayName != displayName {
-                changeRequest.displayName = displayName // Set display name
+                changeRequest.displayName = displayName
                 authProfileChanged = true
                 print("Firebase Auth display name set for update: \(displayName)")
             }
 
             // Update Firebase Auth photoURL if a new one was uploaded
-            // ONLY if newPhotoURL is set (meaning a custom image was uploaded)
             if let uploadedPhotoURL = newPhotoURL, firebaseUser.photoURL?.absoluteString != uploadedPhotoURL.absoluteString {
                 changeRequest.photoURL = uploadedPhotoURL
                 authProfileChanged = true
                 print("Firebase Auth photoURL set for update to custom image.")
-            } else if newPhotoURL == nil && selectedPhotoItem == nil {
-                // If no new image was uploaded and no PhotosPickerItem was selected,
-                // and the current Firebase Auth photoURL is different from the original social one,
-                // it means a custom image was previously set and now potentially "cleared" by not selecting a new one.
-                // If `currentProfileImageURL` is nil here, it means no image at all.
-                // If `signedInUserFromAuthVM?.profilePictureAsURL` is nil, it means no social image either.
-                // This logic determines if Firebase Auth's photoURL should be cleared.
-                if firebaseUser.photoURL != nil && signedInUserFromAuthVM?.profilePictureAsURL == nil {
-                    // This scenario implies clearing the photoURL in Firebase Auth if it was a custom one
-                    // and no new image is selected, and there's no social fallback.
+            } else if newPhotoURL == nil && firebaseUser.photoURL != nil && selectedPhotoItem == nil {
+                // Scenario: No new photo uploaded, and current Firebase Auth photoURL is not nil.
+                // If selectedPhotoItem is nil, it means the user explicitly deselected an image or didn't pick one.
+                // This block handles clearing the Firebase Auth photoURL if it was previously set (custom or social)
+                // and now no custom photo is chosen. We need to be careful not to clear social photos if that's the source.
+
+                // To correctly handle social photoURLs, you might need to compare
+                // `firebaseUser.photoURL` with the original social URL if available.
+                // For simplicity, if newPhotoURL is nil and selectedPhotoItem is nil,
+                // we assume if `currentProfileImageURL` (the source of truth from Firestore/Auth)
+                // is also nil, then Auth photoURL should be cleared.
+                if self.currentProfileImageURL == nil { // If no current image stored or selected
                     changeRequest.photoURL = nil
                     authProfileChanged = true
-                    print("Firebase Auth photoURL set to nil (custom image removed).")
+                    print("Firebase Auth photoURL set to nil (custom image removed or no image).")
                 }
             }
 
@@ -196,13 +189,19 @@ class ProfileViewModel: ObservableObject {
                 print("Firebase Auth profile changes committed (display name and/or photoURL).")
             }
 
-            // CORRECTED FIRESTORE PATH:
-            // Using the structure: /artifacts/{appId}/users/{userId}/userProfiles/{userId}
-//            try await db.collection("artifacts").document(appId).collection("users").document(firebaseUser.uid).collection("userProfiles").document(firebaseUser.uid).setData(updatedFields, merge: true)
-
             try await db.collection("users").document(firebaseUser.uid).setData(updatedFields, merge: true)
 
             print("Profile updated successfully in Firestore.")
+
+            // MARK: - Integration Point 2: Call updateReviewsProfilePicture
+            // Only call this if the profile picture URL has actually changed or was explicitly cleared.
+            let oldProfilePictureURL = signedInUserFromAuthVM?.profilePictureAsURL
+            if newPhotoURL != oldProfilePictureURL {
+                print("Profile picture URL changed. Updating reviews...")
+                await reviewViewModel.updateReviewsProfilePicture(userId: firebaseUser.uid, newPictureURL: newPhotoURL)
+            } else {
+                print("Profile picture URL not changed, skipping review updates.")
+            }
 
             isLoading = false
             return true
@@ -225,7 +224,6 @@ class ProfileViewModel: ObservableObject {
                 }
             } else {
                 print("Error loading image from URL: \(error?.localizedDescription ?? "Unknown error")")
-                // If image from URL fails to load, clear it locally
                 DispatchQueue.main.async {
                     self.profileImage = nil
                 }
@@ -234,11 +232,21 @@ class ProfileViewModel: ObservableObject {
     }
 
     private func loadSelectedImage() async {
-        guard let selectedItem = selectedPhotoItem else { return }
+        guard let selectedItem = selectedPhotoItem else {
+            // If selectedPhotoItem becomes nil (e.g., user deselects), clear profileImage
+            profileImage = nil
+            currentProfileImageURL = nil // Also clear current URL to reflect no custom image
+            return
+        }
         do {
             if let data = try await selectedItem.loadTransferable(type: Data.self) {
                 if let image = UIImage(data: data) {
-                    profileImage = image // Set the UIImage for local display
+                    profileImage = image
+                    // When a new image is selected, the currentProfileImageURL should point to this potential new upload,
+                    // but it will only be a concrete Firebase Storage URL after `uploadProfileImage` completes.
+                    // For now, it's safer to let `updateProfile` set `currentProfileImageURL` after upload.
+                    // Or, if you want to show the new image immediately, you could set `currentProfileImageURL`
+                    // to a placeholder or wait for the actual upload URL.
                     print("Selected image loaded into profileImage.")
                 }
             }
@@ -253,9 +261,6 @@ class ProfileViewModel: ObservableObject {
             throw NSError(domain: "ProfileViewModel", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not convert image to JPEG data."])
         }
 
-        // CORRECTED STORAGE PATH:
-        // Using the structure: /artifacts/{appId}/users/{userId}/profile_images/{fileName}
-//        let storageRef = storage.reference().child("artifacts/\(appId)/users/\(userID)/profile_images/\(userID).jpg")
         let storageRef = storage.reference().child("users/\(userID)/profile_images/\(userID).jpg")
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
@@ -293,13 +298,13 @@ class ProfileViewModel: ObservableObject {
             LoginManager().logOut()
 
             // Reset local state
-            self.displayName = "" // Clear display name
+            self.displayName = ""
             self.location = ""
             self.mobileNumber = ""
             self.profileImage = nil
-            self.currentProfileImageURL = nil // Clear the stored URL
+            self.currentProfileImageURL = nil
             self.errorMessage = ""
-            self.selectedPhotoItem = nil // Clear the photos picker selection
+            self.selectedPhotoItem = nil
 
             print("User signed out successfully from Firebase and social providers.")
         } catch {

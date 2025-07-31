@@ -5,8 +5,9 @@
 //   Created by Umuco Auca on 28/05/2025.
 //
 
-// DestinationSearchCard.swift
+
 import SwiftUI
+import Kingfisher
 
 struct DestinationSearchCard: View {
     let destination: Destination
@@ -16,17 +17,12 @@ struct DestinationSearchCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                
-                // Use a proper image name property (e.g., `imageName`) from your Destination model.
-                // Assuming you have this property, as it's more standard than `imageUrl`.
-                Image(destination.imageUrl)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 150, height: 120)
+                // Use the new helper view for the image logic
+                SearchCardImageView(imageUrl: destination.imageUrl)
+                    .frame(width: 150, height: 120) // Apply frame here for the helper view
                     .cornerRadius(10)
                     .clipped()
-                    .contentShape(Rectangle())
-                    // MODIFIED: Removed `.drawingGroup()` to fix the potential blurry effect.
+                    .contentShape(Rectangle()) // Keeps the tappable area
 
                 Button(action: onFavoriteTapped) {
                     Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
@@ -54,7 +50,7 @@ struct DestinationSearchCard: View {
                     .lineLimit(1)
             }
 
-            Text("$\(894)/Person")
+            Text("$\(destination.price)/Person")
                 .font(.footnote)
                 .fontWeight(.bold)
                 .foregroundColor(Color(hex: "#FF7029"))
@@ -64,13 +60,63 @@ struct DestinationSearchCard: View {
     }
 }
 
+private struct SearchCardImageView: View {
+    let imageUrl: String?
+    @State private var imageLoadFailed: Bool = false
+
+    var body: some View {
+        Group {
+            if imageLoadFailed {
+                // Display fallback image if loading explicitly failed
+                Image(systemName: "photo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 80, height: 80) // Adjust size for visibility
+                    .foregroundColor(.gray)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity) // Center fallback within its parent
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(10) // Match the main image's corner radius
+            } else {
+                KFImage(URL(string: imageUrl ?? ""))
+                    .onFailure { error in
+                        print("Failed to load image: \(error.localizedDescription)")
+                        self.imageLoadFailed = true // Set state to show fallback
+                    }
+                    .onSuccess { result in
+                        self.imageLoadFailed = false // Reset state if load succeeds
+                    }
+                    .placeholder {
+                        ProgressView() // Show a loading indicator
+                            .frame(maxWidth: .infinity, maxHeight: .infinity) // Make placeholder fill its container
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(10)
+                    }
+                    .resizable()
+                    .scaledToFill()
+            }
+        }
+        // Ensure the content of this view fills its parent's frame
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 #Preview {
-//    // Corrected preview to be self-contained
-//    DestinationSearchCard(
-//        destination: Destination.sampleDestinations[0],
-//        isFavorite: true,
-//        onFavoriteTapped: {}
-//    )
-//    .previewLayout(.sizeThatFits)
-//    .padding()
+    // You'll need to define a sample Destination for this preview to work
+    // Example:
+    DestinationSearchCard(
+        destination: Destination(
+            id: UUID().uuidString,
+            name: "Eiffel Tower",
+            imageUrl: "[https://picsum.photos/id/237/150/120](https://picsum.photos/id/237/150/120)", // Placeholder URL
+            rating: 4.8,
+            location: "Paris, France",
+            participantAvatars: [],
+            description: "A beautiful landmark.",
+            price: 894
+        ),
+        isFavorite: true,
+        onFavoriteTapped: {}
+    )
+    .previewLayout(.sizeThatFits)
+    .padding()
 }

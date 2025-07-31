@@ -6,35 +6,42 @@
 //
 
 
+//
+//  ScheduleEventRow.swift
+//  CityScout
+//
+//  Created by Umuco Auca on 26/05/2025.
+//
+
 import SwiftUI
+import Kingfisher // Import Kingfisher
 
 struct ScheduleEventRow: View {
     let event: ScheduledEvent
 
     var body: some View {
-        HStack(alignment: .center, spacing: 15) { // Changed alignment to .center for vertical centering of image and text block
-            // MODIFIED: Use AsyncImage to load from URL
-            AsyncImage(url: URL(string: event.destination.imageUrl)) { phase in
-                switch phase {
-                case .empty:
-                    ProgressView()
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                case .failure:
+        HStack(alignment: .center, spacing: 15) {
+            
+            KFImage(URL(string: event.destination.imageUrl)) // Use KFImage
+                .placeholder {
+                    ProgressView() // Show a progress view while loading
+                }
+                .onFailure { error in
                     // A more prominent placeholder for failed load
                     Image(systemName: "exclamationmark.triangle.fill")
                         .resizable()
                         .scaledToFit()
                         .foregroundColor(.red)
-                @unknown default:
-                    EmptyView()
+                        .frame(width: 80, height: 80) // Ensure placeholder fills the frame
+                        .background(Color.secondary.opacity(0.1)) // Add a subtle background
+                        .cornerRadius(10)
                 }
-            }
-            .frame(width: 80, height: 80)
-            .cornerRadius(10)
-            .clipped() // Ensures content is clipped to the rounded corners
+                .resizable()
+                .scaledToFill()
+                .frame(width: 80, height: 80)
+                .cornerRadius(10)
+                .clipped()
+                
 
             VStack(alignment: .leading, spacing: 5) { // Spacing between calendar, title, and location
                 HStack(spacing: 4) { // Tighter spacing for icon and text

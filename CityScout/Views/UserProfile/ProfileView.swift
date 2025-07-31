@@ -12,7 +12,7 @@ import FirebaseStorage // ADD THIS IMPORT // For potential direct image loading 
 struct ProfileView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @StateObject var viewModel = ProfileViewModel()
+    @StateObject var viewModel = ProfileViewModel(reviewViewModel: ReviewViewModel())
     @State private var isShowingEditProfile = false
     @State private var isShowingBookmarked = false
 

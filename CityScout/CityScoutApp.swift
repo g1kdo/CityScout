@@ -12,6 +12,7 @@ import FBSDKCoreKit
 import FirebaseFirestore
 import FirebaseAppCheck
 import FirebaseAppCheckInterop
+import GoogleMaps
 
 // Define your AppCheckDebugProviderFactory
 #if targetEnvironment(simulator)
@@ -49,6 +50,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             didFinishLaunchingWithOptions: launchOptions
         )
         print("Facebook SDK initialized")
+        
+        GMSServices.provideAPIKey("AIzaSyCA5WaGeXXo7KRC0HAq7lPz-gweeAMJVw8")
 
         return true
     }
@@ -67,6 +70,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         )
         return handledByFacebook
     }
+    
 }
 
 @main

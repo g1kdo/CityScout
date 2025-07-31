@@ -25,7 +25,7 @@ struct SearchBarView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.gray)
                 .onTapGesture {
-                    onSearchTapped?() // Trigger search action if needed
+                    onSearchTapped?()
                 }
 
             TextField(placeholder, text: $searchText)
