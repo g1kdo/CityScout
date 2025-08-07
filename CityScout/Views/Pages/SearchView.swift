@@ -1,9 +1,8 @@
-// SearchView.swift
 import SwiftUI
 
 struct SearchView: View {
     @EnvironmentObject var homeVM: HomeViewModel
-    @EnvironmentObject var favoritesVM: FavoritesViewModel // NEW: Add the Favorites ViewModel
+    @EnvironmentObject var favoritesVM: FavoritesViewModel
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
@@ -28,12 +27,14 @@ struct SearchView: View {
             } else if homeVM.searchText.isEmpty && homeVM.searchResults.isEmpty {
                 Spacer()
                 Text("Start typing to find places...")
-                    .foregroundColor(.gray)
+                    // --- CHANGE IS HERE ---
+                    .foregroundColor(.secondary) // Replaced .gray
                 Spacer()
             } else if homeVM.searchResults.isEmpty {
                 Spacer()
                 Text("No results found for \"\(homeVM.searchText)\"")
-                    .foregroundColor(.gray)
+                    // --- CHANGE IS HERE ---
+                    .foregroundColor(.secondary) // Replaced .gray
                 Spacer()
             } else {
                 // Grid of search results
@@ -43,10 +44,10 @@ struct SearchView: View {
                             NavigationLink(destination: DestinationDetailView(destination: destination)) {
                                 DestinationSearchCard(
                                     destination: destination,
-                                    isFavorite: favoritesVM.isFavorite(destination: destination) // MODIFIED: Use favoritesVM
+                                    isFavorite: favoritesVM.isFavorite(destination: destination)
                                 ) {
                                     Task {
-                                        await favoritesVM.toggleFavorite(destination: destination) // MODIFIED: Use favoritesVM
+                                        await favoritesVM.toggleFavorite(destination: destination)
                                     }
                                 }
                             }
@@ -60,17 +61,12 @@ struct SearchView: View {
 
             Spacer()
         }
-        .background(Color.white.ignoresSafeArea())
+        // --- CHANGE IS HERE ---
+        // Replaced Color.white with an adaptive system background
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
         .onDisappear {
             homeVM.searchText = ""
         }
     }
-}
-
-#Preview {
-//    let vm = DestinationViewModel()
-//    Task { await vm.loadDestinations() } 
-//    return SearchView()
-//        .environmentObject(vm)
 }
