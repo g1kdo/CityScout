@@ -5,19 +5,6 @@
 //  Created by Umuco Auca on 31/07/2025.
 //
 
-//
-//  OnMapView.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 31/07/2025.
-//
-
-//
-//  OnMapView.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 31/07/2025.
-//
 
 import SwiftUI
 import GoogleMaps

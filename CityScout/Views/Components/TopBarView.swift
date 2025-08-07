@@ -1,9 +1,14 @@
+// Views/TopBarView.swift
 import SwiftUI
 import Kingfisher
 
 struct TopBarView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
-
+    @StateObject private var notificationVM = NotificationViewModel()
+    
+    // State variable to control the presentation of the fullScreenCover
+    @State private var showingNotifications = false
+    
     var body: some View {
         HStack(spacing: 12) {
             // ───────────── Capsule (only avatar + name) ─────────────
@@ -16,20 +21,18 @@ struct TopBarView: View {
                             .frame(width: 32, height: 32)
                             .clipShape(Circle())
                     } else {
-                        // Fallback to a default system image if no URL is available
                         Image(systemName: "person.circle.fill")
                             .resizable()
                             .scaledToFill()
                             .frame(width: 32, height: 32)
                             .clipShape(Circle())
-                            .foregroundColor(.gray) // Default color for placeholder
+                            .foregroundColor(.gray)
                     }
-
+                    
                     Text(user.displayName ?? "User")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                 } else {
-                    // Show a progress view or a default placeholder when user data is loading
                     ProgressView()
                         .frame(width: 32, height: 32)
                 }
@@ -39,12 +42,25 @@ struct TopBarView: View {
             .background(Color(.systemGray6))
             .clipShape(Capsule())
             .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
-
+            
             Spacer()
-
-            // Assuming NotificationBell is defined elsewhere
-            NotificationBell(unreadCount: 0)
+            
+            // ───────────── Notification Bell with Button and fullScreenCover ─────────────
+            Button(action: {
+                // Toggle the state to show the fullScreenCover
+                showingNotifications.toggle()
+            }) {
+                NotificationBell(unreadCount: notificationVM.unreadCount)
+            }
         }
         .padding(.horizontal, 20)
+        .onAppear {
+            notificationVM.fetchNotifications()
+        }
+        .fullScreenCover(isPresented: $showingNotifications) {
+            // The view to present as a fullScreenCover
+            NotificationView()
+                .environmentObject(notificationVM)
+        }
     }
 }
