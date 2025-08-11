@@ -1,9 +1,14 @@
+// Views/TopBarView.swift
 import SwiftUI
 import Kingfisher
 
 struct TopBarView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
-
+    @StateObject private var notificationVM = NotificationViewModel()
+    
+    // State variable to control the presentation of the fullScreenCover
+    @State private var showingNotifications = false
+    
     var body: some View {
         HStack(spacing: 12) {
             // ───────────── Capsule (only avatar + name) ─────────────
@@ -38,11 +43,25 @@ struct TopBarView: View {
             .background(Color(.secondarySystemGroupedBackground))
             .clipShape(Capsule())
             .shadow(color: Color.primary.opacity(0.1), radius: 4, x: 0, y: 2) // Use adaptive shadow
-
+            
             Spacer()
-
-            NotificationBell(unreadCount: 0)
+            
+            // ───────────── Notification Bell with Button and fullScreenCover ─────────────
+            Button(action: {
+                // Toggle the state to show the fullScreenCover
+                showingNotifications.toggle()
+            }) {
+                NotificationBell(unreadCount: notificationVM.unreadCount)
+            }
         }
         .padding(.horizontal, 20)
+        .onAppear {
+            notificationVM.fetchNotifications()
+        }
+        .fullScreenCover(isPresented: $showingNotifications) {
+            // The view to present as a fullScreenCover
+            NotificationView()
+                .environmentObject(notificationVM)
+        }
     }
 }

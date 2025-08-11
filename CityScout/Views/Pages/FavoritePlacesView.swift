@@ -21,7 +21,7 @@ struct FavoritePlacesView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            VStack(spacing: 20) {
                 // MODIFIED: Calling the new computed property to simplify the body
                 favoritesContent
             }
@@ -33,7 +33,10 @@ struct FavoritePlacesView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "chevron.left")
+                            .font(.title2)
                             .foregroundColor(.primary)
+                            .padding()
+                            .background(Circle().fill(Color(.systemGray6)).frame(width: 44, height: 44))
                     }
                 }
             }

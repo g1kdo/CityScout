@@ -22,6 +22,9 @@ class BookingViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private var db = Firestore.firestore()
+    private let usersCollection = "users"
+    private let destinationsCollection = "destinations"
+  //  private let destinationOwnersCollection = "destination_owners"
 
     func bookDestination(destination: Destination, userId: String) async {
         isLoading = true
@@ -59,14 +62,29 @@ class BookingViewModel: ObservableObject {
         ]
 
         do {
-            // Add a new document to a "bookings" collection
-            _ = try await db.collection("bookings").addDocument(data: bookingData)
-            bookingSuccess = true
-            print("Booking successful for \(destination.name) on \(scheduledDateTime)")
-        } catch {
-            errorMessage = "Failed to book destination: \(error.localizedDescription)"
-            print("Error booking destination: \(error.localizedDescription)")
-        }
-        isLoading = false
+                    // Add a new document to a "bookings" collection
+                    _ = try await db.collection("bookings").addDocument(data: bookingData)
+                    
+                    // Create a notification for the user who made the booking
+                    let notificationData: [String: Any] = [
+                        "title": "Booking Confirmed",
+                        "message": "Your booking for \(destination.name) on \(bookingData["date"]!) has been confirmed!",
+                        "timestamp": FieldValue.serverTimestamp(),
+                        "isRead": false,
+                        "isArchived": false,
+                        "destinationId": destination.id ?? ""
+                    ]
+                    
+                    let notificationRef = db.collection(usersCollection).document(userId).collection("notifications")
+                    _ = try await notificationRef.addDocument(data: notificationData)
+                    print("Confirmation notification created for user \(userId)")
+                    
+                    bookingSuccess = true
+                    print("Booking successful for \(destination.name) on \(scheduledDateTime)")
+                } catch {
+                    errorMessage = "Failed to book destination or create notification: \(error.localizedDescription)"
+                    print("Error: \(error.localizedDescription)")
+                }
+                isLoading = false
     }
 }
