@@ -22,11 +22,11 @@ enum FooterTab: CaseIterable {
     case home, calendar, search, review, profile
     var iconName: String {
         switch self {
-        case .home:      return "house"
-        case .calendar:  return "calendar"
-        case .search:    return "magnifyingglass"
-        case .review:  return "star.fill"
-        case .profile:   return "person.crop.circle"
+        case .home:     return "house"
+        case .calendar: return "calendar"
+        case .search:   return "magnifyingglass"
+        case .review: return "star.fill"
+        case .profile:  return "person.crop.circle"
         }
     }
     var title: String {
@@ -62,22 +62,23 @@ struct FooterView: View {
                                 .font(.system(size: tab == .search ? 30 : 26))
                                 .foregroundColor(
                                     tab == .search
-                                      ? .white
-                                      : (selected == tab ? Color(hex: "#24BAEC") : .gray)
+                                        ? .white
+                                        // --- CHANGE IS HERE ---
+                                        : (selected == tab ? Color(hex: "#24BAEC") : .secondary) // Replaced .gray
                                 )
                         }
                         if tab != .search {
                             Text(tab.title)
                                 .font(.caption2)
                                 .foregroundColor(selected == tab
-                                                   ? Color(hex: "#24BAEC")
-                                                   : .gray)
+                                                 ? Color(hex: "#24BAEC")
+                                                 // --- CHANGE IS HERE ---
+                                                 : .secondary) // Replaced .gray
                         }
                     }
                 }
                 if tab != FooterTab.allCases.last {
                     Spacer()
-                   
                 }
             }
         }
@@ -86,8 +87,10 @@ struct FooterView: View {
         .padding(.bottom, safeAreaBottom() + 5)
         .background(
             RoundedTopShape(radius: 50)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.05),
+                // --- CHANGE IS HERE ---
+                // Replaced Color.white with an adaptive background color
+                .fill(Color(.secondarySystemBackground))
+                .shadow(color: Color.primary.opacity(0.05), // Use adaptive shadow
                         radius: 8, x: 0, y: -2)
         )
     }

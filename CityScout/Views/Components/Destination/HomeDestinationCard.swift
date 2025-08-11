@@ -1,12 +1,3 @@
-//
-//  HomeDestinationCard.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 28/05/2025.
-//
-
-
-
 import SwiftUI
 import Kingfisher
 
@@ -17,20 +8,20 @@ struct HomeDestinationCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // --- Image (Now dynamic with KFImage for caching) ---
+            // --- Image ---
             ZStack(alignment: .topTrailing) {
-                // Use the new helper view for the main destination image
                 HomeDestinationImageView(imageUrl: destination.imageUrl)
-                    .frame(width: 260, height: 300) // Apply frame to the helper view
+                    .frame(width: 260, height: 300)
                     .cornerRadius(16)
                     .clipped()
-                
+            
                 Button(action: onFavoriteTapped) {
                     Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 20))
                         .foregroundColor(isFavorite ? .red : .primary)
                         .padding(12)
-                        .background(Color.white.opacity(0.8))
+                        // Replaced white background with a semi-transparent material for a modern look
+                        .background(.thinMaterial)
                         .clipShape(Circle())
                 }
                 .padding(10)
@@ -42,7 +33,7 @@ struct HomeDestinationCard: View {
                     .font(.headline)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                
+            
                 HStack(spacing: 4) {
                     Image(systemName: "star.fill")
                         .foregroundColor(.yellow)
@@ -59,26 +50,25 @@ struct HomeDestinationCard: View {
                         .frame(width: 16, height: 16)
                     Text(destination.location)
                         .font(.subheadline)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary) // Replaced .gray
                         .lineLimit(1)
                 }
-                
+            
                 Spacer()
-                
+            
                 HStack(spacing: -12) {
                     if let avatars = destination.participantAvatars {
                         ForEach(avatars.prefix(3), id: \.self) { imageUrl in
-                            // Use a separate helper for avatar images as well
                             AvatarImageView(imageUrl: imageUrl)
-                                .frame(width: 32, height: 32) // Apply frame to the helper view
+                                .frame(width: 32, height: 32)
                                 .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                                .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2)) // Use adaptive background for stroke
                         }
                         if avatars.count > 3 {
                             Text("+\(avatars.count - 3)")
                                 .font(.caption)
                                 .frame(width: 32, height: 32)
-                                .background(Color.gray.opacity(0.3))
+                                .background(Color.secondary.opacity(0.3)) // Replaced .gray
                                 .clipShape(Circle())
                         }
                     }
@@ -88,9 +78,10 @@ struct HomeDestinationCard: View {
             .padding(.bottom, 12)
         }
         .frame(width: 260)
-        .background(Color.white)
+        // Replaced Color.white with an adaptive background
+        .background(Color(.secondarySystemBackground))
         .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .shadow(color: Color.primary.opacity(0.08), radius: 8, x: 0, y: 4) // Use adaptive shadow
     }
 }
 
@@ -108,23 +99,23 @@ private struct HomeDestinationImageView: View {
                 Image(systemName: "photo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 100, height: 100) // Adjust size as needed
-                    .foregroundColor(.gray)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity) // Center fallback
+                    .frame(width: 100, height: 100)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(16) // Match the main card's corner radius
+                    .cornerRadius(16)
             } else {
                 KFImage(URL(string: imageUrl ?? ""))
                     .onFailure { error in
                         print("Failed to load main image: \(error.localizedDescription)")
-                        self.imageLoadFailed = true // Set state to show fallback
+                        self.imageLoadFailed = true
                     }
                     .onSuccess { result in
-                        self.imageLoadFailed = false // Reset state if load succeeds
+                        self.imageLoadFailed = false
                     }
                     .placeholder {
                         ProgressView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity) // Make placeholder fill its container
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(Color.secondary.opacity(0.1))
                             .cornerRadius(16)
                     }
@@ -132,7 +123,6 @@ private struct HomeDestinationImageView: View {
                     .scaledToFill()
             }
         }
-        // Ensure the content of this view fills its parent's frame
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -147,11 +137,10 @@ private struct AvatarImageView: View {
     var body: some View {
         Group {
             if imageLoadFailed {
-                Image(systemName: "person.circle.fill") // Fallback for failed avatar
+                Image(systemName: "person.circle.fill")
                     .resizable()
                     .frame(width: 32, height: 32)
-                    .foregroundColor(.gray)
-                    // No need for background/cornerRadius if parent handles clipShape(Circle())
+                    .foregroundColor(.secondary)
             } else {
                 KFImage(URL(string: imageUrl ?? ""))
                     .onFailure { error in
@@ -162,64 +151,15 @@ private struct AvatarImageView: View {
                         self.imageLoadFailed = false
                     }
                     .placeholder {
-                        Image(systemName: "person.circle.fill") // Placeholder for avatar while loading
+                        Image(systemName: "person.circle.fill")
                             .resizable()
                             .frame(width: 32, height: 32)
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                     }
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             }
         }
-        // Ensure the content fills the frame set by the parent
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-}
-
-
-// MARK: - Previews
-#Preview {
-    HomeDestinationCard(
-        destination: Destination(
-            id: UUID().uuidString,
-            name: "Santorini Island",
-            imageUrl: "https://picsum.photos/id/1015/260/300", // Example URL
-            rating: 4.9,
-            location: "Greece",
-            participantAvatars: [
-                "https://randomuser.me/api/portraits/women/1.jpg",
-                "https://randomuser.me/api/portraits/men/2.jpg",
-                "https://randomuser.me/api/portraits/women/3.jpg",
-                "https://randomuser.me/api/portraits/men/4.jpg" // More than 3 for testing
-            ],
-            description: "Beautiful island with stunning sunsets.",
-            price: 1200
-        ),
-        isFavorite: false, // For preview
-        onFavoriteTapped: { print("Home card favorite tapped!") }
-    )
-    .previewLayout(.sizeThatFits)
-    .padding()
-}
-
-#Preview {
-    HomeDestinationCard(
-        destination: Destination(
-            id: UUID().uuidString,
-            name: "Kyoto Temples",
-            imageUrl: "https://picsum.photos/id/10/260/300", // Example URL
-            rating: 4.7,
-            location: "Japan",
-            participantAvatars: [
-                "https://randomuser.me/api/portraits/men/5.jpg",
-                "https://randomuser.me/api/portraits/women/6.jpg"
-            ],
-            description: "Historic temples and traditional gardens.",
-            price: 950
-        ),
-        isFavorite: true, // For preview
-        onFavoriteTapped: { print("Home card favorite tapped!") }
-    )
-    .previewLayout(.sizeThatFits)
-    .padding()
 }

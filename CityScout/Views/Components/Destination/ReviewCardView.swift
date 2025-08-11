@@ -1,16 +1,6 @@
-//
-//  ReviewCardView.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 29/07/2025.
-//
-
-
-// Views/ReviewCardView.swift
 import SwiftUI
-import Kingfisher // Import Kingfisher for image loading and caching
+import Kingfisher
 
-// Date Formatter (keep as is)
 private let itemFormatter: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateStyle = .short
@@ -20,78 +10,62 @@ private let itemFormatter: DateFormatter = {
 
 struct ReviewCardView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @ObservedObject var viewModel: ReviewViewModel // Pass the ViewModel to perform actions
+    @ObservedObject var viewModel: ReviewViewModel
     let review: ReviewViewModel.Review
     let isMyReview: Bool
     
-    // State to hold the current user's reaction
     @State private var myReaction: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) { // Main VStack from old design
+        VStack(alignment: .leading, spacing: 8) {
             
-            // Top section: Profile Pic, Author Name, Destination Name, Rating
             HStack(alignment: .top) {
-                // User profile image (from new design, using Kingfisher)
-                if let profileURL = review.authorProfilePictureURL {
-                    KFImage(profileURL) // Use KFImage for caching
-                        .placeholder {
-                            Image(systemName: "person.circle.fill")
-                                .resizable()
-                                .foregroundColor(.gray)
-                        }
-                        .resizable()
-                        .frame(width: 40, height: 40)
-                        .clipShape(Circle())
-                } else {
-                    Image(systemName: "person.circle.fill")
-                        .resizable()
-                        .frame(width: 40, height: 40)
-                        .foregroundColor(.gray)
-                }
+                KFImage(review.authorProfilePictureURL)
+                    .placeholder {
+                        Image(systemName: "person.circle.fill")
+                            .resizable()
+                            .foregroundColor(.secondary)
+                    }
+                    .resizable()
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    // Author Display Name
                     Text(review.authorDisplayName)
                         .font(.headline)
                         .foregroundColor(.primary)
                     
-                    // Destination Name (from old design)
                     Text(review.destinationName)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 
-                Spacer() // Pushes rating to the right
+                Spacer()
                 
-                // Star rating display (combined from old and new)
                 HStack(spacing: 2) {
                     ForEach(0..<5) { index in
                         Image(systemName: index < review.rating ? "star.fill" : "star")
-                            .foregroundColor(index < review.rating ? .yellow : .gray)
+                            .foregroundColor(index < review.rating ? .yellow : .secondary)
                             .font(.caption)
                     }
-                    Text("\(review.rating)/5") // Rating text from old design
+                    Text("\(review.rating)/5")
                         .font(.caption)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary)
                 }
             }
             
-            // Review Comment
             Text(review.comment)
                 .font(.body)
-                .foregroundColor(.secondary)
-                .lineLimit(nil) // Allow multiple lines
+                .foregroundColor(.primary) // Changed to primary for better readability
+                .lineLimit(nil)
             
-            // Bottom section: Timestamp and Reactions
             HStack {
                 Text("Reviewed on \(review.timestamp, formatter: itemFormatter)")
                     .font(.caption2)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.secondary)
                 
                 Spacer()
                 
-                // Reaction buttons (from new design, only if not my review)
                 if !isMyReview {
                     HStack(spacing: 20) {
                         // Agree button
@@ -132,16 +106,17 @@ struct ReviewCardView: View {
             }
         }
         .padding()
-        // Apply old background, but use isMyReview for a slight tint
-        .background(isMyReview ? Color.blue.opacity(0.1) : Color(.systemGray6))
+        // --- CHANGE IS HERE ---
+        // Using a more standard adaptive background color
+        .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(10)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 3) // Old shadow
+        .shadow(color: Color.primary.opacity(0.05), radius: 5, x: 0, y: 3)
         .onAppear {
             if let userId = authVM.signedInUser?.id {
                 myReaction = review.reactedUsers[userId]
             }
         }
-        .onChange(of: review.reactedUsers) { oldValue, _ in
+        .onChange(of: review.reactedUsers) { _, _ in
             if let userId = authVM.signedInUser?.id {
                 myReaction = review.reactedUsers[userId]
             }
