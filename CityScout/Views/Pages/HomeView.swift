@@ -25,11 +25,13 @@ struct HomeView: View {
                     FooterView(selected: $selectedTab)
                 }
                 .padding(.top, safeAreaTop())
-                .background(Color.white).ignoresSafeArea()
+                // --- FIX IS HERE ---
+                // Changed from Color.white to a system color that adapts to dark mode.
+                .background(Color(.systemBackground)).ignoresSafeArea()
                 .navigationBarHidden(true)
                 
                 NavigationLink(
-                    destination: ProfileView().environmentObject(authVM),
+                    destination: ProfileView(viewModel: ProfileViewModel(reviewViewModel: ReviewViewModel())).environmentObject(authVM),
                     isActive: $navigateToProfile,
                     label: { EmptyView() }
                 )
@@ -58,11 +60,11 @@ struct HomeView: View {
                 }
             }
             .onAppear {
-                        favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
-                    }
+                    favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
+                }
             .onChange(of: authVM.user?.uid) { oldValue, newUserId in
-                        favoritesVM.subscribeToFavorites(for: newUserId)
-                    }
+                    favoritesVM.subscribeToFavorites(for: newUserId)
+                }
             
             .navigationDestination(isPresented: Binding<Bool>(
                 get: { selectedDestination != nil },
@@ -190,9 +192,4 @@ struct HomeView: View {
             Color.clear
         }
     }
-}
-
-#Preview {
-    HomeView()
-        .environmentObject(AuthenticationViewModel())
 }

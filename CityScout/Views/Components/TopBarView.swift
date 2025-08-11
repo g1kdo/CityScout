@@ -14,21 +14,20 @@ struct TopBarView: View {
             // ───────────── Capsule (only avatar + name) ─────────────
             HStack(spacing: 8) {
                 if let user = authVM.signedInUser {
-                    if let profileImageURL = user.profilePictureAsURL {
-                        KFImage(profileImageURL)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 32, height: 32)
-                            .clipShape(Circle())
-                    } else {
-                        Image(systemName: "person.circle.fill")
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 32, height: 32)
-                            .clipShape(Circle())
-                            .foregroundColor(.gray)
-                    }
-                    
+                    KFImage(user.profilePictureAsURL)
+                        .placeholder {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 32, height: 32)
+                                .clipShape(Circle())
+                                .foregroundColor(.secondary) // Use adaptive color
+                        }
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 32, height: 32)
+                        .clipShape(Circle())
+
                     Text(user.displayName ?? "User")
                         .font(.subheadline)
                         .fontWeight(.semibold)
@@ -39,9 +38,11 @@ struct TopBarView: View {
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
-            .background(Color(.systemGray6))
+            // --- CHANGE IS HERE ---
+            // Replaced Color(.systemGray6) with a more distinct secondary background
+            .background(Color(.secondarySystemGroupedBackground))
             .clipShape(Capsule())
-            .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+            .shadow(color: Color.primary.opacity(0.1), radius: 4, x: 0, y: 2) // Use adaptive shadow
             
             Spacer()
             

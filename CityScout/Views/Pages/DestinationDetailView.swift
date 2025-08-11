@@ -1,193 +1,200 @@
 import SwiftUI
+import Kingfisher
 
 struct DestinationDetailView: View {
     let destination: Destination
-    @EnvironmentObject var authVM: AuthenticationViewModel // Needed for userId
-    @StateObject private var bookingVM = BookingViewModel() // StateObject for booking logic
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authVM: AuthenticationViewModel
+    @StateObject private var bookingVM = BookingViewModel()
+    @StateObject private var favoritesVM = FavoritesViewModel()
 
     @State private var showFullDescription = false
-    @State private var showBookingSheet = false // State to control the booking sheet presentation
-    @State private var showOnMapView = false // New state for showing OnMapView
-
-    private let detailCornerRadius: CGFloat = 24
-    private let headerHeight: CGFloat = 350
+    @State private var showBookingSheet = false
 
     var body: some View {
-        ZStack(alignment: .top) {
-            // 1. Fullscreen header image (now dynamic)
-            AsyncImage(url: URL(string: destination.imageUrl)) { phase in
-                switch phase {
-                case .empty:
-                    Color.gray.opacity(0.1)
-                        .frame(width: UIScreen.main.bounds.width, height: headerHeight)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: UIScreen.main.bounds.width, height: headerHeight)
-                        .clipped()
-                case .failure:
-                    Color.gray
-                        .frame(width: UIScreen.main.bounds.width, height: headerHeight)
-                @unknown default:
-                    EmptyView()
+        ZStack(alignment: .bottom) {
+            // Main content including header image and details
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Header Image with overlaid buttons
+                    headerImageView
+                    
+                    // Details Panel that overlaps the image
+                    detailsView
+                        .offset(y: -40)
                 }
-            }
-            .ignoresSafeArea(edges: .top)
-            .onTapGesture {
-                showOnMapView = true // Present OnMapView when image is tapped
             }
             
-            // "Details" text at the top, mimicking the image
-            Text("Details")
-                .font(.headline)
-                .foregroundColor(.white)
-                .padding(.top, safeAreaTop() + 10)
-                .frame(maxWidth: .infinity, alignment: .center)
+            // Floating "Book Now" button at the bottom
+            bookNowButton
+        }
+        .ignoresSafeArea()
+        .navigationBarHidden(true)
+        .onAppear {
+            favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
+        }
+    }
 
-            // 2. Detail content panel overlapping image
-            VStack(spacing: 0) {
-                Spacer().frame(height: headerHeight - detailCornerRadius)
+    // MARK: - Subviews
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        // Title & avatar
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(destination.name)
-                                    .font(.title2).bold()
-                                Text(destination.location)
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                            }
-                            Spacer()
-                            // Assuming 'participantAvatars' now contains URLs
-                            if let firstAvatarUrl = destination.participantAvatars?.first, let url = URL(string: firstAvatarUrl) {
-                                AsyncImage(url: url) { phase in
-                                    if let image = phase.image {
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 44, height: 44)
-                                            .clipShape(Circle())
-                                    } else {
-                                        Image(systemName: "person.circle.fill")
-                                            .resizable()
-                                            .frame(width: 44, height: 44)
-                                            .foregroundColor(.gray)
-                                            .clipShape(Circle())
-                                    }
-                                }
-                            } else {
-                                Image(systemName: "person.circle.fill")
-                                    .resizable()
-                                    .frame(width: 44, height: 44)
-                                    .foregroundColor(.gray)
-                                    .clipShape(Circle())
-                            }
-                        }
+    private var headerImageView: some View {
+        ZStack(alignment: .top) {
+            KFImage(URL(string: destination.imageUrl))
+                .placeholder { Color.secondary.opacity(0.2) }
+                .resizable()
+                .scaledToFill()
+                .frame(height: 400)
+                .clipped()
+                .overlay(
+                    LinearGradient(gradient: Gradient(colors: [.clear, .black.opacity(0.5)]), startPoint: .center, endPoint: .bottom)
+                )
 
-                        // Gallery thumbnails
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                if let avatars = destination.participantAvatars {
-                                    ForEach(avatars, id: \.self) { imageUrl in
-                                        AsyncImage(url: URL(string: imageUrl)) { phase in
-                                            if let image = phase.image {
-                                                image
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                                    .frame(width: 60, height: 60)
-                                                    .cornerRadius(12)
-                                            } else {
-                                                Color.gray.opacity(0.2)
-                                                    .frame(width: 60, height: 60)
-                                                    .cornerRadius(12)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 8)
-                        }
-
-                        // About section
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("About Destination")
-                                .font(.headline)
-                            Text(showFullDescription ? (destination.description ?? "No description available.") : shortDescription)
-                                .font(.body)
-                                .foregroundColor(.gray)
-                            if !showFullDescription && (destination.description ?? "").count > 150 {
-                                Button("Read More") { showFullDescription = true }
-                                    .font(.subheadline)
-                                    .foregroundColor(Color(hex: "#FF7029"))
-                            }
-                        }
-
-                        Spacer().frame(height: 0)
-                    }
-                    .padding()
-                    .background(
-                        Color.white
-                            .clipShape(RoundedCorners(radius: detailCornerRadius, corners: [.topLeft, .topRight]))
-                    )
-                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: -4)
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.bold())
+                        .foregroundColor(.primary)
+                        .padding(12)
+                        .background(.thinMaterial)
+                        .clipShape(Circle())
                 }
-
-                // Book Now button outside container
-                Button(action: {
-                    showBookingSheet = true // Present the booking sheet
-                }) {
-                    Text("Book Now")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(hex: "#24BAEC"))
-                        .cornerRadius(12)
+                
+                Spacer()
+                
+                Button {
+                    Task { await favoritesVM.toggleFavorite(destination: destination) }
+                } label: {
+                    Image(systemName: favoritesVM.isFavorite(destination: destination) ? "bookmark.fill" : "bookmark")
+                        .font(.headline.bold())
+                        .foregroundColor(favoritesVM.isFavorite(destination: destination) ? Color(hex: "#FF7029") : .primary)
+                        .padding(12)
+                        .background(.thinMaterial)
+                        .clipShape(Circle())
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 16)
-                .padding(.bottom, safeAreaBottom())
             }
+            .padding(.horizontal)
+            .padding(.top, 50)
         }
-        .ignoresSafeArea() // Ensure the ZStack ignores safe areas for header image
+    }
+
+    private var detailsView: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            // Title, Location, and Avatar
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(destination.name)
+                        .font(.title).bold()
+                    Text(destination.location)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                KFImage(URL(string: destination.participantAvatars?.first ?? ""))
+                    .placeholder { Image(systemName: "person.circle.fill").resizable().foregroundColor(.secondary) }
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 50, height: 50)
+                    .clipShape(Circle())
+            }
+
+            // Info Row (Rating, Price)
+            HStack(spacing: 24) {
+                DetailInfoRow(icon: "star.fill", text: "\(String(format: "%.1f", destination.rating)) (\(Int.random(in: 500...2500)) Reviews)", color: .yellow)
+                DetailInfoRow(icon: "dollarsign.circle.fill", text: "$\(String(format: "%.0f", destination.price))/Person", color: .green)
+                Spacer()
+            }
+
+            // Gallery
+            if let avatars = destination.participantAvatars, !avatars.isEmpty {
+                VStack(alignment: .leading) {
+                    Text("Gallery").font(.headline)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(avatars, id: \.self) { imageUrl in
+                                KFImage(URL(string: imageUrl))
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 80, height: 80)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // About Destination
+            VStack(alignment: .leading, spacing: 8) {
+                Text("About Destination").font(.headline)
+                Text(destination.description ?? "No description available.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .lineLimit(showFullDescription ? nil : 4)
+                
+                if (destination.description ?? "").count > 150 {
+                    Button(showFullDescription ? "Read Less" : "Read More") {
+                        withAnimation(.easeInOut) {
+                            showFullDescription.toggle()
+                        }
+                    }
+                    .foregroundColor(Color(hex: "#FF7029"))
+                    .font(.subheadline.bold())
+                }
+            }
+            
+            // Spacer to create space for the floating button
+            Spacer().frame(height: 80)
+        }
+        .padding(24)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedCorners(radius: 40, corners: [.topLeft, .topRight]))
+    }
+
+    private var bookNowButton: some View {
+        Button {
+            showBookingSheet = true
+        } label: {
+            Text("Book Now")
+                .font(.headline.bold())
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(hex: "#24BAEC"))
+                .cornerRadius(12)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 30)
+        .background(
+            // Gradient background for the button area to make it stand out
+            LinearGradient(gradient: Gradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)]), startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+        )
         .sheet(isPresented: $showBookingSheet) {
-            // Present the BookingView as a sheet
             BookingView(destination: destination)
-                .environmentObject(authVM) // Pass authVM to BookingView
-                .environmentObject(bookingVM) // Pass bookingVM to BookingView
+                .environmentObject(authVM)
+                .environmentObject(bookingVM)
         }
-        .fullScreenCover(isPresented: $showOnMapView) {
-            OnMapView(destination: destination) // Present OnMapView as a full-screen cover
-        }
-    }
-
-    private var shortDescription: String {
-        let text = destination.description ?? "No description available."
-        if text.count > 150 {
-            let idx = text.index(text.startIndex, offsetBy: 150)
-            return String(text[..<idx]) + "..."
-        }
-        return text
-    }
-
-    private func safeAreaTop() -> CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 0
-    }
-
-    private func safeAreaBottom() -> CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.bottom ?? 0
     }
 }
 
-// Shape to round specific corners (Existing, keep this)
-struct RoundedCorners: Shape {
+// MARK: - Helper Views
+
+private struct DetailInfoRow: View {
+    let icon: String
+    let text: String
+    let color: Color
+
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(color)
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+private struct RoundedCorners: Shape {
     var radius: CGFloat
     var corners: UIRectCorner
     func path(in rect: CGRect) -> Path {

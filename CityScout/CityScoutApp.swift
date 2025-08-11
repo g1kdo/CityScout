@@ -31,11 +31,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-       
+        
         #if targetEnvironment(simulator)
-       let providerFactory = AppCheckDebugProviderFactory()
-       AppCheck.setAppCheckProviderFactory(providerFactory)
-       #endif
+        let providerFactory = AppCheckDebugProviderFactory()
+        AppCheck.setAppCheckProviderFactory(providerFactory)
+        #endif
         // Configure Firebase
         FirebaseApp.configure()
         print("Firebase configured")
@@ -80,16 +80,22 @@ struct CityScoutApp: App {
 
     // Inject your authentication view model here
     @StateObject private var authVM = AuthenticationViewModel()
+    
+    // The @AppStorage property for dark mode has been removed.
 
     var body: some Scene {
         WindowGroup {
-            if authVM.signedInUser != nil {
-                HomeView().environmentObject(authVM)
-            }else{
-                WelcomeView()
+            // Use a Group to apply modifiers to the entire content block
+            Group {
+                if authVM.signedInUser != nil {
+                    HomeView()
+                } else {
+                    WelcomeView()
+                }
             }
-//            WelcomeView()
-//                .environmentObject(authVM)
+            .environmentObject(authVM)
+            // The .preferredColorScheme modifier has been removed.
+            // SwiftUI will now automatically adopt the system's appearance setting.
         }
     }
 }

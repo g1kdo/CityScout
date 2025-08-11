@@ -1,9 +1,3 @@
-//
-//  ScheduleView.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 26/05/2025.
-//
 import SwiftUI
 
 struct ScheduleView: View {
@@ -14,9 +8,10 @@ struct ScheduleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             CalendarHeader(selectedDate: $selectedDate)
-                .padding(.horizontal)
-                .padding(.bottom, 20)
+                          .padding(.horizontal)
+                          .padding(.bottom, 20)
 
+            // The CalendarView now provides the single, correct header.
             CalendarView(selectedDate: $selectedDate)
                 .padding(.bottom, 30)
 
@@ -37,7 +32,7 @@ struct ScheduleView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 if filteredEvents.isEmpty {
                     Text("No events scheduled for this date.")
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary) // Use adaptive color
                         .padding()
                 } else {
                     VStack(spacing: 15) {
@@ -50,27 +45,19 @@ struct ScheduleView: View {
             }
         }
         .onAppear {
-               if let userId = authVM.user?.uid {
-                   scheduleVM.subscribeToSchedule(for: userId)
-               }
-           }
-           .onChange(of: authVM.user?.uid) { oldValue, newUserId in
-               if let userId = newUserId {
-                   scheduleVM.subscribeToSchedule(for: userId)
-               }
-           }
-        .background(Color.white.edgesIgnoringSafeArea(.all))
+            if let userId = authVM.user?.uid {
+                scheduleVM.subscribeToSchedule(for: userId)
+            }
+        }
+        .onChange(of: authVM.user?.uid) { _, newUserId in
+            if let userId = newUserId {
+                scheduleVM.subscribeToSchedule(for: userId)
+            }
+        }
+        // The view will now correctly adopt the system's theme.
     }
 
     private var filteredEvents: [ScheduledEvent] {
-        // Make sure you're accessing the scheduledEvents from your @StateObject scheduleVM
         scheduleVM.scheduledEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
-    }
-
-}
-
-struct ScheduleView_Previews: PreviewProvider {
-    static var previews: some View {
-        ScheduleView()
     }
 }
