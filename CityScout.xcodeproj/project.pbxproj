@@ -36,7 +36,7 @@
 		315840012DDCD6870080BF35 /* FacebookBasics in Frameworks */ = {isa = PBXBuildFile; productRef = 315840002DDCD6870080BF35 /* FacebookBasics */; };
 		315840032DDCD8E10080BF35 /* FacebookAEM in Frameworks */ = {isa = PBXBuildFile; productRef = 315840022DDCD8E10080BF35 /* FacebookAEM */; };
 		318E42272DE483C100EE47F5 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 318E42262DE483C100EE47F5 /* Kingfisher */; };
-		C52D138D2E3BEEA100DAEC88 /* GoogleMaps in Frameworks */ = {isa = PBXBuildFile; productRef = C52D138C2E3BEEA100DAEC88 /* GoogleMaps */; };
+		31A666812E3BC2B900F563C4 /* GoogleMaps in Frameworks */ = {isa = PBXBuildFile; productRef = 31A666802E3BC2B900F563C4 /* GoogleMaps */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,7 +101,7 @@
 			files = (
 				313433972DCCD57500D0C950 /* AuthenticationServices.framework in Frameworks */,
 				314B75912DC22C1E0045510C /* FirebaseFirestoreCombine-Community in Frameworks */,
-				C52D138D2E3BEEA100DAEC88 /* GoogleMaps in Frameworks */,
+				31A666812E3BC2B900F563C4 /* GoogleMaps in Frameworks */,
 				314B75932DC22C1E0045510C /* FirebaseFunctions in Frameworks */,
 				314B758B2DC22C1E0045510C /* FirebaseDatabase in Frameworks */,
 				3134339A2DCCDD5B00D0C950 /* FacebookCore in Frameworks */,
@@ -226,7 +226,7 @@
 				315840002DDCD6870080BF35 /* FacebookBasics */,
 				315840022DDCD8E10080BF35 /* FacebookAEM */,
 				318E42262DE483C100EE47F5 /* Kingfisher */,
-				C52D138C2E3BEEA100DAEC88 /* GoogleMaps */,
+				31A666802E3BC2B900F563C4 /* GoogleMaps */,
 			);
 			productName = CityScout;
 			productReference = 314B75182DC225B60045510C /* CityScout.app */;
@@ -315,7 +315,7 @@
 				314B759E2DC22F820045510C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				313433982DCCDD5B00D0C950 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */,
 				318E42252DE483C100EE47F5 /* XCRemoteSwiftPackageReference "Kingfisher" */,
-				C52D138B2E3BEE7E00DAEC88 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */,
+				31A6667F2E3BC2B900F563C4 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 314B75192DC225B60045510C /* Products */;
@@ -524,6 +524,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CityScout/Info.plist;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -557,6 +559,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CityScout/Info.plist;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -722,7 +726,7 @@
 				minimumVersion = 8.3.2;
 			};
 		};
-		C52D138B2E3BEE7E00DAEC88 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */ = {
+		31A6667F2E3BC2B900F563C4 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/googlemaps/ios-maps-sdk";
 			requirement = {
@@ -873,9 +877,9 @@
 			package = 318E42252DE483C100EE47F5 /* XCRemoteSwiftPackageReference "Kingfisher" */;
 			productName = Kingfisher;
 		};
-		C52D138C2E3BEEA100DAEC88 /* GoogleMaps */ = {
+		31A666802E3BC2B900F563C4 /* GoogleMaps */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = C52D138B2E3BEE7E00DAEC88 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */;
+			package = 31A6667F2E3BC2B900F563C4 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */;
 			productName = GoogleMaps;
 		};
 /* End XCSwiftPackageProductDependency section */
