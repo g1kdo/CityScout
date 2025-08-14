@@ -81,7 +81,9 @@ class ScheduleViewModel: ObservableObject {
                             location: destinationLocation,
                             participantAvatars: nil, // Not part of booking data directly
                             description: nil, // Not part of booking data directly
-                            price: 0.0 // Not part of booking data directly
+                            price: 0.0,
+                            galleryImageUrls: []// Not part of booking data directly
+                            
                         )
                         
                         return ScheduledEvent(id: doc.documentID, date: dateTimestamp.dateValue(), destination: dummyDestination)

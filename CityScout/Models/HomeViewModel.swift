@@ -5,6 +5,12 @@ import FirebaseFirestore
 
 @MainActor
 class HomeViewModel: ObservableObject {
+    // --- NEW PROPERTY ---
+    // This is the only line that needs to be added.
+    // It will control the visibility of the search overlay.
+    @Published var showSearchView = false
+    
+    // --- All of your existing properties remain the same ---
     @Published var destinations: [Destination] = []
     
     // MARK: - Search Properties
