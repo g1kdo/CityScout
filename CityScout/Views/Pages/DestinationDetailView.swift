@@ -168,7 +168,7 @@ struct DestinationDetailView: View {
             LinearGradient(gradient: Gradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)]), startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         )
-        .sheet(isPresented: $showBookingSheet) {
+        .fullScreenCover(isPresented: $showBookingSheet) {
             BookingView(destination: destination)
                 .environmentObject(authVM)
                 .environmentObject(bookingVM)

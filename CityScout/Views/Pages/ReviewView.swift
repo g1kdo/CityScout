@@ -22,15 +22,29 @@ struct ReviewView: View {
                     VStack {
                         Image(systemName: "pencil.and.scribble")
                             .font(.largeTitle)
-                            .foregroundColor(.secondary) // Use adaptive color
+                            .foregroundColor(.secondary)
                             .padding(.bottom, 5)
                         Text("No reviews submitted yet.")
                             .font(.subheadline)
-                            .foregroundColor(.secondary) // Use adaptive color
+                            .foregroundColor(.secondary)
                     }
                     .padding(.top, 50)
                     Spacer()
                 } else {
+                    // Added a horizontal stack for the filter and a Spacer
+                    HStack {
+                        Spacer()
+                        Picker("Sort By", selection: $viewModel.sortOption) {
+                            ForEach(ReviewViewModel.SortOption.allCases, id: \.self) { option in
+                                Text(option.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(.gray)
+                        .padding(.trailing, 8)
+                    }
+                    .padding(.top, 8)
+
                     List {
                         ReviewListContent(
                             viewModel: viewModel,
@@ -60,8 +74,6 @@ struct ReviewView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 20)
             }
-            // --- CHANGE IS HERE ---
-            // Replaced Color.white with an adaptive system background
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .sheet(isPresented: $showAddReviewSheet) {
                 AddReviewSheet(viewModel: viewModel, reviewToEdit: reviewToEdit)
@@ -87,11 +99,11 @@ private struct ReviewListContent: View {
     @Binding var isShowingEditSheet: Bool
     
     var body: some View {
-        ForEach(viewModel.reviews) { review in
-            ReviewCardView(
-                viewModel: viewModel,
-                review: review,
-                isMyReview: review.authorId == authVM.signedInUser?.id
+        ForEach(viewModel.sortedReviews) { review in
+                ReviewCardView(
+                    viewModel: viewModel,
+                    review: review,
+                    isMyReview: review.authorId == authVM.signedInUser?.id
             )
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
