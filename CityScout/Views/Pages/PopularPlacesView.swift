@@ -19,15 +19,10 @@ struct PopularPlacesView: View {
             HeaderView(title: "Popular Places")
                 .padding(.bottom, 20)
 
-            Text("All Popular Places")
-                .font(.headline)
-                .fontWeight(.bold)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                .padding(.bottom, 10)
+            
 
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], spacing: 20)  {
                     ForEach(homeVM.destinations) { destination in
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(
@@ -46,16 +41,9 @@ struct PopularPlacesView: View {
                 .padding(.bottom, 20)
             }
         }
-        .background(Color.white.ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }
 }
 
-#Preview {
-    // You can now create a more accurate preview with both view models
-    let homeVM = HomeViewModel()
-    let favoritesVM = FavoritesViewModel()
-    return PopularPlacesView()
-        .environmentObject(homeVM)
-        .environmentObject(favoritesVM)
-}
+

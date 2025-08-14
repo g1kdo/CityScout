@@ -1,9 +1,3 @@
-//
-//  SearchHeaderView.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 28/05/2025.
-//
 
 
 import SwiftUI
@@ -15,17 +9,7 @@ struct SearchHeaderView: View {
 
     var body: some View {
         HStack {
-//            Button(action: {
-//                dismiss()
-//            }) {
-//                Image(systemName: "chevron.left")
-//                    .font(.headline)
-//                    .foregroundColor(.primary)
-//                    .padding(5)
-//                    .background(Circle().fill(Color(.systemGray6)).frame(width: 44, height: 44))
-//            }
-
-            //Spacer()
+        
 
             Text(title)
                 .font(.headline)
@@ -47,6 +31,4 @@ struct SearchHeaderView: View {
     }
 }
 
-#Preview {
-    SearchHeaderView(title: "Search", onCancelTapped: {})
-}
+

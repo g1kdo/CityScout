@@ -58,7 +58,4 @@ struct SearchBarView: View {
     }
 }
 
-#Preview {
-    @State var text = ""
-    return SearchBarView(searchText: $text)
-}
+
