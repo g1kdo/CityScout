@@ -278,4 +278,23 @@ class ReviewViewModel: ObservableObject {
             print("Error updating profile pictures for reviews: \(error.localizedDescription)")
         }
     }
+    
+    enum SortOption: String, CaseIterable {
+           case newest = "Newest"
+           case highestRating = "Highest Rating"
+           case lowestRating = "Lowest Rating"
+       }
+
+       @Published var sortOption: SortOption = .newest
+
+       var sortedReviews: [Review] {
+           switch sortOption {
+           case .newest:
+               return reviews.sorted { $0.timestamp > $1.timestamp }
+           case .highestRating:
+               return reviews.sorted { $0.rating > $1.rating }
+           case .lowestRating:
+               return reviews.sorted { $0.rating < $1.rating }
+           }
+       }
 }

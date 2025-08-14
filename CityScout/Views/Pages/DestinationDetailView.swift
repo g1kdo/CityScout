@@ -264,6 +264,19 @@ private struct BookNowButton: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color(hex: "#24BAEC"))
+                .cornerRadius(12)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 30)
+        .background(
+            // Gradient background for the button area to make it stand out
+            LinearGradient(gradient: Gradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)]), startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+        )
+        .fullScreenCover(isPresented: $showBookingSheet) {
+            BookingView(destination: destination)
+                .environmentObject(authVM)
+                .environmentObject(bookingVM)
                 .cornerRadius(16)
         }
     }

@@ -13,6 +13,7 @@ struct ProfileView: View {
     @State private var isShowingBookmarked = false
     @State private var isShowingSettings = false
     @State private var isShowingPreviousTrips = false
+    @State private var isShowingAccount = false
 
     var body: some View {
         NavigationStack {
@@ -27,10 +28,10 @@ struct ProfileView: View {
             }
             .navigationBarHidden(true)
             // --- MODIFIERS TO PRESENT THE NEW VIEWS ---
-            .sheet(isPresented: $isShowingSettings) {
+            .fullScreenCover(isPresented: $isShowingSettings) {
                 SettingsView()
             }
-            .sheet(isPresented: $isShowingPreviousTrips) {
+            .fullScreenCover(isPresented: $isShowingPreviousTrips) {
                 PreviousTripsView().environmentObject(authVM)
             }
             .fullScreenCover(isPresented: $isShowingEditProfile) {
@@ -39,6 +40,10 @@ struct ProfileView: View {
             }
             .fullScreenCover(isPresented: $isShowingBookmarked) {
                 FavoritePlacesView()
+                    .environmentObject(authVM)
+            }
+            .fullScreenCover(isPresented: $isShowingAccount) {
+                AccountView(authViewModel: authVM)
                     .environmentObject(authVM)
             }
         }
@@ -88,6 +93,9 @@ struct ProfileView: View {
 
     private var actionButtonsSection: some View {
         VStack(spacing: 15) {
+            ProfileOptionRow(icon: "person", title: "Account") {
+                isShowingAccount = true
+            }
             ProfileOptionRow(icon: "bookmark", title: "Bookmarked") {
                 isShowingBookmarked = true
             }
