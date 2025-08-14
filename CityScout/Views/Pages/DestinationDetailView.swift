@@ -14,6 +14,7 @@ struct DestinationDetailView: View {
     // --- STATE VARIABLES FOR GALLERY ---
     @State private var showGalleryOverlay = false
     @State private var selectedImageIndex = 0
+    @State private var showOnMapView = false
 
     // MARK: - Body
     var body: some View {
@@ -42,12 +43,11 @@ struct DestinationDetailView: View {
                 
                 // Layer 3: The navigation buttons, overlaid on top of everything
                 HeaderNavButtons(
-                    isFavorite: favoritesVM.isFavorite(destination: destination),
-                    onDismiss: { dismiss() },
-                    onToggleFavorite: {
-                        Task { await favoritesVM.toggleFavorite(destination: destination) }
-                    }
-                )
+                              onDismiss: { dismiss() },
+                              onViewOnMap: {
+                                  showOnMapView = true
+                              }
+                          )
             }
             .blur(radius: showGalleryOverlay ? 20 : 0) // Dims and blurs the background
 
@@ -65,14 +65,14 @@ struct DestinationDetailView: View {
         .ignoresSafeArea()
         .navigationBarHidden(true)
         .background(Color(.systemGroupedBackground))
-        .onAppear {
-            favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
-        }
-        .sheet(isPresented: $showBookingSheet) {
+        .fullScreenCover(isPresented: $showBookingSheet) {
             BookingView(destination: destination)
                 .environmentObject(authVM)
                 .environmentObject(bookingVM)
         }
+        .fullScreenCover(isPresented: $showOnMapView) {
+                    OnMapView(destination: destination)
+                }
     }
 }
 
@@ -127,6 +127,7 @@ private struct DetailsCard: View {
                     AboutView(description: destination.description, showFullDescription: $showFullDescription)
                     
                     BookNowButton(action: onBookNow)
+                        .padding(.bottom, 150)
                 }
                 .padding(24)
                 .background(Color(.systemBackground))
@@ -154,20 +155,26 @@ private struct HeaderImageView: View {
 
 // MARK: - Header Navigation Buttons
 private struct HeaderNavButtons: View {
-    let isFavorite: Bool
     let onDismiss: () -> Void
-    let onToggleFavorite: () -> Void
+    let onViewOnMap: () -> Void // New action for the map button
 
     var body: some View {
         VStack {
             HStack {
                 HeaderButton(iconName: "chevron.left", action: onDismiss)
-                    .foregroundColor(isFavorite ? .white : .primary)
+                    .foregroundColor(.white)
                 Spacer()
+                
                 Text("Details").font(.headline).foregroundColor(.white)
+                
                 Spacer()
-                HeaderButton(iconName: isFavorite ? "bookmark.fill" : "bookmark", action: onToggleFavorite)
-                    .foregroundColor(isFavorite ? .red : .white)
+                
+                // New map button and existing favorite button in a single HStack
+                HStack(spacing: 12) {
+                    HeaderButton(iconName: "map.fill", action: onViewOnMap)
+                        .foregroundColor(.white) // You can customize the color
+                    
+                }
             }
             .padding(.horizontal)
             .padding(.top, 50)
@@ -175,6 +182,7 @@ private struct HeaderNavButtons: View {
         }
     }
 }
+
 
 // MARK: - Info Row View
 private struct InfoRow: View {
@@ -264,23 +272,11 @@ private struct BookNowButton: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color(hex: "#24BAEC"))
-                .cornerRadius(12)
-        }
-        .padding(.horizontal)
-        .padding(.bottom, 30)
-        .background(
-            // Gradient background for the button area to make it stand out
-            LinearGradient(gradient: Gradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)]), startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
-        )
-        .fullScreenCover(isPresented: $showBookingSheet) {
-            BookingView(destination: destination)
-                .environmentObject(authVM)
-                .environmentObject(bookingVM)
                 .cornerRadius(16)
         }
     }
 }
+
 
 // MARK: - Reusable Helper Components
 private struct HeaderButton: View {

@@ -112,7 +112,8 @@ struct ScheduleEventRow_Previews: PreviewProvider {
                 participantAvatars: [],
                 description: "",
                 price: 0,
-                galleryImageUrls:   []
+                galleryImageUrls:   [],
+                categories: []
             )
         ))
         .previewLayout(.sizeThatFits)

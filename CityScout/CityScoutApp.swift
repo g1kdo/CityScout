@@ -1,10 +1,3 @@
-//
-//  CityScoutApp.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 30/04/2025.
-//
-
 import SwiftUI
 import Firebase
 import FacebookCore
@@ -25,13 +18,12 @@ class AppCheckDebugProviderFactory: NSObject, AppCheckProviderFactory {
 }
 #endif
 
-
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        
+    
         #if targetEnvironment(simulator)
         let providerFactory = AppCheckDebugProviderFactory()
         AppCheck.setAppCheckProviderFactory(providerFactory)
@@ -50,7 +42,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             didFinishLaunchingWithOptions: launchOptions
         )
         print("Facebook SDK initialized")
-        
+    
         GMSServices.provideAPIKey("AIzaSyCA5WaGeXXo7KRC0HAq7lPz-gweeAMJVw8")
 
         return true
@@ -70,32 +62,17 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         )
         return handledByFacebook
     }
-    
 }
 
 @main
 struct CityScoutApp: App {
-    // Retain your existing AppDelegate for Firebase & Facebook init
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
-    // Inject your authentication view model here
     @StateObject private var authVM = AuthenticationViewModel()
-    
-    // The @AppStorage property for dark mode has been removed.
 
     var body: some Scene {
         WindowGroup {
-            // Use a Group to apply modifiers to the entire content block
-            Group {
-                if authVM.signedInUser != nil {
-                    HomeView()
-                } else {
-                    WelcomeView()
-                }
-            }
-            .environmentObject(authVM)
-            // The .preferredColorScheme modifier has been removed.
-            // SwiftUI will now automatically adopt the system's appearance setting.
+            RootView()
+                .environmentObject(authVM)
         }
     }
 }

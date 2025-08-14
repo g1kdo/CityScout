@@ -82,7 +82,8 @@ class ScheduleViewModel: ObservableObject {
                             participantAvatars: nil, // Not part of booking data directly
                             description: nil, // Not part of booking data directly
                             price: 0.0,
-                            galleryImageUrls: []// Not part of booking data directly
+                            galleryImageUrls: [],// Not part of booking data directly
+                            categories: [] // Not part of booking data directly
                             
                         )
                         

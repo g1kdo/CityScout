@@ -63,7 +63,7 @@ struct OnMapView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showingMapSheet) {
+        .fullScreenCover(isPresented: $showingMapSheet) {
             if let coordinate = destinationCoordinate {
                 // Now presenting the container view, which includes the dismiss button
                 GoogleMapViewContainer(coordinate: coordinate, markerTitle: destination.name)
