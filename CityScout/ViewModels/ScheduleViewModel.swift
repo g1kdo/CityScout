@@ -59,7 +59,6 @@ class ScheduleViewModel: ObservableObject {
                     self.upcomingEvents = []
                     return
                 }
-
                 // This is the complete decoding logic
                 let allEvents = documents.compactMap { doc -> ScheduledEvent? in
                     guard let booking = try? doc.data(as: BookingData.self) else {

@@ -5,19 +5,21 @@ import FirebaseFirestore
 struct Destination: Identifiable, Codable, Equatable, Hashable {
     @DocumentID var id: String?
     let name: String
-    let imageUrl: String // Changed from imageName
+    let imageUrl: String
     let rating: Double
     let location: String
-    let participantAvatars: [String]? // Changed to optional, assuming these are URLs
-    let description: String? // Changed to optional
+    let participantAvatars: [String]?
+    let description: String?
     let price: Double
     let galleryImageUrls: [String]?
     
-    // Codable automatically handles the DocumentID and JSON decoding
-    // The custom initializers are no longer necessary
+    let latitude: Double?
+    let longitude: Double?
     
-    // A simple initializer for creating new instances if needed
-    init(id: String? = nil, name: String, imageUrl: String, rating: Double, location: String, participantAvatars: [String]?, description: String?, price: Double, galleryImageUrls: [String]?) {
+    // MARK: - New Property for Recommendation
+    let categories: [String] // e.g., ["Adventure", "Beaches"]
+    
+    init(id: String? = nil, name: String, imageUrl: String, rating: Double, location: String, participantAvatars: [String]?, description: String?, price: Double, galleryImageUrls: [String]?, categories: [String], latitude: Double? = nil, longitude: Double? = nil) {
         self.id = id
         self.name = name
         self.imageUrl = imageUrl
@@ -27,10 +29,12 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
         self.description = description
         self.price = price
         self.galleryImageUrls = galleryImageUrls
+        self.latitude = latitude
+        self.longitude = longitude
+        self.categories = categories
     }
     
     func hash(into hasher: inout Hasher) {
-           hasher.combine(id)
-       }
+        hasher.combine(id)
+    }
 }
-
