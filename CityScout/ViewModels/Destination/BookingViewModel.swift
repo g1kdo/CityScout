@@ -58,6 +58,7 @@ class BookingViewModel: ObservableObject {
             "destinationImageUrl": destination.imageUrl,
             "date": scheduledDateTime,
             "numberOfPeople": numberOfPeople,
+            "price": destination.price,
             "timestamp": FieldValue.serverTimestamp() // To record when the booking was made
         ]
 

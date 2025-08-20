@@ -10,6 +10,15 @@ class PreviousTripsViewModel: ObservableObject {
 
     private let db = Firestore.firestore()
 
+    // --- NEW HELPER STRUCT ---
+    // This private struct lives only inside this ViewModel. It's used to decode
+    // the booking documents from Firestore without needing a new, separate file.
+    private struct Booking: Codable {
+        let destinationId: String
+        let date: Timestamp
+        let userId: String
+    }
+
     func fetchPreviousTrips(for userId: String?) async {
         guard let userId = userId, !userId.isEmpty else {
             errorMessage = "User not found."
@@ -20,30 +29,38 @@ class PreviousTripsViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            // Step 1: Find all reviews written by the current user.
+            // --- Step 1: Fetch destination IDs from past bookings ---
+            let bookingsSnapshot = try await db.collection("bookings")
+                .whereField("userId", isEqualTo: userId)
+                .whereField("date", isLessThan: Date())
+                .getDocuments()
+
+            let bookedDestinationIds = bookingsSnapshot.documents.compactMap {
+                // Use the new private Booking struct to decode the data
+                try? $0.data(as: Booking.self).destinationId
+            }
+
+            // --- Step 2: Fetch destination IDs from reviews ---
             let reviewsSnapshot = try await db.collection("reviews")
                 .whereField("authorId", isEqualTo: userId)
                 .getDocuments()
 
-            // Use your existing Review model to decode the documents.
-            let userReviews = reviewsSnapshot.documents.compactMap {
-                try? $0.data(as: ReviewViewModel.Review.self)
+            let reviewedDestinationIds = reviewsSnapshot.documents.compactMap {
+                try? $0.data(as: ReviewViewModel.Review.self).destinationId
             }
             
-            // Step 2: Get the unique destination IDs from these reviews.
-            let destinationIds = Array(Set(userReviews.map { $0.destinationId }))
+            // --- Step 3: Combine and deduplicate the IDs ---
+            let allTripIds = Array(Set(bookedDestinationIds + reviewedDestinationIds))
             
-            if destinationIds.isEmpty {
-                // If the user has no reviews, they have no trips.
+            if allTripIds.isEmpty {
                 self.trips = []
                 self.isLoading = false
                 return
             }
 
-            // Step 3: Fetch the full Destination objects for those IDs.
-            // Firestore's 'in' query is limited to 30 items. For more, you'd batch requests.
+            // --- Step 4: Fetch the full Destination objects for those IDs ---
             let destinationSnapshot = try await db.collection("destinations")
-                .whereField(FieldPath.documentID(), in: destinationIds)
+                .whereField(FieldPath.documentID(), in: allTripIds)
                 .getDocuments()
                 
             self.trips = destinationSnapshot.documents.compactMap {
