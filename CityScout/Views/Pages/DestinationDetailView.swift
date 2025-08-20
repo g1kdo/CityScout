@@ -8,6 +8,7 @@ struct DestinationDetailView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var bookingVM = BookingViewModel()
     @StateObject private var favoritesVM = FavoritesViewModel()
+    @StateObject private var locationManager = LocationManager()
 
     @State private var showBookingSheet = false
     
@@ -72,6 +73,7 @@ struct DestinationDetailView: View {
         }
         .fullScreenCover(isPresented: $showOnMapView) {
                     OnMapView(destination: destination)
+                        .environmentObject(locationManager)
                 }
     }
 }

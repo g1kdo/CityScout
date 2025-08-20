@@ -5,81 +5,119 @@
 //  Created by Umuco Auca on 31/07/2025.
 //
 
-
 import SwiftUI
 import GoogleMaps
 import CoreLocation
-import Kingfisher // Import Kingfisher
+import Kingfisher
+
+// MARK: - New data model for recommended places
+struct RecommendedPlace: Identifiable {
+    let id = UUID()
+    var name: String
+    var distance: String
+    var photoReference: String?
+    var imageUrl: String?
+    var position: CGPoint
+    var coordinate: CLLocationCoordinate2D
+}
 
 struct OnMapView: View {
     @Environment(\.dismiss) private var dismiss
-    let destination: Destination // This will now receive an object that might only have 'location' set
+    @EnvironmentObject var locationManager: LocationManager
+    let destination: Destination
 
     @State private var showingMapSheet = false
-    @State private var destinationCoordinate: CLLocationCoordinate2D? = nil // State to store geocoded coordinate
-    @State private var showingGeocodeErrorAlert = false // Added for error handling feedback
+    @State private var destinationCoordinate: CLLocationCoordinate2D? = nil
+    @State private var showingGeocodeErrorAlert = false
+    @State private var travelTime: String = "Calculating..."
+    @State private var travelMode: String = "Car"
+    @State private var travelTimes: [String: String] = [:]
+    
+    // 💡 State variables for nearby places
+    @State private var recommendedPlaces: [RecommendedPlace] = []
+    @State private var selectedPlaceCoordinate: CLLocationCoordinate2D? = nil
+    @State private var selectedPlaceName: String = ""
+    
+    @State private var mapDataIsReady = false
+    
+    private var canShowMap: Bool {
+        destinationCoordinate != nil && locationManager.lastKnownLocation != nil
+    }
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // MARK: - 1. Main Background Image (Full Screen) using Kingfisher
                 DestinationBackgroundImageView(imageUrl: destination.imageUrl, geometry: geometry)
                     .ignoresSafeArea(.all)
 
-                // MARK: - 2. Dark Overlay
                 Color.black.opacity(0.3)
                     .ignoresSafeArea(.all)
 
-                // MARK: - 3. Top Navigation Bar
                 TopNavigationBar(destinationName: destination.name) {
                     dismiss()
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, safeAreaTop() + 10) // Apply top padding for safe area
+                .padding(.top)
 
-                // MARK: - Bubble Cards
-                BubbleCard(imageName: "LaHotelImage", title: "La-Hotel", distance: "2.09 mi", bubblePosition: CGPoint(x: 0.75, y: 0.25), pointerHeightOffset: 60)
-                BubbleCard(imageName: "LemonGardenImage", title: "Lemon Garden", distance: "2.09 mi", bubblePosition: CGPoint(x: 0.35, y: 0.55), pointerHeightOffset: 65)
-
-                // MARK: - Bottom Information Card
-                BottomInformationCard(destination: destination, action: {
-//                    if let lat = destination.latitude, let lon = destination.longitude {
-//                        // If coordinates are provided in the Destination, use them directly
-//                        self.destinationCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-//                        showingMapSheet = true
-//                    } else {
-                        // Otherwise, geocode the location string
-                        geocodeAddress(address: destination.location) { coordinate in
-                            if let coordinate = coordinate {
-                                self.destinationCoordinate = coordinate
-                                showingMapSheet = true
-                            } else {
-                                print("Could not geocode address: \(destination.location)")
-                                self.showingGeocodeErrorAlert = true // Show alert on failure
+                // 💡 Dynamic BubbleCards based on state
+                ForEach(recommendedPlaces) { place in
+                                Button(action: {
+                                    // 💡 When tapped, update the state and show the map
+                                    self.selectedPlaceCoordinate = place.coordinate
+                                    self.selectedPlaceName = place.name
+                                    self.mapDataIsReady = true
+                                }) {
+                                    BubbleCard(
+                                        title: place.name,
+                                        distance: place.distance,
+                                        imageUrl: place.imageUrl,
+                                        bubblePosition: place.position,
+                                        pointerHeightOffset: place.position.y == 0.25 ? 60 : 65
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle()) // To remove default button styling
                             }
-                    }
+                
+                BottomInformationCard(destination: destination, travelTime: travelTime, travelMode: travelMode, action: {
+                    mapDataIsReady = true
                 })
                 .padding(.horizontal, 20)
             }
         }
         .preferredColorScheme(.dark)
-        .fullScreenCover(isPresented: $showingMapSheet) {
-            if let coordinate = destinationCoordinate {
-                // Now presenting the container view, which includes the dismiss button
-                GoogleMapViewContainer(coordinate: coordinate, markerTitle: destination.name)
-            } else {
-                Text("Map location not available.")
-                    .presentationDetents([.medium, .large]) // Give the sheet some detents
-            }
+        .fullScreenCover(isPresented: $mapDataIsReady) {
+            GoogleMapViewContainer(
+                destinationCoordinate: destinationCoordinate,
+                markerTitle: destination.name,
+                userLocation: locationManager.lastKnownLocation,
+                travelTime: $travelTime
+            )
         }
         .alert("Location Not Found", isPresented: $showingGeocodeErrorAlert) {
             Button("OK") { }
         } message: {
             Text("We could not find the exact location for \(destination.name). Please check the address or try again later.")
         }
+        .onAppear {
+            if let lat = destination.latitude, let lon = destination.longitude {
+                print("Using provided coordinates: \(lat), \(lon)")
+                self.destinationCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                fetchNearbyPlaces(for: CLLocation(latitude: lat, longitude: lon))
+            } else {
+                geocodeAddress(address: destination.location) { coordinate in
+                    if let coordinate = coordinate {
+                        print("Successfully geocoded: \(coordinate.latitude), \(coordinate.longitude)")
+                        self.destinationCoordinate = coordinate
+                        fetchNearbyPlaces(for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+                    } else {
+                        print("Geocoding failed for: \(destination.location)")
+                        self.showingGeocodeErrorAlert = true
+                    }
+                }
+            }
+        }
     }
-
-    // MARK: - Geocoding function
+    
     private func geocodeAddress(address: String, completion: @escaping (CLLocationCoordinate2D?) -> Void) {
         let geocoder = CLGeocoder()
         geocoder.geocodeAddressString(address) { placemarks, error in
@@ -91,8 +129,98 @@ struct OnMapView: View {
             completion(location.coordinate)
         }
     }
+    
+    // MARK: - New function to fetch nearby places 🌎
+    private func fetchNearbyPlaces(for destinationLocation: CLLocation) {
+        let apiKey = Secrets.googleMapsAPIKey
+        let urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=\(destinationLocation.coordinate.latitude),\(destinationLocation.coordinate.longitude)&radius=5000&type=point_of_interest&key=\(apiKey)"
+        
+        guard let url = URL(string: urlString) else {
+            print("Invalid Places URL")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                print("Failed to fetch nearby places: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            
+            do {
+                        if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                            let results = json["results"] as? [[String: Any]] {
+                            
+                            let topTwoPlaces = Array(results.prefix(2))
+                            var places: [RecommendedPlace] = []
+                            let bubblePositions: [CGPoint] = [
+                                CGPoint(x: 0.75, y: 0.25),
+                                CGPoint(x: 0.35, y: 0.55)
+                            ]
+                            
+                            for (index, placeData) in topTwoPlaces.enumerated() {
+                                guard let name = placeData["name"] as? String,
+                                      let geometry = placeData["geometry"] as? [String: Any],
+                                      let location = geometry["location"] as? [String: Any],
+                                      let lat = location["lat"] as? Double,
+                                      let lon = location["lng"] as? Double else {
+                                    continue
+                                }
+                                
+                                let placeLocation = CLLocation(latitude: lat, longitude: lon)
+                                let distanceInMeters = destinationLocation.distance(from: placeLocation)
+                                let distanceInMiles = String(format: "%.1f mi", distanceInMeters * 0.000621371)
+                                
+                                let photoRef = (placeData["photos"] as? [[String: Any]])?.first?["photo_reference"] as? String
+                                
+                                let photoUrlString: String?
+                                if let photoRef = photoRef {
+                                    photoUrlString = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=\(photoRef)&key=\(apiKey)"
+                                } else {
+                                    photoUrlString = nil
+                                }
+                                
+                                let newPlace = RecommendedPlace(
+                                    name: name,
+                                    distance: distanceInMiles,
+                                    photoReference: photoRef,
+                                    imageUrl: photoUrlString,
+                                    position: bubblePositions[index],
+                                    // 💡 Store the coordinate
+                                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                                )
+                                
+                                places.append(newPlace)
+                            }
+                            
+                            DispatchQueue.main.async {
+                                self.recommendedPlaces = places
+                            }
+                        }
+                    } catch {
+                        print("JSON parsing error for places: \(error.localizedDescription)")
+                    }
+                }.resume()
+            }
+    
+    // MARK: - New function to fetch photos 🖼️
+    private func fetchPhotosForPlaces() {
+        // 💡 Trigger a view update with a new array
+        var updatedPlaces = recommendedPlaces
+        for (index, place) in updatedPlaces.enumerated() {
+            guard let photoRef = place.photoReference else { continue }
 
-    // MARK: - Helper Functions for safe area
+            let apiKey = Secrets.googleMapsAPIKey
+            let photoUrlString = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=\(photoRef)&key=\(apiKey)"
+            
+            // This is a more robust way to update the state.
+            updatedPlaces[index].imageUrl = photoUrlString
+        }
+        
+        // 💡 Set the state property to a new array instance, which triggers a view refresh.
+        self.recommendedPlaces = updatedPlaces
+    }
+    
+    // MARK: - Helper Functions for safe area (No change, keeping for completeness)
     private func safeAreaTop() -> CGFloat {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
@@ -100,7 +228,7 @@ struct OnMapView: View {
         }
         return window.safeAreaInsets.top
     }
-
+    
     private func safeAreaBottom() -> CGFloat {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
@@ -110,9 +238,10 @@ struct OnMapView: View {
     }
 }
 
+
 // MARK: - Extracted Subviews
 
-// Background Image View using Kingfisher
+// DestinationBackgroundImageView (No change)
 struct DestinationBackgroundImageView: View {
     let imageUrl: String
     let geometry: GeometryProxy
@@ -121,22 +250,21 @@ struct DestinationBackgroundImageView: View {
         KFImage(URL(string: imageUrl))
             .resizable()
             .placeholder {
-                Color.gray.opacity(0.1) // Placeholder while loading
+                Color.gray.opacity(0.1)
                     .frame(width: geometry.size.width, height: geometry.size.height)
             }
-            .fade(duration: 0.25) // Smooth fade-in
-            .cancelOnDisappear(true) // Cancel download if view disappears
+            .fade(duration: 0.25)
+            .cancelOnDisappear(true)
             .scaledToFill()
             .frame(minWidth: geometry.size.width, minHeight: geometry.size.height)
             .clipped()
             .overlay(
-                // Optional: A subtle gradient overlay at the bottom for text readability
                 LinearGradient(gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.3)]), startPoint: .center, endPoint: .bottom)
             )
     }
 }
 
-// Top Navigation Bar
+// TopNavigationBar (No change)
 struct TopNavigationBar: View {
     let destinationName: String
     let dismissAction: () -> Void
@@ -150,83 +278,73 @@ struct TopNavigationBar: View {
                         .padding(13)
                         .background(Circle().fill(Color.black.opacity(0.3)))
                 }
-
                 Spacer()
-
                 Text(destinationName)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(.white)
-
                 Spacer()
             }
-            Spacer() // Pushes the HStack to the top
+            Spacer()
         }
     }
 }
 
-// Bottom Information Card
+// MARK: - Bottom Information Card (MODIFIED)
 struct BottomInformationCard: View {
     let destination: Destination
+    let travelTime: String
+    let travelMode: String
     let action: () -> Void
+    
+    @EnvironmentObject var locationManager: LocationManager
 
     var body: some View {
         VStack {
-            Spacer() // Pushes the content to the bottom
+            Spacer()
             VStack(alignment: .leading, spacing: 16) {
-                // Title and Rating Row
                 HStack {
                     Text(destination.name)
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.white)
-
                     Spacer()
-
                     HStack(spacing: 4) {
                         Image(systemName: "star.fill")
                             .foregroundColor(.yellow)
                             .font(.system(size: 14))
-
                         Text(String(format: "%.1f", destination.rating))
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
                     }
                 }
-
-                // Location and Time Row
                 HStack {
-                    HStack(spacing: 6) {
-                        Image(systemName: "location.fill")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 14))
-
-                        Text(destination.location)
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 6) {
-                        Image(systemName: "clock.fill")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 14))
-
-                        Text("45 Minutes") // Still hardcoded, consider making this dynamic if possible
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                    }
+                    HStack {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "location.fill")
+                                                .foregroundColor(.gray)
+                                                .font(.system(size: 14))
+                                            Text(destination.location)
+                                                .font(.system(size: 14))
+                                                .foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "car.fill")
+                                                .foregroundColor(.gray)
+                                                .font(.system(size: 14))
+                                            // Now you can use locationManager here
+                                            Text(locationManager.lastKnownLocation != nil ? travelTime : "Loading...")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(.gray)
+                                        }
+                                    }
                 }
-
-                // Avatar Row
                 HStack {
                     HStack(spacing: -8) {
                         ForEach(0..<min(3, destination.participantAvatars?.count ?? 0), id: \.self) { index in
-                            // Use the extracted helper view here
                             if let imageUrl = destination.participantAvatars?[index] {
                                 MapImageView(imageUrl: imageUrl)
                             }
                         }
-
                         if let avatarCount = destination.participantAvatars?.count, avatarCount > 3 {
                             Circle()
                                 .fill(Color.gray.opacity(0.8))
@@ -245,40 +363,44 @@ struct BottomInformationCard: View {
                     Spacer()
                 }
 
-                // See On The Map Button
                 Button(action: action) {
-                    Text("See On The Map")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(red: 0.4, green: 0.8, blue: 1.0),
-                                    Color(red: 0.2, green: 0.7, blue: 0.95)
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
+                                    Text("See On The Map")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 16)
+                                        .background(
+                                            // Use the correct check from the environment object
+                                            locationManager.lastKnownLocation != nil ?
+                                            AnyView(LinearGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color(red: 0.4, green: 0.8, blue: 1.0),
+                                                    Color(red: 0.2, green: 0.7, blue: 0.95)
+                                                ]),
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            ))
+                                            : AnyView(Color.gray.opacity(0.5))
+                                        )
+                                        .cornerRadius(12)
+                                }
+                                // Use the correct check from the environment object
+                                .disabled(locationManager.lastKnownLocation == nil) // ⬅️ NEW
+                            }
+                            .padding(24)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(Color.black.opacity(0.75))
                             )
-                        )
-                        .cornerRadius(12)
+                        }
+                    }
                 }
-            }
-            .padding(24)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.black.opacity(0.75))
-            )
-        }
-    }
-}
 
-// MARK: - BubbleCard Subview
+// MARK: - BubbleCard Subview (No change)
 struct BubbleCard: View {
-    let imageName: String
     let title: String
     let distance: String
+    let imageUrl: String?
     let bubblePosition: CGPoint
     let pointerHeightOffset: CGFloat
 
@@ -286,13 +408,23 @@ struct BubbleCard: View {
         GeometryReader { geometry in
             ZStack {
                 HStack(spacing: 12) {
-                    // Corrected usage for local image assets: Image(imageName)
-                    Image(imageName)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 60, height: 50)
-                        .cornerRadius(8)
-                        .clipped()
+                    if let url = imageUrl, let imageURL = URL(string: url) {
+                        KFImage(imageURL)
+                            .resizable()
+                            .placeholder {
+                                Color.gray.opacity(0.1)
+                            }
+                            .fade(duration: 0.25)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 60, height: 50)
+                            .cornerRadius(8)
+                            .clipped()
+                    } else {
+                        // Placeholder for loading or no image
+                        Color.gray.opacity(0.1)
+                            .frame(width: 60, height: 50)
+                            .cornerRadius(8)
+                    }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(title)
@@ -303,7 +435,6 @@ struct BubbleCard: View {
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                     }
-
                     Spacer()
                 }
                 .padding(12)
@@ -326,7 +457,7 @@ struct BubbleCard: View {
     }
 }
 
-// MARK: - Custom Shape for Bubble Pointer
+// MARK: - Custom Shape for Bubble Pointer (No change)
 struct BubblePointerShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
@@ -345,34 +476,52 @@ struct BubblePointerShape: Shape {
     }
 }
 
-// MARK: - Google Map View Container (NEWLY ADDED)
+// MARK: - Google Map View Container (MODIFIED)
 struct GoogleMapViewContainer: View {
-    let coordinate: CLLocationCoordinate2D
+    // ⬇️ Accept optionals to handle the nil case gracefully
+    let destinationCoordinate: CLLocationCoordinate2D?
     let markerTitle: String
-    @Environment(\.dismiss) var dismiss // Inject dismiss environment value
+    let userLocation: CLLocation?
+    @Binding var travelTime: String
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        ZStack(alignment: .topLeading) { // Align content to top-leading
-            GoogleMapViewRepresentable(coordinate: coordinate, markerTitle: markerTitle)
+        ZStack(alignment: .topLeading) {
+            if let destinationCoord = destinationCoordinate,
+               let userLoc = userLocation {
+                GoogleMapViewRepresentable(
+                    userLocation: userLoc,
+                    destinationCoordinate: destinationCoord,
+                    markerTitle: markerTitle,
+                    travelTime: $travelTime
+                )
                 .ignoresSafeArea()
+            } else {
+                Text("Error: Location data is missing.")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.red)
+                    .presentationDetents([.medium, .large])
+            }
 
             Button(action: {
-                dismiss() // Dismiss the sheet
+                dismiss()
             }) {
-                Image(systemName: "xmark.circle.fill") // A clear dismiss icon
+                Image(systemName: "xmark.circle.fill")
                     .font(.title)
                     .foregroundColor(.gray)
                     .padding(10)
                     .background(Circle().fill(Color.white.opacity(0.8)))
             }
-            .padding(.top, 20) // Adjust padding for safe area
+            .padding(.top, 20)
             .padding(.leading, 20)
         }
     }
 }
 
 
-// Helper for comparing CLLocationCoordinate2D (useful for updateUIView)
+// Helper for comparing CLLocationCoordinate2D (No change)
 extension CLLocationCoordinate2D: Equatable {
     public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
         return abs(lhs.latitude - rhs.latitude) < 1e-9 && abs(lhs.longitude - rhs.longitude) < 1e-9
@@ -383,7 +532,7 @@ extension CLLocationCoordinate2D: Equatable {
     }
 }
 
-// MARK: - Avatar Image View Helper
+// Avatar Image View Helper (No change)
 struct MapImageView: View {
     let imageUrl: String
 
@@ -400,45 +549,5 @@ struct MapImageView: View {
             .frame(width: 32, height: 32)
             .clipShape(Circle())
             .overlay(Circle().strokeBorder(Color.white, lineWidth: 2))
-
     }
 }
-
-
-// MARK: - Preview Provider
-//struct OnMapView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        // Example 1: Destination with location string, relying on geocoding
-//        OnMapView(destination: Destination(
-//            name: "Kigali Convention Centre",
-//            imageUrl: "https://via.placeholder.com/400x600/FF5733/FFFFFF?text=KCC", // Example image for Kingfisher
-//            rating: 4.5,
-//            location: "Kigali Convention Centre, KG 2 Roundabout, Kigali, Rwanda", // Geocodable address
-//            participantAvatars: [
-//                "https://i.pravatar.cc/150?img=1",
-//                "https://i.pravatar.cc/150?img=2",
-//                "https://i.pravatar.cc/150?img=3"
-//            ],
-//            description: "A prominent landmark and venue in Kigali.",
-//            latitude: nil, // Explicitly nil to trigger geocoding
-//            longitude: nil  // Explicitly nil to trigger geocoding
-//        ))
-//
-//        // Example 2: Destination with pre-defined coordinates (if you have them)
-//        OnMapView(destination: Destination(
-//            name: "Nyandungu Eco Park",
-//            imageUrl: "https://lh5.googleusercontent.com/p/AF1QipN38Xh1_x7eQ_m1-oX90qB-3X5e6Y_2lR8_j4w=w400-h300-k-no",
-//            rating: 4.7,
-//            location: "Kigali, Nyandungu Eco Park",
-//            participantAvatars: [
-//                "https://i.pravatar.cc/150?img=4",
-//                "https://i.pravatar.cc/150?img=5",
-//                "https://i.pravatar.cc/150?img=6",
-//                "https://i.pravatar.cc/150?img=7"
-//            ],
-//            description: "A beautiful eco park in Kigali with diverse flora and fauna. Perfect for nature walks and relaxation.",
-//            latitude: -1.9705, // Example coordinates for Nyandungu Eco Park
-//            longitude: 30.1340
-//        ))
-//    }
-//}

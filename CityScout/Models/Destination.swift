@@ -13,10 +13,13 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
     let price: Double
     let galleryImageUrls: [String]?
     
+    let latitude: Double?
+    let longitude: Double?
+    
     // MARK: - New Property for Recommendation
     let categories: [String] // e.g., ["Adventure", "Beaches"]
     
-    init(id: String? = nil, name: String, imageUrl: String, rating: Double, location: String, participantAvatars: [String]?, description: String?, price: Double, galleryImageUrls: [String]?, categories: [String]) {
+    init(id: String? = nil, name: String, imageUrl: String, rating: Double, location: String, participantAvatars: [String]?, description: String?, price: Double, galleryImageUrls: [String]?, categories: [String], latitude: Double? = nil, longitude: Double? = nil) {
         self.id = id
         self.name = name
         self.imageUrl = imageUrl
@@ -26,6 +29,8 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
         self.description = description
         self.price = price
         self.galleryImageUrls = galleryImageUrls
+        self.latitude = latitude
+        self.longitude = longitude
         self.categories = categories
     }
     
