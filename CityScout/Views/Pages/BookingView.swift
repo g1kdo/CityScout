@@ -107,12 +107,11 @@ struct BookingView: View {
             .navigationTitle("Booking Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-            }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                                  
+                                   Button("Cancel") { dismiss() }
+                                       .foregroundColor(Color(hex: "#FF7029"))
+                               }            }
         }
     }
 }

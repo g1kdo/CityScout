@@ -1,15 +1,11 @@
-//
-//  ScheduledEvent.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 31/07/2025.
-//
+
 
 import SwiftUI
 import Foundation
+import FirebaseFirestore
 
 struct ScheduledEvent: Identifiable, Codable {
-    var id: String = UUID().uuidString // For Identifiable
+    @DocumentID var id: String?
     let date: Date
     let destination: Destination
 

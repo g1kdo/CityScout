@@ -1,122 +1,85 @@
-//
-//  ScheduleEventRow.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 26/05/2025.
-//
-
-
-//
-//  ScheduleEventRow.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 26/05/2025.
-//
-
 import SwiftUI
-import Kingfisher // Import Kingfisher
+import Kingfisher
 
 struct ScheduleEventRow: View {
     let event: ScheduledEvent
+    // --- NEW PROPERTY ---
+    // This allows us to show or hide the cancel button.
+    var showCancelButton: Bool = true
+    let onCancel: () -> Void
+    
+    var isPastEvent: Bool {
+        return event.date < Calendar.current.startOfDay(for: Date())
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 15) {
             
-            KFImage(URL(string: event.destination.imageUrl)) // Use KFImage
-                .placeholder {
-                    ProgressView() // Show a progress view while loading
-                }
-                .onFailure { error in
-                    // A more prominent placeholder for failed load
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(.red)
-                        .frame(width: 80, height: 80) // Ensure placeholder fills the frame
-                        .background(Color.secondary.opacity(0.1)) // Add a subtle background
-                        .cornerRadius(10)
-                }
+            KFImage(URL(string: event.destination.imageUrl))
+                .placeholder { ProgressView() }
                 .resizable()
                 .scaledToFill()
                 .frame(width: 80, height: 80)
                 .cornerRadius(10)
                 .clipped()
-                
-
-            VStack(alignment: .leading, spacing: 5) { // Spacing between calendar, title, and location
-                HStack(spacing: 4) { // Tighter spacing for icon and text
+            
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
                     Image(systemName: "calendar")
                         .font(.caption)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary)
                     Text(formattedDate(event.date))
                         .font(.caption)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary)
                 }
                 
-                // Limit destination name to max 2 lines
                 Text(event.destination.name)
                     .font(.headline)
-                    .lineLimit(2) // Allow up to 2 lines
-                    .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion, prevent horizontal clipping if too long
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 
-                HStack(spacing: 4) { // Tighter spacing for icon and text
+                HStack(spacing: 4) {
                     Image(systemName: "location.fill")
                         .font(.caption)
-                        .foregroundColor(.gray)
-                    // Limit location to max 1 line to keep it concise
+                        .foregroundColor(.secondary)
                     Text(event.destination.location)
                         .font(.caption)
-                        .foregroundColor(.gray)
-                        .lineLimit(1) // Keep location on a single line
-                        .truncationMode(.tail) // Add ellipsis if too long
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
-            // Use .layoutPriority to ensure this VStack takes up available space
-            // but still leaves room for the chevron
-            .layoutPriority(1) // Give this VStack higher priority to take space
+            .layoutPriority(1)
 
-            Spacer() // Pushes the chevron to the end
+            Spacer(minLength: 8)
 
-            Image(systemName: "chevron.right")
-                .foregroundColor(.gray)
-                .font(.caption) // Make chevron slightly smaller to align with text visually
+            // --- UPDATED LOGIC ---
+            // The button is now only shown if it's not a past event AND
+            // if `showCancelButton` is true.
+            if isPastEvent {
+                Text("Event\nPassed")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 60)
+            } else if showCancelButton {
+                Button("Cancel", role: .destructive, action: onCancel)
+                    .font(.caption.bold())
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
-        .padding(.vertical, 10) // Slightly more vertical padding
-        .padding(.horizontal) // Apply horizontal padding directly here to ensure content is inside
-        .background(Color.white)
-        .cornerRadius(10)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(15)
+        .shadow(color: Color.primary.opacity(0.10), radius: 5, x: 0, y: 2)
+        .opacity(isPastEvent ? 0.6 : 1.0)
     }
 
     private func formattedDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        // Example: "26 May 2025, 3:30 PM"
-        formatter.dateFormat = "d MMM yyyy, h:mm a" // Abbreviated month for brevity
+        formatter.dateFormat = "d MMM yyyy, h:mm a"
         return formatter.string(from: date)
-    }
-}
-
-struct ScheduleEventRow_Previews: PreviewProvider {
-    static var previews: some View {
-        // You'll need to define ScheduledEvent and Destination for this preview to work
-        // Using a sample event for the preview
-        ScheduleEventRow(event: ScheduledEvent(
-            id: UUID().uuidString,
-            date: Date(),
-            destination: Destination(
-                id: UUID().uuidString,
-                name: "Very Long Destination Name That Might Wrap And Wrap",
-                imageUrl: "https://picsum.photos/80/80", // Use a placeholder image URL for preview
-                rating: 4.5,
-                location: "A Slightly Longer Location Name",
-                participantAvatars: [],
-                description: "",
-                price: 0,
-                galleryImageUrls:   [],
-                categories: []
-            )
-        ))
-        .previewLayout(.sizeThatFits)
-        .padding() // Add padding to the preview to see the shadow and layout
     }
 }
