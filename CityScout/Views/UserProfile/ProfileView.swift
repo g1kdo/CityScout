@@ -6,7 +6,7 @@ struct ProfileView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     
     // The viewModel is created here, so it doesn't need to be passed in from HomeView.
-    @StateObject var viewModel = ProfileViewModel(reviewViewModel: ReviewViewModel())
+    @StateObject var viewModel = ProfileViewModel(reviewViewModel: ReviewViewModel(homeViewModel: HomeViewModel()))
     
     // State variables to control navigation to the new and existing screens
     @State private var isShowingEditProfile = false

@@ -10,8 +10,9 @@
 import SwiftUI
 
 struct PopularPlacesView: View {
+    @EnvironmentObject var authVM: AuthenticationViewModel
     @EnvironmentObject var homeVM: HomeViewModel
-    @EnvironmentObject var favoritesVM: FavoritesViewModel // NEW: Add the Favorites ViewModel
+    @EnvironmentObject var favoritesVM: FavoritesViewModel
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
@@ -27,10 +28,14 @@ struct PopularPlacesView: View {
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(
                                 destination: destination,
-                                isFavorite: favoritesVM.isFavorite(destination: destination) // MODIFIED: Use favoritesVM
+                                isFavorite: favoritesVM.isFavorite(destination: destination)
                             ) {
                                 Task {
-                                    await favoritesVM.toggleFavorite(destination: destination) // MODIFIED: Use favoritesVM
+                                    await favoritesVM.toggleFavorite(destination: destination)
+                                    if let userId = authVM.signedInUser?.id {
+                                        await homeVM.logUserAction(userId: userId, destinationId: destination.id, actionType: "bookmark")
+                                        await homeVM.updateInterestScores(for: userId, categories: destination.categories, with: 3.0)
+                                    }
                                 }
                             }
                         }

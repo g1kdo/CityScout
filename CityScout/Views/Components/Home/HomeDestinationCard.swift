@@ -14,17 +14,6 @@ struct HomeDestinationCard: View {
                     .frame(width: 260, height: 300)
                     .cornerRadius(16)
                     .clipped()
-            
-                Button(action: onFavoriteTapped) {
-                    Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 20))
-                        .foregroundColor(isFavorite ? .red : .primary)
-                        .padding(12)
-                        // Replaced white background with a semi-transparent material for a modern look
-                        .background(.thinMaterial)
-                        .clipShape(Circle())
-                }
-                .padding(10)
             }
             
             // --- Title & Rating ---
@@ -50,7 +39,7 @@ struct HomeDestinationCard: View {
                         .frame(width: 16, height: 16)
                     Text(destination.location)
                         .font(.subheadline)
-                        .foregroundColor(.secondary) // Replaced .gray
+                        .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
             
@@ -62,13 +51,13 @@ struct HomeDestinationCard: View {
                             AvatarImageView(imageUrl: imageUrl)
                                 .frame(width: 32, height: 32)
                                 .clipShape(Circle())
-                                .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2)) // Use adaptive background for stroke
+                                .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
                         }
                         if avatars.count > 3 {
                             Text("+\(avatars.count - 3)")
                                 .font(.caption)
                                 .frame(width: 32, height: 32)
-                                .background(Color.secondary.opacity(0.3)) // Replaced .gray
+                                .background(Color.secondary.opacity(0.3))
                                 .clipShape(Circle())
                         }
                     }
@@ -78,16 +67,15 @@ struct HomeDestinationCard: View {
             .padding(.bottom, 12)
         }
         .frame(width: 260)
-        // Replaced Color.white with an adaptive background
         .background(Color(.secondarySystemBackground))
         .cornerRadius(16)
-        .shadow(color: Color.primary.opacity(0.08), radius: 8, x: 0, y: 4) // Use adaptive shadow
+        // ✨ MODIFIED SHADOW EFFECT HERE ✨
+        .shadow(color: Color(.systemBackground).opacity(0.15), radius: 15, x: 0, y: 8)
     }
 }
 
-// ---
+
 // MARK: - Helper View for Main Destination Image
-// ---
 private struct HomeDestinationImageView: View {
     let imageUrl: String?
     @State private var imageLoadFailed: Bool = false
@@ -95,7 +83,6 @@ private struct HomeDestinationImageView: View {
     var body: some View {
         Group {
             if imageLoadFailed {
-                // Display fallback image if loading explicitly failed
                 Image(systemName: "photo")
                     .resizable()
                     .scaledToFit()
@@ -127,9 +114,7 @@ private struct HomeDestinationImageView: View {
     }
 }
 
-// ---
 // MARK: - Helper View for Avatar Images
-// ---
 private struct AvatarImageView: View {
     let imageUrl: String?
     @State private var imageLoadFailed: Bool = false

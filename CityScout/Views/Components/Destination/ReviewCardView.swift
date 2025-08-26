@@ -11,7 +11,7 @@ private let itemFormatter: DateFormatter = {
 struct ReviewCardView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @ObservedObject var viewModel: ReviewViewModel
-    let review: ReviewViewModel.Review
+    @Binding var review: ReviewViewModel.Review
     let isMyReview: Bool
     
     @State private var myReaction: String?

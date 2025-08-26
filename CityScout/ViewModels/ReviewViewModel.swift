@@ -1,4 +1,3 @@
-// ViewModels/ReviewViewModel.swift
 import Foundation
 import SwiftUI
 import FirebaseFirestore
@@ -9,45 +8,56 @@ class ReviewViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
-    // New properties for destination search
     @Published var destinationSuggestions: [Destination] = []
     @Published var isSearchingDestinations: Bool = false
     @Published var destinationSearchError: String?
 
-    // Firestore collection references
     private let db = Firestore.firestore()
     private let reviewsCollection = "reviews"
     private let destinationsCollection = "destinations"
     private let usersCollection = "users"
-   // private let destinationOwnersCollection = "destination_owners"
+    
+    @Published var isPerformingInitialFetch = true
+    
+    // New property to hold a reference to HomeViewModel
+    private let homeViewModel: HomeViewModel
     
     struct Review: Identifiable, Codable, Equatable {
-            @DocumentID var id: String? // Firestore document ID
+            @DocumentID var id: String?
             let destinationId: String
             let destinationName: String
             let rating: Int
             let comment: String
             let authorId: String
-            let authorDisplayName: String // Add display name
-            var authorProfilePictureURL: URL? // Add profile picture URL
+            let authorDisplayName: String
+            var authorProfilePictureURL: URL?
             var timestamp: Date
-            var agrees: Int = 0 // Count of "agree" reactions
-            var disagrees: Int = 0 // Count of "disagree" reactions
-            var reactedUsers: [String: String] = [:] // Tracks which user reacted
+            var agrees: Int = 0
+            var disagrees: Int = 0
+            var reactedUsers: [String: String] = [:]
             
             static func == (lhs: Review, rhs: Review) -> Bool {
-                lhs.id == rhs.id // Only compare IDs for equality
+                lhs.id == rhs.id
             }
-        }
+    }
+
+    // Update init to accept HomeViewModel
+    init(homeViewModel: HomeViewModel) {
+        self.homeViewModel = homeViewModel
+        fetchReviews()
+    }
 
 
     func fetchReviews() {
-        isLoading = true
         db.collection(reviewsCollection)
             .order(by: "timestamp", descending: true)
             .addSnapshotListener { [weak self] querySnapshot, error in
                 guard let self = self else { return }
-                self.isLoading = false
+                
+                // --- UPDATED LOGIC ---
+                // No matter what happens, after the first fetch attempt,
+                // we set this to false to unblock the UI.
+                defer { self.isPerformingInitialFetch = false }
 
                 if let error = error {
                     self.errorMessage = "Error fetching reviews: \(error.localizedDescription)"
@@ -65,49 +75,71 @@ class ReviewViewModel: ObservableObject {
             }
     }
 
-    // Function to add a new review to Firestore (modify to accept destinationId from selected suggestion)
-    func addReview(destinationId: String, destinationName: String, rating: Int, comment: String, authorId: String, authorDisplayName: String, authorProfilePictureURL: URL?) async -> Bool {
-           isLoading = true
-           errorMessage = nil
 
-           let newReview = Review(
-               destinationId: destinationId,
-               destinationName: destinationName,
-               rating: rating,
-               comment: comment,
-               authorId: authorId,
-               authorDisplayName: authorDisplayName,
-               authorProfilePictureURL: authorProfilePictureURL,
-               timestamp: Date()
-           )
+
+    func addReview(destinationId: String, destinationName: String, rating: Int, comment: String, authorId: String, authorDisplayName: String, authorProfilePictureURL: URL?) async -> Bool {
+        isLoading = true
+        errorMessage = nil
+
+        let newReview = Review(
+            destinationId: destinationId,
+            destinationName: destinationName,
+            rating: rating,
+            comment: comment,
+            authorId: authorId,
+            authorDisplayName: authorDisplayName,
+            authorProfilePictureURL: authorProfilePictureURL,
+            timestamp: Date()
+        )
 
         do {
-                    // Add the new review document
-                    _ = try await db.collection(reviewsCollection).addDocument(from: newReview)
+            _ = try await db.collection(reviewsCollection).addDocument(from: newReview)
+            
+            // Prepare and send the confirmation notification
+            let notificationData: [String: Any] = [
+                "title": "Review Submitted",
+                "message": "Your review for \(destinationName) was submitted successfully!",
+                "timestamp": FieldValue.serverTimestamp(),
+                "isRead": false,
+                "isArchived": false,
+                "destinationId": destinationId
+            ]
+            let notificationRef = db.collection(usersCollection).document(authorId).collection("notifications")
+            _ = try await notificationRef.addDocument(data: notificationData)
+            print("Confirmation notification created for user \(authorId)")
+
+            // NEW LOGIC TO UPDATE INTEREST SCORES BASED ON RATING
+            Task {
+                if let destination = try? await db.collection("destinations").document(destinationId).getDocument(as: Destination.self) {
+                    // Determine the weight based on the star rating
+                    var weight: Double = 0.0
+                    if rating >= 4 {
+                        // Positive score for ratings of 4 or 5 stars
+                        weight = 5.0
+                    } else if rating <= 2 {
+                        // Negative score for ratings of 1 or 2 stars
+                        weight = -3.0
+                    }
                     
-                    // Send a confirmation notification to the user who wrote the review
-                    let notificationData: [String: Any] = [
-                        "title": "Review Submitted",
-                        "message": "Your review for \(destinationName) was submitted successfully!",
-                        "timestamp": FieldValue.serverTimestamp(),
-                        "isRead": false,
-                        "isArchived": false,
-                        "destinationId": destinationId
-                    ]
+                    // Only update the interest score if the rating is not neutral
+                    if weight != 0.0 {
+                        await homeViewModel.updateInterestScores(for: authorId, categories: destination.categories, with: weight)
+                    }
                     
-                    let notificationRef = db.collection(usersCollection).document(authorId).collection("notifications")
-                    _ = try await notificationRef.addDocument(data: notificationData)
-                    print("Confirmation notification created for user \(authorId)")
-                    
-                    isLoading = false
-                    return true
-                } catch {
-                    errorMessage = "Failed to submit review or create notification: \(error.localizedDescription)"
-                    isLoading = false
-                    print("Error: \(error.localizedDescription)")
-                    return false
+                    // Log the user action with the rating metadata
+                    await homeViewModel.logUserAction(userId: authorId, destinationId: destinationId, actionType: "review", metadata: ["rating": rating])
                 }
             }
+            
+            isLoading = false
+            return true
+        } catch {
+            errorMessage = "Failed to submit review or create notification: \(error.localizedDescription)"
+            isLoading = false
+            print("Error: \(error.localizedDescription)")
+            return false
+        }
+    }
 
     // Function to delete a review (keep as is)
     func deleteReview(review: Review) async {
@@ -138,11 +170,10 @@ class ReviewViewModel: ObservableObject {
         }
     }
     
-    // Function to add a reaction (agree/disagree) (keep as is)
     func reactToReview(review: Review, userId: String, reaction: String) async {
         guard let reviewId = review.id else { return }
         let docRef = db.collection(reviewsCollection).document(reviewId)
-        
+
         do {
             try await db.runTransaction({ (transaction, errorPointer) -> Any? in
                 let document: DocumentSnapshot
@@ -152,53 +183,89 @@ class ReviewViewModel: ObservableObject {
                     errorPointer?.pointee = fetchError
                     return nil
                 }
-                
+
                 guard let oldReview = try? document.data(as: Review.self) else {
                     let error = NSError(domain: "AppError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unable to retrieve review data from snapshot."])
                     errorPointer?.pointee = error
                     return nil
                 }
-                
+
                 var newAgrees = oldReview.agrees
                 var newDisagrees = oldReview.disagrees
                 var newReactedUsers = oldReview.reactedUsers
-                
+
                 let oldReaction = newReactedUsers[userId]
-                
-                // Logic for reaction count and state
-                // ... (your existing transaction logic)
-                
-                // After transaction, send a notification to the review author
-                // and the user who reacted (if they haven't already reacted)
-                if oldReaction != reaction {
-                    // Fetch the user's display name for the notification
-                    let userDoc = try? transaction.getDocument(self.db.collection(self.usersCollection).document(userId))
-                    let userName = userDoc?.data()?["displayName"] as? String ?? "A user"
 
-                    // Notify the review author
-                    let authorNotificationData: [String: Any] = [
-                        "title": "New Reaction on Your Review",
-                        "message": "\(userName) reacted with '\(reaction)' to your review on \(oldReview.destinationName).",
-                        "timestamp": FieldValue.serverTimestamp(),
-                        "isRead": false,
-                        "isArchived": false,
-                        "sourceUserId": userId
-                    ]
-                    let authorNotifRef = self.db.collection(self.usersCollection).document(oldReview.authorId).collection("notifications")
-                    _ = transaction.setData(authorNotificationData, forDocument: authorNotifRef.document())
-
-                    // Notify the user who reacted
-                    let reactNotificationData: [String: Any] = [
-                        "title": "Reaction Confirmed",
-                        "message": "Your reaction '\(reaction)' on \(oldReview.authorDisplayName)'s review was successful.",
-                        "timestamp": FieldValue.serverTimestamp(),
-                        "isRead": false,
-                        "isArchived": false,
-                        "destinationId": oldReview.destinationId
-                    ]
-                    let reactNotifRef = self.db.collection(self.usersCollection).document(userId).collection("notifications")
-                    _ = transaction.setData(reactNotificationData, forDocument: reactNotifRef.document())
+                if oldReaction == reaction {
+                    // User is un-reacting
+                    if reaction == "agree" {
+                        newAgrees -= 1
+                    } else if reaction == "disagree" {
+                        newDisagrees -= 1
+                    }
+                    newReactedUsers.removeValue(forKey: userId)
+                } else if let oldReaction = oldReaction {
+                    // User is changing their reaction
+                    if oldReaction == "agree" {
+                        newAgrees -= 1
+                    } else if oldReaction == "disagree" {
+                        newDisagrees -= 1
+                    }
+                    if reaction == "agree" {
+                        newAgrees += 1
+                    } else if reaction == "disagree" {
+                        newDisagrees += 1
+                    }
+                    newReactedUsers[userId] = reaction
+                } else {
+                    // User is adding a new reaction
+                    if reaction == "agree" {
+                        newAgrees += 1
+                    } else if reaction == "disagree" {
+                        newDisagrees += 1
+                    }
+                    newReactedUsers[userId] = reaction
                 }
+
+                // After transaction, send a notification to the review author
+                               // and the user who reacted (if they haven't already reacted)
+                               if oldReaction != reaction {
+                                   
+                                   Task {
+                                                          if let destination = try? await self.db.collection("destinations").document(review.destinationId).getDocument(as: Destination.self) {
+                                                              let weight: Double = (reaction == "agree") ? 2.0 : -1.0
+                                                              await self.homeViewModel.updateInterestScores(for: userId, categories: destination.categories, with: weight)
+                                                              await self.homeViewModel.logUserAction(userId: userId, destinationId: review.destinationId, actionType: "reaction", metadata: ["reaction": reaction])
+                                                          }
+                                                      }
+                                   // Fetch the user's display name for the notification
+                                   let userDoc = try? transaction.getDocument(self.db.collection(self.usersCollection).document(userId))
+                                   let userName = userDoc?.data()?["displayName"] as? String ?? "A user"
+
+                                   // Notify the review author
+                                   let authorNotificationData: [String: Any] = [
+                                       "title": "New Reaction on Your Review",
+                                       "message": "\(userName) reacted with '\(reaction)' to your review on \(oldReview.destinationName).",
+                                       "timestamp": FieldValue.serverTimestamp(),
+                                       "isRead": false,
+                                       "isArchived": false,
+                                       "sourceUserId": userId
+                                   ]
+                                   let authorNotifRef = self.db.collection(self.usersCollection).document(oldReview.authorId).collection("notifications")
+                                   _ = transaction.setData(authorNotificationData, forDocument: authorNotifRef.document())
+
+                                   // Notify the user who reacted
+                                   let reactNotificationData: [String: Any] = [
+                                       "title": "Reaction Confirmed",
+                                       "message": "Your reaction '\(reaction)' on \(oldReview.authorDisplayName)'s review was successful.",
+                                       "timestamp": FieldValue.serverTimestamp(),
+                                       "isRead": false,
+                                       "isArchived": false,
+                                       "destinationId": oldReview.destinationId
+                                   ]
+                                   let reactNotifRef = self.db.collection(self.usersCollection).document(userId).collection("notifications")
+                                   _ = transaction.setData(reactNotificationData, forDocument: reactNotifRef.document())
+                               }
 
                 transaction.updateData(["agrees": newAgrees, "disagrees": newDisagrees, "reactedUsers": newReactedUsers], forDocument: docRef)
                 return nil

@@ -168,7 +168,7 @@ struct OnMapView: View {
                                 
                                 let placeLocation = CLLocation(latitude: lat, longitude: lon)
                                 let distanceInMeters = destinationLocation.distance(from: placeLocation)
-                                let distanceInMiles = String(format: "%.1f mi", distanceInMeters * 0.000621371)
+                                let distanceInMiles = String(format: "%.1f mi from \(destination.name)", distanceInMeters * 0.000621371)
                                 
                                 let photoRef = (placeData["photos"] as? [[String: Any]])?.first?["photo_reference"] as? String
                                 
@@ -437,12 +437,12 @@ struct BubbleCard: View {
                     }
                     Spacer()
                 }
-                .padding(12)
+                .padding(10)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.black.opacity(0.6))
                 )
-                .frame(width: 180)
+                .frame(width: 200)
                 .position(x: geometry.size.width * bubblePosition.x,
                           y: geometry.size.height * bubblePosition.y)
 

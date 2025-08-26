@@ -75,7 +75,8 @@ class ScheduleViewModel: ObservableObject {
                         participantAvatars: nil,
                         description: nil,
                         price: booking.price ?? 0.0,
-                        galleryImageUrls: []
+                        galleryImageUrls: [],
+                        categories: []
                     )
                     
                     return ScheduledEvent(id: booking.id, date: booking.date.dateValue(), destination: destination)

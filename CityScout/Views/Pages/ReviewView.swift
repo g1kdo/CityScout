@@ -3,7 +3,7 @@ import SwiftUI
 struct ReviewView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @StateObject private var viewModel = ReviewViewModel()
+    @StateObject private var viewModel = ReviewViewModel(homeViewModel: HomeViewModel())
     @State private var showAddReviewSheet = false
     @State private var reviewToEdit: ReviewViewModel.Review?
     @State private var isShowingEditSheet = false
@@ -11,9 +11,13 @@ struct ReviewView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if viewModel.isLoading {
+                // --- DEFINITIVE FIX IS HERE ---
+                // This new logic checks for the initial fetch state.
+                // It will show a ProgressView ONLY on the very first load,
+                // preventing the "flash" on subsequent views.
+                if viewModel.isPerformingInitialFetch {
                     ProgressView("Loading reviews...")
-                        .padding()
+                        .frame(maxHeight: .infinity)
                 } else if let error = viewModel.errorMessage {
                     Text("Error: \(error)")
                         .foregroundColor(.red)
@@ -28,10 +32,8 @@ struct ReviewView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.top, 50)
-                    Spacer()
+                    .frame(maxHeight: .infinity)
                 } else {
-                    // Added a horizontal stack for the filter and a Spacer
                     HStack {
                         Spacer()
                         Picker("Sort By", selection: $viewModel.sortOption) {
@@ -57,6 +59,7 @@ struct ReviewView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
+                // This part of your UI remains the same
                 Button {
                     showAddReviewSheet = true
                 } label: {
@@ -72,20 +75,18 @@ struct ReviewView: View {
                     .cornerRadius(10)
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 20)
+                .padding(.bottom, 5)
             }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .sheet(isPresented: $showAddReviewSheet) {
+            .background(Color(.systemBackground)).ignoresSafeArea()
+            .fullScreenCover(isPresented: $showAddReviewSheet) {
                 AddReviewSheet(viewModel: viewModel, reviewToEdit: reviewToEdit)
             }
-            .sheet(isPresented: $isShowingEditSheet) {
+            .fullScreenCover(isPresented: $isShowingEditSheet) {
                 if let review = reviewToEdit {
                     AddReviewSheet(viewModel: viewModel, reviewToEdit: review)
                 }
             }
-            .onAppear {
-                viewModel.fetchReviews()
-            }
+            
             .navigationTitle("Reviews")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -100,39 +101,41 @@ private struct ReviewListContent: View {
     
     var body: some View {
         ForEach(viewModel.sortedReviews) { review in
+            // Find the original review in the main 'reviews' array
+            if let index = viewModel.reviews.firstIndex(where: { $0.id == review.id }) {
                 ReviewCardView(
                     viewModel: viewModel,
-                    review: review,
+                    review: $viewModel.reviews[index],
                     isMyReview: review.authorId == authVM.signedInUser?.id
-            )
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            // This background is now fully adaptive
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(review.authorId == authVM.signedInUser?.id ? Color.blue.opacity(0.1) : Color(.secondarySystemGroupedBackground))
-            )
-            .swipeActions(edge: .leading) {
-                if review.authorId == authVM.signedInUser?.id {
-                    Button {
-                        reviewToEdit = review
-                        isShowingEditSheet = true
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                    .tint(.blue)
-                }
-            }
-            .swipeActions(edge: .trailing) {
-                if review.authorId == authVM.signedInUser?.id {
-                    Button(role: .destructive) {
-                        Task {
-                            await viewModel.deleteReview(review: review)
+                )
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(review.authorId == authVM.signedInUser?.id ? Color.blue.opacity(0.1) : Color(.secondarySystemGroupedBackground))
+                )
+                .swipeActions(edge: .leading) {
+                    if review.authorId == authVM.signedInUser?.id {
+                        Button {
+                            reviewToEdit = review
+                            isShowingEditSheet = true
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
                         }
-                    } label: {
-                        Label("Delete", systemImage: "trash.fill")
+                        .tint(.blue)
                     }
-                    .tint(.red)
+                }
+                .swipeActions(edge: .trailing) {
+                    if review.authorId == authVM.signedInUser?.id {
+                        Button(role: .destructive) {
+                            Task {
+                                await viewModel.deleteReview(review: review)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash.fill")
+                        }
+                        .tint(.red)
+                    }
                 }
             }
         }
