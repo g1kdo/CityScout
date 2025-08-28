@@ -1,4 +1,3 @@
-// ViewModels/ReviewViewModel.swift
 import Foundation
 import SwiftUI
 import FirebaseFirestore
@@ -19,7 +18,10 @@ class ReviewViewModel: ObservableObject {
     private let reviewsCollection = "reviews"
     private let destinationsCollection = "destinations"
     private let usersCollection = "users"
-   // private let destinationOwnersCollection = "destination_owners"
+    
+    // --- NEW PROPERTY ---
+    // This will be true only during the very first data fetch.
+    @Published var isPerformingInitialFetch = true
     
     struct Review: Identifiable, Codable, Equatable {
             @DocumentID var id: String? // Firestore document ID
@@ -40,14 +42,20 @@ class ReviewViewModel: ObservableObject {
             }
         }
 
+    init() {
+        fetchReviews()
+    }
 
     func fetchReviews() {
-        isLoading = true
         db.collection(reviewsCollection)
             .order(by: "timestamp", descending: true)
             .addSnapshotListener { [weak self] querySnapshot, error in
                 guard let self = self else { return }
-                self.isLoading = false
+                
+                // --- UPDATED LOGIC ---
+                // No matter what happens, after the first fetch attempt,
+                // we set this to false to unblock the UI.
+                defer { self.isPerformingInitialFetch = false }
 
                 if let error = error {
                     self.errorMessage = "Error fetching reviews: \(error.localizedDescription)"
@@ -64,6 +72,8 @@ class ReviewViewModel: ObservableObject {
                 }
             }
     }
+
+
 
     // Function to add a new review to Firestore (modify to accept destinationId from selected suggestion)
     func addReview(destinationId: String, destinationName: String, rating: Int, comment: String, authorId: String, authorDisplayName: String, authorProfilePictureURL: URL?) async -> Bool {

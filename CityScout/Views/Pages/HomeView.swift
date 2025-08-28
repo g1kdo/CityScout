@@ -199,6 +199,7 @@ struct HomeView: View {
             ReviewView()
                 .environmentObject(vm)
                 .environmentObject(favoritesVM)
+               
         case .profile:
             Color.clear
         }

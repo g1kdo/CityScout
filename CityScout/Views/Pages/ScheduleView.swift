@@ -5,26 +5,26 @@ struct ScheduleView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var scheduleVM = ScheduleViewModel()
     
-    // State for managing alerts and sheets
     @State private var eventToCancel: ScheduledEvent?
     @State private var showingCancelAlert = false
     @State private var showingAllEvents = false
 
+    private var allEventsForCalendar: [ScheduledEvent] {
+        return scheduleVM.scheduledEvents + scheduleVM.pastEvents
+    }
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 20) {
             CalendarHeader(selectedDate: $selectedDate)
                 .padding(.horizontal)
-                .padding(.bottom, 20)
 
-            CalendarView(selectedDate: $selectedDate)
-                .padding(.bottom, 30)
+            CalendarView(selectedDate: $selectedDate, events: allEventsForCalendar)
 
             HStack {
                 Text("My Schedule")
                     .font(.title2)
                     .fontWeight(.bold)
                 Spacer()
-                // This button now presents the AllEventsView sheet
                 Button("View all") {
                     showingAllEvents = true
                 }
@@ -32,13 +32,13 @@ struct ScheduleView: View {
                 .foregroundColor(Color(hex: "#FF7029"))
             }
             .padding(.horizontal)
-            .padding(.bottom, 15)
 
             ScrollView(.vertical, showsIndicators: false) {
                 if filteredEvents.isEmpty {
                     Text("No events scheduled for this date.")
                         .foregroundColor(.secondary)
                         .padding()
+                        .frame(maxWidth: .infinity)
                 } else {
                     VStack(spacing: 15) {
                         ForEach(filteredEvents) { event in
@@ -46,9 +46,9 @@ struct ScheduleView: View {
                                 self.eventToCancel = event
                                 self.showingCancelAlert = true
                             }
+                            // Pass the ViewModel to each row
+                            .environmentObject(scheduleVM)
                             .padding(.horizontal)
-                            // Disable interaction for past events
-                            .disabled(event.date < Calendar.current.startOfDay(for: Date()))
                         }
                     }
                 }
@@ -60,9 +60,7 @@ struct ScheduleView: View {
             }
         }
         .onChange(of: authVM.user?.uid) { _, newUserId in
-            if let userId = newUserId {
-                scheduleVM.subscribeToSchedule(for: userId)
-            }
+            scheduleVM.subscribeToSchedule(for: newUserId)
         }
         .alert("Cancel Booking?", isPresented: $showingCancelAlert, presenting: eventToCancel) { event in
             Button("Confirm Cancellation", role: .destructive) {
@@ -79,13 +77,17 @@ struct ScheduleView: View {
                 Text("Are you sure you want to cancel your booking for \(event.destination.name)? You will receive a full refund.")
             }
         }
-        // This sheet presents the new AllEventsView
         .fullScreenCover(isPresented: $showingAllEvents) {
-            AllEventsView(upcomingEvents: scheduleVM.upcomingEvents)
+            AllEventsView(upcomingEvents: scheduleVM.scheduledEvents)
         }
     }
 
     private var filteredEvents: [ScheduledEvent] {
-        scheduleVM.scheduledEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+        allEventsForCalendar.filter { event in
+            let selectedDay = Calendar.current.startOfDay(for: selectedDate)
+            guard event.startDate <= event.endDate else { return false }
+            let eventRange = Calendar.current.startOfDay(for: event.startDate)...event.endDate
+            return eventRange.contains(selectedDay)
+        }
     }
 }

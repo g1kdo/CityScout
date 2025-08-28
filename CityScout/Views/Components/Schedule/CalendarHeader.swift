@@ -1,29 +1,26 @@
-//
-//  CalendarHeader.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 26/05/2025.
-//
 import SwiftUI
 
 struct CalendarHeader: View {
     @Binding var selectedDate: Date
-    private let dateFormatter: DateFormatter = {
+    private let calendar = Calendar.current
+    private let monthAndYearFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "d MMMM"
+        formatter.dateFormat = "MMMM yyyy" // Format to show month and year
         return formatter
     }()
 
     var body: some View {
         HStack {
-            Text(dateFormatter.string(from: selectedDate))
+            // Display the current month and year
+            Text(monthAndYearFormatter.string(from: selectedDate))
                 .font(.largeTitle)
                 .fontWeight(.bold)
+
             Spacer()
+
+            // Button to go to the previous month
             Button(action: {
-                if let newDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) {
-                    selectedDate = newDate
-                }
+                changeMonth(by: -1)
             }) {
                 Image(systemName: "chevron.left")
                     .font(.headline)
@@ -31,10 +28,10 @@ struct CalendarHeader: View {
                     .background(Color.gray.opacity(0.1))
                     .clipShape(Circle())
             }
+            
+            // Button to go to the next month
             Button(action: {
-                if let newDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) {
-                    selectedDate = newDate
-                }
+                changeMonth(by: 1)
             }) {
                 Image(systemName: "chevron.right")
                     .font(.headline)
@@ -44,13 +41,11 @@ struct CalendarHeader: View {
             }
         }
     }
-}
-
-struct CalendarHeader_Previews: PreviewProvider {
-    @State static var selectedDate: Date = Date()
-    static var previews: some View {
-        CalendarHeader(selectedDate: $selectedDate)
-            .padding()
-            .previewLayout(.sizeThatFits)
+    
+    // Logic to change the month of the selectedDate
+    private func changeMonth(by value: Int) {
+        if let newDate = calendar.date(byAdding: .month, value: value, to: selectedDate) {
+            selectedDate = newDate
+        }
     }
 }

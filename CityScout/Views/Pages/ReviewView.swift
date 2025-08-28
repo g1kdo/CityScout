@@ -11,9 +11,13 @@ struct ReviewView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if viewModel.isLoading {
+                // --- DEFINITIVE FIX IS HERE ---
+                // This new logic checks for the initial fetch state.
+                // It will show a ProgressView ONLY on the very first load,
+                // preventing the "flash" on subsequent views.
+                if viewModel.isPerformingInitialFetch {
                     ProgressView("Loading reviews...")
-                        .padding()
+                        .frame(maxHeight: .infinity)
                 } else if let error = viewModel.errorMessage {
                     Text("Error: \(error)")
                         .foregroundColor(.red)
@@ -28,10 +32,8 @@ struct ReviewView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.top, 50)
-                    Spacer()
+                    .frame(maxHeight: .infinity)
                 } else {
-                    // Added a horizontal stack for the filter and a Spacer
                     HStack {
                         Spacer()
                         Picker("Sort By", selection: $viewModel.sortOption) {
@@ -57,6 +59,7 @@ struct ReviewView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
+                // This part of your UI remains the same
                 Button {
                     showAddReviewSheet = true
                 } label: {
@@ -75,17 +78,15 @@ struct ReviewView: View {
                 .padding(.bottom, 20)
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .sheet(isPresented: $showAddReviewSheet) {
+            .fullScreenCover(isPresented: $showAddReviewSheet) {
                 AddReviewSheet(viewModel: viewModel, reviewToEdit: reviewToEdit)
             }
-            .sheet(isPresented: $isShowingEditSheet) {
+            .fullScreenCover(isPresented: $isShowingEditSheet) {
                 if let review = reviewToEdit {
                     AddReviewSheet(viewModel: viewModel, reviewToEdit: review)
                 }
             }
-            .onAppear {
-                viewModel.fetchReviews()
-            }
+            
             .navigationTitle("Reviews")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -107,7 +108,6 @@ private struct ReviewListContent: View {
             )
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            // This background is now fully adaptive
             .background(
                 RoundedRectangle(cornerRadius: 10)
                     .fill(review.authorId == authVM.signedInUser?.id ? Color.blue.opacity(0.1) : Color(.secondarySystemGroupedBackground))
