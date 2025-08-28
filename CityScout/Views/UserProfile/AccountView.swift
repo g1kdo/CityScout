@@ -5,7 +5,6 @@
 //  Created by Umuco Auca on 13/08/2025.
 //
 
-
 import SwiftUI
 import FirebaseAuth
 
@@ -24,14 +23,35 @@ struct AccountView: View {
                     }
                 }
                 
-                // Section for trips, comments, and reactions
-                // Note: The data for these fields is a placeholder. You'll need to
-                // integrate with your actual data source (e.g., Firestore) to
-                // fetch and display real values.
-                Section(header: Text("Activity Summary")) {
-                    AccountRow(icon: "map.fill", title: "Trips", value: "12", color: .teal)
-                    AccountRow(icon: "text.bubble.fill", title: "Comments", value: "34", color: .blue)
-                    AccountRow(icon: "hand.thumbsup.fill", title: "Reactions", value: "156", color: .orange)
+                // Section for Privacy & Security
+                Section(header: Text("Privacy & Security")) {
+                    NavigationLink(destination: PrivacySecurityView()) {
+                        HStack {
+                            Image(systemName: "lock.shield.fill")
+                                .font(.body)
+                                .frame(width: 24, height: 24)
+                                .foregroundColor(.white)
+                                .background(Color.green)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            Text("Security & Data")
+                        }
+                    }
+                }
+                
+                // Section for Connected Accounts
+                Section(header: Text("Connected Accounts")) {
+                    ForEach(accountViewModel.getProviders(for: authViewModel.user), id: \.self) { provider in
+                        switch provider {
+                        case .password:
+                            AccountRow(icon: "lock.fill", title: "Email/Password", value: "Connected", color: .blue)
+                        case .google:
+                            AccountRow(icon: "lock.fill", title: "Google", value: "Connected", color: .red)
+                        case .apple:
+                            AccountRow(icon: "lock.fill", title: "Apple", value: "Connected", color: .black)
+                        default:
+                            AccountRow(icon: "lock.fill", title: "Other", value: "Connected", color: .gray)
+                        }
+                    }
                 }
                 
                 // Conditional section for changing password
@@ -66,10 +86,30 @@ struct AccountView: View {
                 
                 // Section to delete or deactivate account
                 Section(header: Text("Danger Zone")) {
-                    Button("Deactivate Account") {
-                        accountViewModel.isShowingDeactivationAlert = true
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button("Deactivate Account") {
+                            accountViewModel.isShowingDeactivationAlert = true
+                        }
+                        .foregroundColor(.red)
+                        
+                        Text("This makes your account temporarily unavailable but keeps your data, should you choose to return later.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    .foregroundColor(.red)
+                    
+                    Divider()
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button("Delete Account and Data") {
+                            accountViewModel.isShowingDeletionAlert = true
+                        }
+                        .foregroundColor(.red)
+                        
+                        Text("This is permanent. It will permanently delete your account and all associated data, including your profile, messages, and content. This action **cannot** be undone.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .navigationTitle("Account")
@@ -90,7 +130,17 @@ struct AccountView: View {
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("Are you sure you want to deactivate your account? This action cannot be undone.")
+                Text("Are you sure you want to deactivate your account? You can reactivate it at any time by logging back in. Your data will be preserved.")
+            }
+            .alert("Delete Account and Data", isPresented: $accountViewModel.isShowingDeletionAlert) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await accountViewModel.deleteAccount()
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This action is permanent and cannot be reversed. All of your data will be permanently deleted. Are you absolutely sure?")
             }
             .onAppear {
                 accountViewModel.resetMessages()
@@ -120,5 +170,20 @@ struct AccountRow: View {
             Text(value)
                 .foregroundColor(.secondary)
         }
+    }
+}
+
+// Placeholder for the new PrivacySecurityView
+struct PrivacySecurityView: View {
+    var body: some View {
+        Form {
+            Section(header: Text("Data Privacy")) {
+                Text("Manage how your data is used.")
+            }
+            Section(header: Text("Security")) {
+                Text("Review your login sessions.")
+            }
+        }
+        .navigationTitle("Privacy & Security")
     }
 }

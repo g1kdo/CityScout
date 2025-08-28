@@ -5,7 +5,6 @@
 //  Created by Umuco Auca on 14/08/2025.
 //
 
-
 import SwiftUI
 import FirebaseFirestore
 
@@ -14,79 +13,95 @@ struct InterestView: View {
     @State private var selectedInterests: Set<String> = []
     @State private var isLoading = false
     
-    // Define your interest categories here
-    let interests = [
-        "Adventure", "Beaches", "Mountains", "City Breaks", "Foodie",
-        "Cultural", "Historical", "Nature", "Relaxing", "Family"
+    // Define your original interest categories and their new SF Symbols
+    let interests: [(name: String, icon: String)] = [
+        ("Adventure", "🗺️"),
+        ("Beaches", "🌞"),
+        ("Mountains", "⛰️"),
+        ("City Breaks", "🏙️"), // Changed to a more fitting emoji
+        ("Foodie", "🍕"),
+        ("Cultural", "🎭"),
+        ("Historical", "🕰️"),
+        ("Nature", "🌿"),
+        ("Relaxing", "💆🏽‍♀️"),
+        ("Family", "👨‍👩‍👧‍👦") // Changed to a more fitting emoji
     ]
+    
+    // Pre-assign a random color to each interest
+    @State private var interestColors: [String: Color] = [:]
     
     private var isButtonEnabled: Bool {
         !selectedInterests.isEmpty
     }
 
     var body: some View {
-        VStack {
-            Text("Tell Us Your Interests")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .padding(.bottom, 8)
-            
-            Text("Select at least one interest to personalize your recommendations.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            
-            Spacer()
-            
-            ScrollView(.vertical) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    ForEach(interests, id: \.self) { interest in
-                        InterestCard(interest: interest, isSelected: selectedInterests.contains(interest))
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Categories")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .padding(.horizontal)
+                
+                Text("Select at least one interest to personalize your recommendations.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                
+                ScrollView(.vertical, showsIndicators: false) {
+                    WavyFlowLayout(spacing: 10, waveAmplitude: 15) {
+                        ForEach(interests, id: \.name) { interestData in
+                            InterestTag(
+                                icon: interestData.icon,
+                                text: interestData.name,
+                                isSelected: selectedInterests.contains(interestData.name),
+                                color: interestColors[interestData.name] ?? .gray
+                            )
                             .onTapGesture {
-                                if selectedInterests.contains(interest) {
-                                    selectedInterests.remove(interest)
+                                if selectedInterests.contains(interestData.name) {
+                                    selectedInterests.remove(interestData.name)
                                 } else {
-                                    selectedInterests.insert(interest)
+                                    selectedInterests.insert(interestData.name)
                                 }
                             }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
+                Button(action: saveInterests) {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color(hex: "#24BAEC"))
+                            .cornerRadius(12)
+                    } else {
+                        Text("Continue")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(isButtonEnabled ? Color(hex: "#24BAEC") : Color.gray)
+                            .cornerRadius(12)
                     }
                 }
-                .padding()
+                .disabled(!isButtonEnabled || isLoading)
+                .padding(.horizontal)
+                .padding(.bottom, 5)
             }
-            
-            Spacer()
-            
-            Button(action: saveInterests) {
-                Text("Continue")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(isButtonEnabled ? Color(hex: "#24BAEC") : Color.gray)
-                    .cornerRadius(12)
-            }
-            .disabled(!isButtonEnabled)
-            .padding(.horizontal)
-            .padding(.bottom)
-        }
-        .padding()
-        .overlay(
-            Group {
-                if isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .scaleEffect(1.5)
-                        .padding()
-                        .background(Color.black.opacity(0.6))
-                        .cornerRadius(10)
+            .padding(.top)
+            .navigationBarHidden(true)
+            .onAppear {
+                // Assign a random color to each interest when the view appears
+                for interest in interests {
+                    interestColors[interest.name] = Color.random
                 }
             }
-        )
+        }
     }
     
-    // Function to save interests to Firestore
     private func saveInterests() {
         guard let userId = authVM.user?.uid else { return }
         
@@ -95,20 +110,19 @@ struct InterestView: View {
         let userRef = db.collection("users").document(userId)
         
         let initialInterestScores = selectedInterests.reduce(into: [:]) { result, interest in
-            result[interest] = 10 // Assign a high initial score
+            result[interest] = 10
         }
         
         userRef.updateData([
             "selectedInterests": Array(selectedInterests),
             "interestScores": initialInterestScores,
-            "hasSetInterests": true // Add a flag to prevent this page from showing again
+            "hasSetInterests": true
         ]) { error in
             self.isLoading = false
             if let error = error {
                 print("Error saving interests: \(error.localizedDescription)")
             } else {
                 print("Interests saved successfully!")
-                // You might need to refresh the `signedInUser` model
                 Task {
                     await authVM.refreshSignedInUserFromFirestore()
                 }
@@ -117,47 +131,106 @@ struct InterestView: View {
     }
 }
 
-// Custom view for each interest card
-struct InterestCard: View {
-    let interest: String
+// MARK: - Helper Views and Extensions
+
+// MARK: - Helper Views and Extensions
+
+// Custom view for each interest tag (pill-like button)
+struct InterestTag: View {
+    let icon: String
+    let text: String
     let isSelected: Bool
+    let color: Color
     
     var body: some View {
-        VStack {
-            Image(systemName: getIconForInterest(interest))
-                .font(.largeTitle)
-                .frame(width: 60, height: 60)
-                .padding()
-                .background(isSelected ? Color(hex: "#24BAEC").opacity(0.2) : Color.gray.opacity(0.1))
-                .clipShape(Circle())
-            
-            Text(interest)
+        HStack(spacing: 8) {
+            // Check if the icon string is an SF Symbol (contains a dot) or an emoji
+            if icon.contains(".") {
+                // It's a SF Symbol
+                Image(systemName: icon)
+                    .font(.title3)
+            } else {
+                // It's an emoji
+                Text(icon)
+                    .font(.title3)
+            }
+            Text(text)
                 .font(.subheadline)
                 .fontWeight(.medium)
-                .foregroundColor(isSelected ? Color(hex: "#24BAEC") : .primary)
         }
-        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 120)
-        .background(isSelected ? Color(hex: "#24BAEC").opacity(0.1) : Color(.systemBackground))
-        .cornerRadius(16)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 15)
+        .background(isSelected ? color.opacity(0.2) : Color.white)
+        .foregroundColor(isSelected ? color : .primary)
+        .cornerRadius(30)
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(isSelected ? Color(hex: "#24BAEC") : Color.gray.opacity(0.2), lineWidth: 2)
+            RoundedRectangle(cornerRadius: 30)
+                .stroke(isSelected ? color : Color.gray.opacity(0.4), lineWidth: 1)
         )
     }
+}
+
+// Wavy Flow Layout
+struct WavyFlowLayout: Layout {
+    var spacing: CGFloat
+    var waveAmplitude: CGFloat
     
-    private func getIconForInterest(_ interest: String) -> String {
-        switch interest {
-        case "Adventure": return "car.circle.fill"
-        case "Beaches": return "sun.max.fill"
-        case "Mountains": return "mountain.2.fill"
-        case "City Breaks": return "building.2.fill"
-        case "Foodie": return "fork.knife.circle.fill"
-        case "Cultural": return "theatermask.and.paintbrush.fill"
-        case "Historical": return "clock.fill"
-        case "Nature": return "leaf.fill"
-        case "Relaxing": return "bed.double.fill"
-        case "Family": return "figure.2.and.child.holdinghands"
-        default: return "questionmark.circle"
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let containerWidth = proposal.width ?? 0
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        
+        for size in sizes {
+            if currentX + size.width + spacing > containerWidth {
+                totalHeight += lineHeight + spacing
+                currentY = totalHeight
+                currentX = 0
+                lineHeight = 0
+            }
+            
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        totalHeight += lineHeight
+        
+        return CGSize(width: containerWidth, height: totalHeight)
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let containerWidth = bounds.width
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        
+        var currentX: CGFloat = bounds.minX
+        var currentY: CGFloat = bounds.minY
+        var lineHeight: CGFloat = 0
+        var lineIndex: Int = 0
+        
+        for (index, subview) in subviews.enumerated() {
+            let size = sizes[index]
+            
+            if currentX + size.width > containerWidth {
+                currentY += lineHeight + spacing
+                currentX = bounds.minX
+                lineHeight = 0
+                lineIndex += 1
+            }
+            
+            // The fix: Add a check for a non-zero containerWidth.
+            let yOffset: CGFloat
+            if containerWidth > 0 {
+                yOffset = sin(CGFloat(lineIndex) + currentX / containerWidth * 2 * .pi) * waveAmplitude
+            } else {
+                yOffset = 0
+            }
+            
+            subview.place(at: CGPoint(x: currentX, y: currentY + yOffset), proposal: ProposedViewSize(size))
+            
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
         }
     }
 }

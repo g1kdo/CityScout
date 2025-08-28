@@ -34,6 +34,14 @@ extension Color {
 
         self.init(red: red, green: green, blue: blue)
     }
+    
+    static var random: Color {
+        Color(
+            red: .random(in: 0.1...0.9),
+            green: .random(in: 0.1...0.9),
+            blue: .random(in: 0.1...0.9)
+        )
+    }
 }
 
 extension Date { 

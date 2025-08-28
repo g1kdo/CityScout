@@ -5,8 +5,6 @@
 //  Created by Umuco Auca on 13/08/2025.
 //
 
-
-// ViewModels/AccountViewModel.swift
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
@@ -18,11 +16,26 @@ class AccountViewModel: ObservableObject {
     @Published var currentPassword = ""
     @Published var isChangePasswordLoading = false
     @Published var isDeactivationLoading = false
+    @Published var isDeletionLoading = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
     @Published var isShowingDeactivationAlert = false
+    @Published var isShowingDeletionAlert = false
 
     private var db = Firestore.firestore()
+    
+    enum ProviderType {
+        case password, google, apple, other
+        
+        static func from(providerID: String) -> ProviderType {
+            switch providerID {
+            case "password": return .password
+            case "google.com": return .google
+            case "apple.com": return .apple
+            default: return .other
+            }
+        }
+    }
     
     // Check if the current user is signed in with email/password
     func isEmailPasswordUser() -> Bool {
@@ -33,6 +46,12 @@ class AccountViewModel: ObservableObject {
             }
         }
         return false
+    }
+    
+    // Get a list of providers the user has linked
+    func getProviders(for user: FirebaseAuth.User?) -> [ProviderType] {
+        guard let user = user else { return [] }
+        return user.providerData.map { ProviderType.from(providerID: $0.providerID) }
     }
     
     func changePassword() async {
@@ -87,22 +106,48 @@ class AccountViewModel: ObservableObject {
         }
         
         do {
-            // Delete user data from Firestore first
-            // This is a crucial step to clean up data before deleting the user
-            try await db.collection("users").document(user.uid).delete()
+            // Deactivating an account is not a built-in Firebase function.
+            // A common approach is to sign out the user and set a flag in your database.
+            // For now, this function is a placeholder for that logic.
+            // You might add a field like `isActive: false` to your user's Firestore document.
+            // For this implementation, we will just sign out the user.
             
-            // Delete the user from Firebase Auth
-            try await user.delete()
-            
-            // Sign out to clear the session
             try Auth.auth().signOut()
-            
-            successMessage = "Account successfully deactivated."
+            successMessage = "Account successfully deactivated. You can log back in to reactivate it."
             
         } catch {
-            errorMessage = "Failed to deactivate account: \(error.localizedDescription). Please sign in again and try."
+            errorMessage = "Failed to deactivate account: \(error.localizedDescription)"
         }
         isDeactivationLoading = false
+    }
+    
+    func deleteAccount() async {
+        isDeletionLoading = true
+        errorMessage = nil
+        
+        guard let user = Auth.auth().currentUser else {
+            errorMessage = "No authenticated user to delete."
+            isDeletionLoading = false
+            return
+        }
+        
+        do {
+            // It's a best practice to delete the user's data from Firestore first.
+            // This prevents "orphaned" data if the account deletion fails.
+            try await db.collection("users").document(user.uid).delete()
+            
+            // Then, delete the user from Firebase Authentication.
+            try await user.delete()
+            
+            // After successful deletion, sign out to clear the session.
+            try Auth.auth().signOut()
+            
+            successMessage = "Account and all data have been permanently deleted."
+            
+        } catch {
+            errorMessage = "Failed to delete account: \(error.localizedDescription). Please sign in again and try."
+        }
+        isDeletionLoading = false
     }
 
     func resetMessages() {
