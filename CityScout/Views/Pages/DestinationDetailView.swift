@@ -181,7 +181,7 @@ private struct HeaderNavButtons: View {
                 
                 // New map button and existing favorite button in a single HStack
                 HStack(spacing: 12) {
-                    HeaderButton(iconName: "map.fill", action: onViewOnMap)
+                    HeaderButton(iconName: "mappin.and.ellipse", action: onViewOnMap)
                         .foregroundColor(.white)
                     HeaderButton(iconName: isFavorite ? "bookmark.fill" : "bookmark", action: onToggleFavorite)
                         .foregroundColor(isFavorite ? .red : .white)

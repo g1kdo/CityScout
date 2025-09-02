@@ -1,8 +1,8 @@
 //
-//  OnMapView.swift
-//  CityScout
+//  OnMapView.swift
+//  CityScout
 //
-//  Created by Umuco Auca on 31/07/2025.
+//  Created by Umuco Auca on 31/07/2025.
 //
 
 import SwiftUI
@@ -37,13 +37,10 @@ struct OnMapView: View {
     @State private var recommendedPlaces: [RecommendedPlace] = []
     @State private var selectedPlaceCoordinate: CLLocationCoordinate2D? = nil
     @State private var selectedPlaceName: String = ""
+    @State private var showingPermissionAlert = false
     
     @State private var mapDataIsReady = false
     
-    private var canShowMap: Bool {
-        destinationCoordinate != nil && locationManager.lastKnownLocation != nil
-    }
-
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -59,24 +56,22 @@ struct OnMapView: View {
                 .padding(.horizontal, 20)
                 .padding(.top)
 
-                // 💡 Dynamic BubbleCards based on state
                 ForEach(recommendedPlaces) { place in
-                                Button(action: {
-                                    // 💡 When tapped, update the state and show the map
-                                    self.selectedPlaceCoordinate = place.coordinate
-                                    self.selectedPlaceName = place.name
-                                    self.mapDataIsReady = true
-                                }) {
-                                    BubbleCard(
-                                        title: place.name,
-                                        distance: place.distance,
-                                        imageUrl: place.imageUrl,
-                                        bubblePosition: place.position,
-                                        pointerHeightOffset: place.position.y == 0.25 ? 60 : 65
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle()) // To remove default button styling
-                            }
+                    Button(action: {
+                        self.selectedPlaceCoordinate = place.coordinate
+                        self.selectedPlaceName = place.name
+                        self.mapDataIsReady = true
+                    }) {
+                        BubbleCard(
+                            title: place.name,
+                            distance: place.distance,
+                            imageUrl: place.imageUrl,
+                            bubblePosition: place.position,
+                            pointerHeightOffset: place.position.y == 0.25 ? 60 : 65
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
                 
                 BottomInformationCard(destination: destination, travelTime: travelTime, travelMode: travelMode, action: {
                     mapDataIsReady = true
@@ -99,20 +94,44 @@ struct OnMapView: View {
             Text("We could not find the exact location for \(destination.name). Please check the address or try again later.")
         }
         .onAppear {
-            if let lat = destination.latitude, let lon = destination.longitude {
-                print("Using provided coordinates: \(lat), \(lon)")
-                self.destinationCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-                fetchNearbyPlaces(for: CLLocation(latitude: lat, longitude: lon))
+            // ➡️ MODIFIED: Request location if not authorized, otherwise start fetching data
+            if locationManager.authorizationStatus == .notDetermined {
+                locationManager.requestLocationAuthorization()
+            } else if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
+                self.showingPermissionAlert = true
             } else {
-                geocodeAddress(address: destination.location) { coordinate in
-                    if let coordinate = coordinate {
-                        print("Successfully geocoded: \(coordinate.latitude), \(coordinate.longitude)")
-                        self.destinationCoordinate = coordinate
-                        fetchNearbyPlaces(for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
-                    } else {
-                        print("Geocoding failed for: \(destination.location)")
-                        self.showingGeocodeErrorAlert = true
-                    }
+                // Permission is already granted, so fetch the data immediately
+                fetchDestinationAndNearbyPlaces()
+            }
+        }
+        .onChange(of: locationManager.authorizationStatus) { newStatus in
+            // ➡️ MODIFIED: Handle the change *after* the user grants permission
+            if newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways {
+                self.showingPermissionAlert = false
+                fetchDestinationAndNearbyPlaces()
+            } else if newStatus == .denied || newStatus == .restricted {
+                self.showingPermissionAlert = true
+            }
+        }
+        .alert("Location Access Required", isPresented: $showingPermissionAlert) {
+            Button("OK") {}
+        } message: {
+            Text("Please enable location services in Settings to view your current location and nearby places.")
+        }
+    }
+    
+    // ➡️ NEW: Consolidated function to handle both geocoding and fetching places
+    private func fetchDestinationAndNearbyPlaces() {
+        if let lat = destination.latitude, let lon = destination.longitude {
+            self.destinationCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            fetchFilteredNearbyPlaces(for: CLLocation(latitude: lat, longitude: lon))
+        } else {
+            geocodeAddress(address: destination.location) { coordinate in
+                if let coordinate = coordinate {
+                    self.destinationCoordinate = coordinate
+                    fetchFilteredNearbyPlaces(for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+                } else {
+                    self.showingGeocodeErrorAlert = true
                 }
             }
         }
@@ -130,12 +149,18 @@ struct OnMapView: View {
         }
     }
     
-    // MARK: - New function to fetch nearby places 🌎
-    private func fetchNearbyPlaces(for destinationLocation: CLLocation) {
+
+// MARK: - New function to fetch nearby places with filtering 🌎
+    private func fetchFilteredNearbyPlaces(for destinationLocation: CLLocation) {
         let apiKey = Secrets.googleMapsAPIKey
-        let urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=\(destinationLocation.coordinate.latitude),\(destinationLocation.coordinate.longitude)&radius=5000&type=point_of_interest&key=\(apiKey)"
         
-        guard let url = URL(string: urlString) else {
+        // Define the types of places you want to search for
+        let placeTypes = "hospital|restaurant|park|tourist_attraction"
+        
+        // Construct the URL with the new types parameter
+        let urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=\(destinationLocation.coordinate.latitude),\(destinationLocation.coordinate.longitude)&radius=5000&type=\(placeTypes)&rankby=prominence&key=\(apiKey)"
+        
+        guard let url = URL(string: urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "") else {
             print("Invalid Places URL")
             return
         }
@@ -147,60 +172,65 @@ struct OnMapView: View {
             }
             
             do {
-                        if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                            let results = json["results"] as? [[String: Any]] {
-                            
-                            let topTwoPlaces = Array(results.prefix(2))
-                            var places: [RecommendedPlace] = []
-                            let bubblePositions: [CGPoint] = [
-                                CGPoint(x: 0.75, y: 0.25),
-                                CGPoint(x: 0.35, y: 0.55)
-                            ]
-                            
-                            for (index, placeData) in topTwoPlaces.enumerated() {
-                                guard let name = placeData["name"] as? String,
-                                      let geometry = placeData["geometry"] as? [String: Any],
-                                      let location = geometry["location"] as? [String: Any],
-                                      let lat = location["lat"] as? Double,
-                                      let lon = location["lng"] as? Double else {
-                                    continue
-                                }
-                                
-                                let placeLocation = CLLocation(latitude: lat, longitude: lon)
-                                let distanceInMeters = destinationLocation.distance(from: placeLocation)
-                                let distanceInMiles = String(format: "%.1f mi from \(destination.name)", distanceInMeters * 0.000621371)
-                                
-                                let photoRef = (placeData["photos"] as? [[String: Any]])?.first?["photo_reference"] as? String
-                                
-                                let photoUrlString: String?
-                                if let photoRef = photoRef {
-                                    photoUrlString = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=\(photoRef)&key=\(apiKey)"
-                                } else {
-                                    photoUrlString = nil
-                                }
-                                
-                                let newPlace = RecommendedPlace(
-                                    name: name,
-                                    distance: distanceInMiles,
-                                    photoReference: photoRef,
-                                    imageUrl: photoUrlString,
-                                    position: bubblePositions[index],
-                                    // 💡 Store the coordinate
-                                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
-                                )
-                                
-                                places.append(newPlace)
-                            }
-                            
-                            DispatchQueue.main.async {
-                                self.recommendedPlaces = places
-                            }
-                        }
-                    } catch {
-                        print("JSON parsing error for places: \(error.localizedDescription)")
+                if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                    let results = json["results"] as? [[String: Any]] {
+                        
+                    // Filter and take only the first two relevant places
+                    let filteredResults = results.filter { place in
+                        // You can add more specific filtering logic here
+                        return true
                     }
-                }.resume()
+                        
+                    let topTwoPlaces = Array(filteredResults.prefix(2))
+                    var places: [RecommendedPlace] = []
+                    let bubblePositions: [CGPoint] = [
+                        CGPoint(x: 0.75, y: 0.25),
+                        CGPoint(x: 0.35, y: 0.55)
+                    ]
+                        
+                    for (index, placeData) in topTwoPlaces.enumerated() {
+                        guard let name = placeData["name"] as? String,
+                                let geometry = placeData["geometry"] as? [String: Any],
+                                let location = geometry["location"] as? [String: Any],
+                                let lat = location["lat"] as? Double,
+                                let lon = location["lng"] as? Double else {
+                            continue
+                        }
+                            
+                        let placeLocation = CLLocation(latitude: lat, longitude: lon)
+                        let distanceInMeters = destinationLocation.distance(from: placeLocation)
+                        let distanceInMiles = String(format: "%.1f mi from \(destination.name)", distanceInMeters * 0.000621371)
+                            
+                        let photoRef = (placeData["photos"] as? [[String: Any]])?.first?["photo_reference"] as? String
+                            
+                        let photoUrlString: String?
+                        if let photoRef = photoRef {
+                            photoUrlString = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=\(photoRef)&key=\(apiKey)"
+                        } else {
+                            photoUrlString = nil
+                        }
+                            
+                        let newPlace = RecommendedPlace(
+                            name: name,
+                            distance: distanceInMiles,
+                            photoReference: photoRef,
+                            imageUrl: photoUrlString,
+                            position: bubblePositions[index],
+                            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                        )
+                            
+                        places.append(newPlace)
+                    }
+                        
+                    DispatchQueue.main.async {
+                        self.recommendedPlaces = places
+                    }
+                }
+            } catch {
+                print("JSON parsing error for places: \(error.localizedDescription)")
             }
+        }.resume()
+    }
     
     // MARK: - New function to fetch photos 🖼️
     private func fetchPhotosForPlaces() {
@@ -223,7 +253,7 @@ struct OnMapView: View {
     // MARK: - Helper Functions for safe area (No change, keeping for completeness)
     private func safeAreaTop() -> CGFloat {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
+                let window = windowScene.windows.first else {
             return 0
         }
         return window.safeAreaInsets.top
@@ -231,7 +261,7 @@ struct OnMapView: View {
     
     private func safeAreaBottom() -> CGFloat {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
+                let window = windowScene.windows.first else {
             return 0
         }
         return window.safeAreaInsets.bottom
@@ -318,25 +348,25 @@ struct BottomInformationCard: View {
                 }
                 HStack {
                     HStack {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: "location.fill")
-                                                .foregroundColor(.gray)
-                                                .font(.system(size: 14))
-                                            Text(destination.location)
-                                                .font(.system(size: 14))
-                                                .foregroundColor(.gray)
-                                        }
-                                        Spacer()
-                                        HStack(spacing: 6) {
-                                            Image(systemName: "car.fill")
-                                                .foregroundColor(.gray)
-                                                .font(.system(size: 14))
-                                            // Now you can use locationManager here
-                                            Text(locationManager.lastKnownLocation != nil ? travelTime : "Loading...")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(.gray)
-                                        }
-                                    }
+                                HStack(spacing: 6) {
+                                    Image(systemName: "location.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 14))
+                                    Text(destination.location)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    Image(systemName: "car.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 14))
+                                    // Now you can use locationManager here
+                                    Text(locationManager.lastKnownLocation != nil ? travelTime : "Loading...")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.gray)
+                                }
+                            }
                 }
                 HStack {
                     HStack(spacing: -8) {
@@ -384,7 +414,6 @@ struct BottomInformationCard: View {
                                         )
                                         .cornerRadius(12)
                                 }
-                                // Use the correct check from the environment object
                                 .disabled(locationManager.lastKnownLocation == nil) // ⬅️ NEW
                             }
                             .padding(24)
@@ -488,7 +517,7 @@ struct GoogleMapViewContainer: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             if let destinationCoord = destinationCoordinate,
-               let userLoc = userLocation {
+                let userLoc = userLocation {
                 GoogleMapViewRepresentable(
                     userLocation: userLoc,
                     destinationCoordinate: destinationCoord,
