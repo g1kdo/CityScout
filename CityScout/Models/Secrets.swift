@@ -9,5 +9,5 @@
 import Foundation
 
 enum Secrets {
-    static let googleMapsAPIKey = "AIzaSyAwqkPO0DTxEsYZmAvFJTyjqCwPB-ia47Y"
+    static let googleMapsAPIKey = "AIzaSyAob-xSOzWV0yV-92MaHNlP-K3avd30cRc"
 }

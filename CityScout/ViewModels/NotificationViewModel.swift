@@ -5,7 +5,6 @@
 //  Created by Umuco Auca on 07/08/2025.
 //
 
-
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
@@ -14,9 +13,8 @@ import Combine
 @MainActor
 class NotificationViewModel: ObservableObject {
     @Published var recentNotifications: [Notification] = []
-    @Published var earlierNotifications: [Notification] = []
     @Published var archivedNotifications: [Notification] = []
-    @Published var unreadCount: Int = 0 // New property for unread count
+    @Published var unreadCount: Int = 0
     
     @Published var isLoading: Bool = false
     @Published var errorMessage: String = ""
@@ -25,7 +23,10 @@ class NotificationViewModel: ObservableObject {
     private var listenerRegistration: ListenerRegistration?
     
     init() {
-        fetchNotifications()
+        Task {
+            await self.cleanUpOldNotifications()
+            self.fetchNotifications()
+        }
     }
     
     deinit {
@@ -58,9 +59,8 @@ class NotificationViewModel: ObservableObject {
                 guard let documents = querySnapshot?.documents else {
                     print("No notifications found.")
                     self.recentNotifications = []
-                    self.earlierNotifications = []
                     self.archivedNotifications = []
-                    self.unreadCount = 0 // Set to 0 if no notifications
+                    self.unreadCount = 0
                     return
                 }
                 
@@ -68,21 +68,26 @@ class NotificationViewModel: ObservableObject {
                     try? doc.data(as: Notification.self)
                 }
                 
-                self.recentNotifications = allNotifications.filter { !$0.isRead && !$0.isArchived }
-                self.earlierNotifications = allNotifications.filter { $0.isRead && !$0.isArchived }
+                // Separate notifications into recent and archived
+                let now = Date()
+                let threeDaysAgo = Calendar.current.date(byAdding: .hour, value: -72, to: now)!
+                
+                self.recentNotifications = allNotifications.filter {
+                    !$0.isArchived && $0.timestamp >= threeDaysAgo
+                }
+                
                 self.archivedNotifications = allNotifications.filter { $0.isArchived }
                 
-                // Update the unread count based on the number of unread notifications
-                self.unreadCount = self.recentNotifications.count
+                // Update the unread count based on recent and unread notifications
+                self.unreadCount = self.recentNotifications.filter { !$0.isRead }.count
             }
     }
-    
     
     func markAllAsRead() async {
         guard let userId = Auth.auth().currentUser?.uid else { return }
         
-        // Combine all unread notifications from recent and earlier tabs
-        let allUnreadNotifications = recentNotifications.filter { !$0.isRead }
+        // Mark both recent and archived notifications as read if they're unread
+        let allUnreadNotifications = (recentNotifications + archivedNotifications).filter { !$0.isRead }
         
         let batch = db.batch()
         
@@ -151,6 +156,35 @@ class NotificationViewModel: ObservableObject {
             print("Notification \(id) deleted.")
         } catch {
             self.errorMessage = "Failed to delete notification: \(error.localizedDescription)"
+            print(self.errorMessage)
+        }
+    }
+    
+    func cleanUpOldNotifications() async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        let threeDaysAgo = Calendar.current.date(byAdding: .hour, value: -72, to: Date())!
+        
+        do {
+            let querySnapshot = try await db.collection("users").document(userId).collection("notifications")
+                .whereField("isArchived", isEqualTo: false)
+                .whereField("timestamp", isLessThan: threeDaysAgo)
+                .getDocuments()
+            
+            guard !querySnapshot.documents.isEmpty else {
+                print("No old, unarchived notifications to delete.")
+                return
+            }
+            
+            let batch = db.batch()
+            for document in querySnapshot.documents {
+                batch.deleteDocument(document.reference)
+            }
+            
+            try await batch.commit()
+            print("Successfully deleted \(querySnapshot.documents.count) old notifications.")
+        } catch {
+            self.errorMessage = "Failed to clean up old notifications: \(error.localizedDescription)"
             print(self.errorMessage)
         }
     }

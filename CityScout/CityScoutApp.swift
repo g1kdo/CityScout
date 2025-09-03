@@ -6,6 +6,7 @@ import FirebaseFirestore
 import FirebaseAppCheck
 import FirebaseAppCheckInterop
 import GoogleMaps
+import GooglePlaces
 
 // Define your AppCheckDebugProviderFactory
 #if targetEnvironment(simulator)
@@ -43,7 +44,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         )
         print("Facebook SDK initialized")
     
-        GMSServices.provideAPIKey("AIzaSyCA5WaGeXXo7KRC0HAq7lPz-gweeAMJVw8")
+        GMSServices.provideAPIKey(Secrets.googleMapsAPIKey)
+        
+        GMSPlacesClient.provideAPIKey(Secrets.googleMapsAPIKey)
 
         return true
     }

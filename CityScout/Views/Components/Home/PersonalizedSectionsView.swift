@@ -1,8 +1,8 @@
 //
-//  PersonalizedSectionsView.swift
-//  CityScout
+//  PersonalizedSectionsView.swift
+//  CityScout
 //
-//  Created by Umuco Auca on 21/08/2025.
+//  Created by Umuco Auca on 21/08/2025.
 //
 
 import SwiftUI
@@ -34,14 +34,6 @@ struct PersonalizedSectionsView: View {
                             Text("\(capitalizeFirstLetter(interest)) Destinations")
                                 .font(.headline).bold()
                             Spacer()
-//                            // "View all" button, could navigate to a dedicated view
-//                            Button("View all") {
-//                                // Action to show all destinations for this category
-//                                // You will need to implement this navigation logic.
-//                                // For now, it's a placeholder.
-//                            }
-//                            .font(.subheadline)
-//                            .foregroundColor(Color(hex: "#FF7029"))
                         }
                         .padding(.horizontal)
 
@@ -49,17 +41,12 @@ struct PersonalizedSectionsView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 16) {
                                 ForEach(destinations.prefix(5)) { dest in // Limit to 5 cards per section
-                                    HomeDestinationCard(
+                                    // FIX: Extract the card and its logic into a separate, reusable view.
+                                    HomeDestinationCardWrapper(
                                         destination: dest,
-                                        isFavorite: favoritesVM.isFavorite(destination: dest)
-                                    ) {
-                                        Task {
-                                            await favoritesVM.toggleFavorite(destination: dest)
-                                        }
-                                    }
-                                    .onTapGesture {
-                                        selectedDestination = dest
-                                    }
+                                        favoritesVM: favoritesVM,
+                                        selectedDestination: $selectedDestination
+                                    )
                                 }
                             }
                             .padding(.horizontal)
@@ -74,6 +61,29 @@ struct PersonalizedSectionsView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 50)
             }
+        }
+    }
+}
+
+// FIX: New helper view to handle the complex logic and break up the expression.
+private struct HomeDestinationCardWrapper: View {
+    let destination: Destination
+    @ObservedObject var favoritesVM: FavoritesViewModel
+    @Binding var selectedDestination: Destination?
+    
+    var body: some View {
+        HomeDestinationCard(
+            destination: destination,
+            // Wrap the Destination in AnyDestination for the FavoritesViewModel methods
+            isFavorite: favoritesVM.isFavorite(destination: .local(destination))
+        ) {
+            Task {
+                // Wrap the Destination in AnyDestination for the FavoritesViewModel method
+                await favoritesVM.toggleFavorite(destination: .local(destination))
+            }
+        }
+        .onTapGesture {
+            selectedDestination = destination
         }
     }
 }

@@ -28,10 +28,10 @@ struct PopularPlacesView: View {
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(
                                 destination: destination,
-                                isFavorite: favoritesVM.isFavorite(destination: destination)
+                                isFavorite: favoritesVM.isFavorite(destination: .local(destination))
                             ) {
                                 Task {
-                                    await favoritesVM.toggleFavorite(destination: destination)
+                                    await favoritesVM.toggleFavorite(destination: .local(destination))
                                     if let userId = authVM.signedInUser?.id {
                                         await homeVM.logUserAction(userId: userId, destinationId: destination.id, actionType: "bookmark")
                                         await homeVM.updateInterestScores(for: userId, categories: destination.categories, with: 3.0)

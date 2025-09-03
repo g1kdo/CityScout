@@ -60,10 +60,10 @@ struct FavoritePlacesView: View {
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(
                                 destination: destination,
-                                isFavorite: viewModel.isFavorite(destination: destination)
+                                isFavorite: viewModel.isFavorite(destination: .local(destination))
                             ) {
                                 Task {
-                                    await viewModel.toggleFavorite(destination: destination)
+                                    await viewModel.toggleFavorite(destination: .local(destination))
                                 }
                             }
                         }

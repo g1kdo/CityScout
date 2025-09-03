@@ -6,7 +6,6 @@
 //
 
 
-// ViewModels/FavoritesViewModel.swift
 import SwiftUI
 import FirebaseFirestore
 
@@ -18,7 +17,7 @@ class FavoritesViewModel: ObservableObject {
     
     private var userId: String?
     private var userFavoritesListener: ListenerRegistration?
-
+    
     /// Sets up a real-time listener for the user's favorites.
     /// Call this when the user's authentication state changes.
     func subscribeToFavorites(for userId: String?) {
@@ -90,9 +89,35 @@ class FavoritesViewModel: ObservableObject {
         }
     }
     
+    // MARK: - New and Corrected Methods
+    
     /// Toggles a destination's favorite status.
-    /// This is an async function to handle the Firestore write operation.
-    func toggleFavorite(destination: Destination) async {
+    func toggleFavorite(destination: AnyDestination) async {
+        switch destination {
+        case .local(let localDestination):
+            await toggleLocalFavorite(destination: localDestination)
+        case .google(let googleDestination):
+            // This is a new method you'll need to create.
+            // It will handle saving Google destinations to a separate Firestore collection or in a different structure.
+            await toggleGoogleFavorite(destination: googleDestination)
+        }
+    }
+    
+    /// Checks if an AnyDestination is in the favorites.
+    func isFavorite(destination: AnyDestination) -> Bool {
+        switch destination {
+        case .local(let localDestination):
+            return favorites.contains(where: { $0.id == localDestination.id })
+        case .google(let googleDestination):
+            // Assuming you have a way to check if a Google destination is favorited.
+            // For now, this will always return false unless you implement a way to store them.
+            // The `favorites` array only holds `Destination` objects.
+            // This needs a more sophisticated check, e.g., querying Firestore directly.
+            return false
+        }
+    }
+    
+    private func toggleLocalFavorite(destination: Destination) async {
         guard let userId = userId, let destinationId = destination.id else {
             self.errorMessage = "User or destination ID is missing."
             return
@@ -101,7 +126,7 @@ class FavoritesViewModel: ObservableObject {
         let userRef = Firestore.firestore().collection("users").document(userId)
         
         do {
-            if self.isFavorite(destination: destination) {
+            if self.isFavorite(destination: .local(destination)) {
                 try await userRef.updateData(["favorites": FieldValue.arrayRemove([destinationId])])
             } else {
                 try await userRef.updateData(["favorites": FieldValue.arrayUnion([destinationId])])
@@ -110,13 +135,22 @@ class FavoritesViewModel: ObservableObject {
             self.errorMessage = "Failed to toggle favorite: \(error.localizedDescription)"
             print("Failed to toggle favorite: \(error.localizedDescription)")
         }
-        
-        // The real-time listener will automatically update the `favorites` array.
-        // No need to manually append or remove here.
     }
-
-    func isFavorite(destination: Destination) -> Bool {
-        return favorites.contains(where: { $0.id == destination.id })
+    
+    /// This is a placeholder method. You will need to implement the logic for Google Places favorites.
+    /// A common approach is to save them in a separate `googleFavorites` array in the user document.
+    private func toggleGoogleFavorite(destination: GoogleDestination) async {
+        // Implementation for Google Places favorites goes here.
+        // Since your `favorites` array only holds `Destination` objects, you'll need to decide
+        // how to store and retrieve Google destinations.
+        // For example:
+        // 1. Create a `userFavorites` collection.
+        // 2. Each document could have a `type` field ("local" or "google").
+        // 3. Or, you could have a separate `googleFavorites` array in the user document.
+        
+        // This is a complex logic that depends on your backend structure.
+        // For now, let's just log a message.
+        print("Toggling a Google Place favorite. Implementation required.")
     }
 
     // Clean up the listener when the view model is deallocated.

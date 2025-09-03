@@ -48,10 +48,10 @@ struct BestDestinationsCarousel: View {
                 ForEach(vm.destinations) { dest in
                     HomeDestinationCard(
                         destination: dest,
-                        isFavorite: favoritesVM.isFavorite(destination: dest)
+                        isFavorite: favoritesVM.isFavorite(destination: .local(dest))
                     ) {
                         Task {
-                            await favoritesVM.toggleFavorite(destination: dest)
+                            await favoritesVM.toggleFavorite(destination: .local(dest))
                             if let userId = authVM.signedInUser?.id {
                                 await vm.logUserAction(userId: userId, destinationId: dest.id, actionType: "bookmark")
                                 await vm.updateInterestScores(for: userId, categories: dest.categories, with: 3.0)

@@ -43,10 +43,10 @@ struct DestinationDetailView: View {
                 }
                 
             HeaderNavButtons(
-               isFavorite: favoritesVM.isFavorite(destination: destination),
+                isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
                onDismiss: { dismiss() },
                onToggleFavorite: {
-                 Task { await favoritesVM.toggleFavorite(destination: destination) }
+                 Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
                  },
                 onViewOnMap: {
                 showOnMapView = true

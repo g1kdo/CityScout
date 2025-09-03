@@ -1,7 +1,7 @@
-// ViewModels/HomeViewModel.swift
 import Foundation
 import Combine
 import FirebaseFirestore
+import GooglePlaces
 
 @MainActor
 class HomeViewModel: ObservableObject {
@@ -12,7 +12,7 @@ class HomeViewModel: ObservableObject {
     
     // MARK: - Search Properties
     @Published var searchText: String = ""
-    @Published var searchResults: [Destination] = []
+    @Published var searchResults: [AnyDestination] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isFetching = false
@@ -23,24 +23,128 @@ class HomeViewModel: ObservableObject {
     // Firestore instance
     private let db = Firestore.firestore()
     private let usersCollection = "users"
+    
+    // Google Places client
+    private var placesClient: GMSPlacesClient!
 
     init() {
+        self.placesClient = GMSPlacesClient.shared()
         subscribeToDestinations()
+        setupSearchSubscriber()
+    }
+
+    private func setupSearchSubscriber() {
         $searchText
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
             .removeDuplicates()
-            .combineLatest($destinations)
-            .sink { [weak self] searchText, destinations in
-                self?.filterDestinations(for: searchText, destinations: destinations)
+            .sink { [weak self] searchText in
+                guard let self = self else { return }
+                if searchText.isEmpty {
+                    self.searchResults = []
+                    self.isLoading = false
+                    self.errorMessage = nil
+                } else {
+                    self.performCombinedSearch(for: searchText)
+                }
             }
             .store(in: &cancellables)
+    }
+    
+    private func performCombinedSearch(for searchText: String) {
+        isLoading = true
+        errorMessage = nil
+        
+        Task {
+            // Fetch local results
+            let localResults = self.destinations.filter { destination in
+                let combinedText = "\(destination.name) \(destination.location) \(destination.description ?? "")"
+                return combinedText.localizedCaseInsensitiveContains(searchText)
+            }.map { AnyDestination.local($0) }
+            
+            // Fetch Google results
+            let googlePredictions = await self.searchGooglePlaces(for: searchText)
+            
+            await MainActor.run {
+                self.isLoading = false
+                self.searchResults = localResults + googlePredictions
+                
+                if self.searchResults.isEmpty {
+                    self.errorMessage = "No results found for \"\(searchText)\""
+                }
+            }
+        }
+    }
+    
+    // MARK: - Refactored searchGooglePlaces function to only return predictions
+    private func searchGooglePlaces(for query: String) async -> [AnyDestination] {
+        let placesRequest = GMSAutocompleteFilter()
+        placesRequest.types = ["establishment", "point_of_interest", "tourist_attraction"]
+        let sessionToken = GMSAutocompleteSessionToken()
+
+        return await withCheckedContinuation { continuation in
+            placesClient.findAutocompletePredictions(fromQuery: query, filter: placesRequest, sessionToken: sessionToken) { (predictions, error) in
+                guard let predictions = predictions, error == nil else {
+                    print("Google Places autocomplete error: \(String(describing: error?.localizedDescription))")
+                    continuation.resume(returning: [])
+                    return
+                }
+
+                // Map predictions to a simpler model without fetching details here
+                let results = predictions.map { prediction in
+                    // This creates a GoogleDestination with only the info available from the prediction
+                    // The full details will be fetched later when the user taps on it.
+                    let googleDest = GoogleDestination(
+                        placeID: prediction.placeID,
+                        name: prediction.attributedPrimaryText.string,
+                        location: prediction.attributedSecondaryText?.string ?? "",
+                        photoMetadata: nil,
+                        websiteURL: nil,
+                        rating: nil,
+                        latitude: nil,
+                        longitude: nil
+                    )
+                    return AnyDestination.google(googleDest)
+                }
+                
+                continuation.resume(returning: results)
+            }
+        }
+    }
+
+    // MARK: - New function to fetch full place details when a search result is selected
+    func fetchPlaceDetails(for placeID: String) async -> GoogleDestination? {
+        let placeFields: GMSPlaceField = [.name, .formattedAddress, .rating, .website, .photos, .coordinate]
+        let sessionToken = GMSAutocompleteSessionToken()
+
+        return await withCheckedContinuation { continuation in
+            placesClient.fetchPlace(fromPlaceID: placeID, placeFields: placeFields, sessionToken: sessionToken) { (place, error) in
+                guard let place = place, error == nil else {
+                    print("Error fetching full place details for placeID \(placeID): \(String(describing: error?.localizedDescription))")
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                let ratingAsDouble = place.rating != nil ? Double(place.rating) : nil
+                
+                let fullGoogleDest = GoogleDestination(
+                    placeID: place.placeID ?? "",
+                    name: place.name ?? "",
+                    location: place.formattedAddress ?? "",
+                    photoMetadata: place.photos?.first,
+                    websiteURL: place.website?.absoluteString,
+                    rating: ratingAsDouble,
+                    latitude: place.coordinate.latitude,
+                    longitude: place.coordinate.longitude
+                )
+                
+                continuation.resume(returning: fullGoogleDest)
+            }
+        }
     }
 
     // New: Update user's interest scores in Firestore
     func updateInterestScores(for userId: String, categories: [String], with weight: Double) async {
         guard !categories.isEmpty else { return }
-        
-        // This dictionary will hold the category names and their corresponding increment values.
         let updates = categories.reduce(into: [String: Any]()) { dict, category in
             dict["interestScores.\(category)"] = FieldValue.increment(weight)
         }
@@ -106,17 +210,6 @@ class HomeViewModel: ObservableObject {
                     try? doc.data(as: Destination.self)
                 }
             }
-    }
-
-    private func filterDestinations(for searchText: String, destinations: [Destination]) {
-        if searchText.isEmpty {
-            self.searchResults = destinations
-        } else {
-            self.searchResults = destinations.filter { destination in
-                let combinedText = "\(destination.name) \(destination.location) \(destination.description ?? "")"
-                return combinedText.localizedCaseInsensitiveContains(searchText)
-            }
-        }
     }
     
     func fetchPersonalizedDestinations(for userId: String) async {
