@@ -1,10 +1,3 @@
-//
-//  GooglePlacesImageView.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 03/09/2025.
-//
-
 import SwiftUI
 import GooglePlaces
 
@@ -25,7 +18,6 @@ struct GooglePlacesImageView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.secondary.opacity(0.1))
             } else if error != nil {
-                // Display a placeholder or a simple image indicating an error
                 Image(systemName: "photo.fill")
                     .resizable()
                     .scaledToFit()
@@ -37,22 +29,23 @@ struct GooglePlacesImageView: View {
                 Color.secondary.opacity(0.1)
             }
         }
+        // Corrected: Using photoMetadata directly as the ID, as it is Hashable.
         .task(id: photoMetadata) {
-            guard let photoMetadata = photoMetadata else { return }
+            guard let photoMetadata = photoMetadata else {
+                image = nil
+                return
+            }
             
             isLoading = true
             error = nil
             
-            // This is the older callback-based method.
-            // It is needed for compatibility with your current SDK version.
-            GMSPlacesClient.shared().loadPlacePhoto(photoMetadata) { (photo, error) in
-                // Ensure we are on the main thread for UI updates
+            GMSPlacesClient.shared().loadPlacePhoto(photoMetadata) { photo, loadError in
                 DispatchQueue.main.async {
                     self.isLoading = false
                     
-                    if let error = error {
-                        self.error = error
-                        print("Error loading Google Places photo: \(error.localizedDescription)")
+                    if let loadError = loadError {
+                        self.error = loadError
+                        print("Error loading Google Places photo: \(loadError.localizedDescription)")
                         return
                     }
                     
@@ -62,4 +55,3 @@ struct GooglePlacesImageView: View {
         }
     }
 }
-

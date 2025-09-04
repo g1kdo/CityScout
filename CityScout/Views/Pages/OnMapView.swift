@@ -10,6 +10,74 @@ import GoogleMaps
 import CoreLocation
 import Kingfisher
 
+enum MapType {
+    case destination(Destination)
+    case googleDestination(GoogleDestination)
+    
+    var name: String {
+        switch self {
+        case .destination(let dest):
+            return dest.name
+        case .googleDestination(let dest):
+            return dest.name
+        }
+    }
+    
+    var location: String {
+        switch self {
+        case .destination(let dest):
+            return dest.location
+        case .googleDestination(let dest):
+            return dest.location
+        }
+    }
+    
+    var coordinate: CLLocationCoordinate2D? {
+        switch self {
+        case .destination(let dest):
+            if let lat = dest.latitude, let lon = dest.longitude {
+                return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            }
+            return nil
+        case .googleDestination(let dest):
+            // Safely unwrap the optional latitude and longitude properties
+            if let lat = dest.latitude, let lon = dest.longitude {
+                return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            }
+            return nil // Return nil if either latitude or longitude is missing
+        }
+    }
+    
+    var imageUrl: String? {
+        switch self {
+        case .destination(let dest):
+            return dest.imageUrl
+        case .googleDestination:
+            // GoogleDestination doesn't have a single image URL property for the background
+            return nil
+        }
+    }
+    
+    var rating: Double? {
+        switch self {
+        case .destination(let dest):
+            return dest.rating
+        case .googleDestination(let dest):
+            return dest.rating
+        }
+    }
+    
+    var participantAvatars: [String]? {
+        switch self {
+        case .destination(let dest):
+            return dest.participantAvatars
+        case .googleDestination:
+            // Google destinations do not have participant avatars
+            return nil
+        }
+    }
+}
+
 // MARK: - New data model for recommended places
 struct RecommendedPlace: Identifiable {
     let id = UUID()
@@ -24,7 +92,7 @@ struct RecommendedPlace: Identifiable {
 struct OnMapView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var locationManager: LocationManager
-    let destination: Destination
+    let mapType: MapType
 
     @State private var showingMapSheet = false
     @State private var destinationCoordinate: CLLocationCoordinate2D? = nil
@@ -44,13 +112,18 @@ struct OnMapView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                DestinationBackgroundImageView(imageUrl: destination.imageUrl, geometry: geometry)
-                    .ignoresSafeArea(.all)
-
+                if let imageUrl = mapType.imageUrl {
+                    DestinationBackgroundImageView(imageUrl: imageUrl, geometry: geometry)
+                        .ignoresSafeArea(.all)
+                } else {
+                    // Fallback for GoogleDestination without an imageUrl
+                    Color.gray.ignoresSafeArea(.all)
+                }
+                
                 Color.black.opacity(0.3)
                     .ignoresSafeArea(.all)
 
-                TopNavigationBar(destinationName: destination.name) {
+                TopNavigationBar(destinationName: mapType.name) {
                     dismiss()
                 }
                 .padding(.horizontal, 20)
@@ -73,7 +146,7 @@ struct OnMapView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 
-                BottomInformationCard(destination: destination, travelTime: travelTime, travelMode: travelMode, action: {
+                BottomInformationCard(mapType: mapType, travelTime: travelTime, travelMode: travelMode, action: {
                     mapDataIsReady = true
                 })
                 .padding(.horizontal, 20)
@@ -83,7 +156,7 @@ struct OnMapView: View {
         .fullScreenCover(isPresented: $mapDataIsReady) {
             GoogleMapViewContainer(
                 destinationCoordinate: destinationCoordinate,
-                markerTitle: destination.name,
+                markerTitle: mapType.name,
                 userLocation: locationManager.lastKnownLocation,
                 travelTime: $travelTime
             )
@@ -91,21 +164,18 @@ struct OnMapView: View {
         .alert("Location Not Found", isPresented: $showingGeocodeErrorAlert) {
             Button("OK") { }
         } message: {
-            Text("We could not find the exact location for \(destination.name). Please check the address or try again later.")
+            Text("We could not find the exact location for \(mapType.name). Please check the address or try again later.")
         }
         .onAppear {
-            // ➡️ MODIFIED: Request location if not authorized, otherwise start fetching data
             if locationManager.authorizationStatus == .notDetermined {
                 locationManager.requestLocationAuthorization()
             } else if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
                 self.showingPermissionAlert = true
             } else {
-                // Permission is already granted, so fetch the data immediately
                 fetchDestinationAndNearbyPlaces()
             }
         }
         .onChange(of: locationManager.authorizationStatus) { newStatus in
-            // ➡️ MODIFIED: Handle the change *after* the user grants permission
             if newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways {
                 self.showingPermissionAlert = false
                 fetchDestinationAndNearbyPlaces()
@@ -120,13 +190,12 @@ struct OnMapView: View {
         }
     }
     
-    // ➡️ NEW: Consolidated function to handle both geocoding and fetching places
     private func fetchDestinationAndNearbyPlaces() {
-        if let lat = destination.latitude, let lon = destination.longitude {
-            self.destinationCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-            fetchFilteredNearbyPlaces(for: CLLocation(latitude: lat, longitude: lon))
+        if let coordinate = mapType.coordinate {
+            self.destinationCoordinate = coordinate
+            fetchFilteredNearbyPlaces(for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
         } else {
-            geocodeAddress(address: destination.location) { coordinate in
+            geocodeAddress(address: mapType.location) { coordinate in
                 if let coordinate = coordinate {
                     self.destinationCoordinate = coordinate
                     fetchFilteredNearbyPlaces(for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
@@ -149,15 +218,10 @@ struct OnMapView: View {
         }
     }
     
-
-// MARK: - New function to fetch nearby places with filtering 🌎
     private func fetchFilteredNearbyPlaces(for destinationLocation: CLLocation) {
         let apiKey = Secrets.googleMapsAPIKey
-        
-        // Define the types of places you want to search for
         let placeTypes = "hospital|restaurant|park|tourist_attraction"
         
-        // Construct the URL with the new types parameter
         let urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=\(destinationLocation.coordinate.latitude),\(destinationLocation.coordinate.longitude)&radius=5000&type=\(placeTypes)&rankby=prominence&key=\(apiKey)"
         
         guard let url = URL(string: urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "") else {
@@ -173,43 +237,41 @@ struct OnMapView: View {
             
             do {
                 if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                    let results = json["results"] as? [[String: Any]] {
-                        
-                    // Filter and take only the first two relevant places
+                   let results = json["results"] as? [[String: Any]] {
+                       
                     let filteredResults = results.filter { place in
-                        // You can add more specific filtering logic here
                         return true
                     }
-                        
+                    
                     let topTwoPlaces = Array(filteredResults.prefix(2))
                     var places: [RecommendedPlace] = []
                     let bubblePositions: [CGPoint] = [
                         CGPoint(x: 0.75, y: 0.25),
                         CGPoint(x: 0.35, y: 0.55)
                     ]
-                        
+                    
                     for (index, placeData) in topTwoPlaces.enumerated() {
                         guard let name = placeData["name"] as? String,
-                                let geometry = placeData["geometry"] as? [String: Any],
-                                let location = geometry["location"] as? [String: Any],
-                                let lat = location["lat"] as? Double,
-                                let lon = location["lng"] as? Double else {
+                              let geometry = placeData["geometry"] as? [String: Any],
+                              let location = geometry["location"] as? [String: Any],
+                              let lat = location["lat"] as? Double,
+                              let lon = location["lng"] as? Double else {
                             continue
                         }
-                            
+                        
                         let placeLocation = CLLocation(latitude: lat, longitude: lon)
                         let distanceInMeters = destinationLocation.distance(from: placeLocation)
-                        let distanceInMiles = String(format: "%.1f mi from \(destination.name)", distanceInMeters * 0.000621371)
-                            
+                        let distanceInMiles = String(format: "%.1f mi from \(self.mapType.name)", distanceInMeters * 0.000621371)
+                        
                         let photoRef = (placeData["photos"] as? [[String: Any]])?.first?["photo_reference"] as? String
-                            
+                        
                         let photoUrlString: String?
                         if let photoRef = photoRef {
                             photoUrlString = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=\(photoRef)&key=\(apiKey)"
                         } else {
                             photoUrlString = nil
                         }
-                            
+                        
                         let newPlace = RecommendedPlace(
                             name: name,
                             distance: distanceInMiles,
@@ -218,10 +280,10 @@ struct OnMapView: View {
                             position: bubblePositions[index],
                             coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
                         )
-                            
+                        
                         places.append(newPlace)
                     }
-                        
+                    
                     DispatchQueue.main.async {
                         self.recommendedPlaces = places
                     }
@@ -231,6 +293,7 @@ struct OnMapView: View {
             }
         }.resume()
     }
+
     
     // MARK: - New function to fetch photos 🖼️
     private func fetchPhotosForPlaces() {
@@ -321,7 +384,7 @@ struct TopNavigationBar: View {
 
 // MARK: - Bottom Information Card (MODIFIED)
 struct BottomInformationCard: View {
-    let destination: Destination
+    let mapType: MapType
     let travelTime: String
     let travelMode: String
     let action: () -> Void
@@ -333,7 +396,7 @@ struct BottomInformationCard: View {
             Spacer()
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text(destination.name)
+                    Text(mapType.name)
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.white)
                     Spacer()
@@ -341,89 +404,89 @@ struct BottomInformationCard: View {
                         Image(systemName: "star.fill")
                             .foregroundColor(.yellow)
                             .font(.system(size: 14))
-                        Text(String(format: "%.1f", destination.rating))
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
+                        if let rating = mapType.rating {
+                            Text(String(format: "%.1f", rating))
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
                     }
                 }
                 HStack {
                     HStack {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "location.fill")
-                                        .foregroundColor(.gray)
-                                        .font(.system(size: 14))
-                                    Text(destination.location)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.gray)
-                                }
-                                Spacer()
-                                HStack(spacing: 6) {
-                                    Image(systemName: "car.fill")
-                                        .foregroundColor(.gray)
-                                        .font(.system(size: 14))
-                                    // Now you can use locationManager here
-                                    Text(locationManager.lastKnownLocation != nil ? travelTime : "Loading...")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.gray)
-                                }
-                            }
+                        HStack(spacing: 6) {
+                            Image(systemName: "location.fill")
+                                .foregroundColor(.gray)
+                                .font(.system(size: 14))
+                            Text(mapType.location)
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        HStack(spacing: 6) {
+                            Image(systemName: "car.fill")
+                                .foregroundColor(.gray)
+                                .font(.system(size: 14))
+                            Text(locationManager.lastKnownLocation != nil ? travelTime : "Loading...")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                        }
+                    }
                 }
                 HStack {
                     HStack(spacing: -8) {
-                        ForEach(0..<min(3, destination.participantAvatars?.count ?? 0), id: \.self) { index in
-                            if let imageUrl = destination.participantAvatars?[index] {
-                                MapImageView(imageUrl: imageUrl)
+                        if let avatars = mapType.participantAvatars {
+                            ForEach(0..<min(3, avatars.count), id: \.self) { index in
+                                MapImageView(imageUrl: avatars[index])
                             }
-                        }
-                        if let avatarCount = destination.participantAvatars?.count, avatarCount > 3 {
-                            Circle()
-                                .fill(Color.gray.opacity(0.8))
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Circle()
-                                        .strokeBorder(Color.white, lineWidth: 2)
-                                )
-                                .overlay(
-                                    Text("+\(avatarCount - 3)")
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundColor(.white)
-                                )
+                            if avatars.count > 3 {
+                                Circle()
+                                    .fill(Color.gray.opacity(0.8))
+                                    .frame(width: 32, height: 32)
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(Color.white, lineWidth: 2)
+                                    )
+                                    .overlay(
+                                        Text("+\(avatars.count - 3)")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundColor(.white)
+                                    )
+                            }
                         }
                     }
                     Spacer()
                 }
 
                 Button(action: action) {
-                                    Text("See On The Map")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 16)
-                                        .background(
-                                            // Use the correct check from the environment object
-                                            locationManager.lastKnownLocation != nil ?
-                                            AnyView(LinearGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color(red: 0.4, green: 0.8, blue: 1.0),
-                                                    Color(red: 0.2, green: 0.7, blue: 0.95)
-                                                ]),
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            ))
-                                            : AnyView(Color.gray.opacity(0.5))
-                                        )
-                                        .cornerRadius(12)
-                                }
-                                .disabled(locationManager.lastKnownLocation == nil) // ⬅️ NEW
-                            }
-                            .padding(24)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.black.opacity(0.75))
-                            )
-                        }
-                    }
+                    Text("See On The Map")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            locationManager.lastKnownLocation != nil ?
+                            AnyView(LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(red: 0.4, green: 0.8, blue: 1.0),
+                                    Color(red: 0.2, green: 0.7, blue: 0.95)
+                                ]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ))
+                            : AnyView(Color.gray.opacity(0.5))
+                        )
+                        .cornerRadius(12)
                 }
+                .disabled(locationManager.lastKnownLocation == nil)
+            }
+            .padding(24)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.black.opacity(0.75))
+            )
+        }
+    }
+}
 
 // MARK: - BubbleCard Subview (No change)
 struct BubbleCard: View {

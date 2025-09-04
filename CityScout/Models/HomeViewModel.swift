@@ -17,6 +17,8 @@ class HomeViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isFetching = false
     
+    @Published var currentSessionToken: GMSAutocompleteSessionToken?
+    
     private var destinationsListener: ListenerRegistration?
     private var cancellables = Set<AnyCancellable>()
 
@@ -50,18 +52,19 @@ class HomeViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    private func performCombinedSearch(for searchText: String) {
+    func performCombinedSearch(for searchText: String) {
         isLoading = true
         errorMessage = nil
         
+        // ⚠️ Create a new session token for this search session
+        self.currentSessionToken = GMSAutocompleteSessionToken()
+        
         Task {
-            // Fetch local results
             let localResults = self.destinations.filter { destination in
                 let combinedText = "\(destination.name) \(destination.location) \(destination.description ?? "")"
                 return combinedText.localizedCaseInsensitiveContains(searchText)
             }.map { AnyDestination.local($0) }
             
-            // Fetch Google results
             let googlePredictions = await self.searchGooglePlaces(for: searchText)
             
             await MainActor.run {
@@ -77,22 +80,26 @@ class HomeViewModel: ObservableObject {
     
     // MARK: - Refactored searchGooglePlaces function to only return predictions
     private func searchGooglePlaces(for query: String) async -> [AnyDestination] {
-        let placesRequest = GMSAutocompleteFilter()
-        placesRequest.types = ["establishment", "point_of_interest", "tourist_attraction"]
-        let sessionToken = GMSAutocompleteSessionToken()
+        let filter = GMSAutocompleteFilter()
+        //placesRequest.types = ["establishment", "point_of_interest", "tourist_attraction"]
+        filter.type = .establishment
+        guard let token = currentSessionToken else { return [] }
 
         return await withCheckedContinuation { continuation in
-            placesClient.findAutocompletePredictions(fromQuery: query, filter: placesRequest, sessionToken: sessionToken) { (predictions, error) in
+            placesClient.findAutocompletePredictions(fromQuery: query, filter: filter, sessionToken: token) { (predictions, error) in
                 guard let predictions = predictions, error == nil else {
                     print("Google Places autocomplete error: \(String(describing: error?.localizedDescription))")
                     continuation.resume(returning: [])
                     return
                 }
+                
+                if let error = error as NSError? {
+                   print("Autocomplete error: \(error.localizedDescription)")
+                   print("Error domain: \(error.domain), code: \(error.code), userInfo: \(error.userInfo)")
+                }
 
-                // Map predictions to a simpler model without fetching details here
                 let results = predictions.map { prediction in
-                    // This creates a GoogleDestination with only the info available from the prediction
-                    // The full details will be fetched later when the user taps on it.
+                    // Pass the token along with the GoogleDestination
                     let googleDest = GoogleDestination(
                         placeID: prediction.placeID,
                         name: prediction.attributedPrimaryText.string,
@@ -101,30 +108,39 @@ class HomeViewModel: ObservableObject {
                         websiteURL: nil,
                         rating: nil,
                         latitude: nil,
-                        longitude: nil
+                        longitude: nil,
+                        priceLevel: nil,
+                        description: nil,
+                        galleryImageUrls: nil
                     )
-                    return AnyDestination.google(googleDest)
+                    
+
+                    return AnyDestination.google(googleDest, sessionToken: token) // ⬅️ Here's the change
                 }
-                
+
                 continuation.resume(returning: results)
             }
         }
     }
 
     // MARK: - New function to fetch full place details when a search result is selected
-    func fetchPlaceDetails(for placeID: String) async -> GoogleDestination? {
+    func fetchPlaceDetails(for placeID: String, with sessionToken: GMSAutocompleteSessionToken) async -> GoogleDestination? {
         let placeFields: GMSPlaceField = [.name, .formattedAddress, .rating, .website, .photos, .coordinate]
-        let sessionToken = GMSAutocompleteSessionToken()
 
         return await withCheckedContinuation { continuation in
             placesClient.fetchPlace(fromPlaceID: placeID, placeFields: placeFields, sessionToken: sessionToken) { (place, error) in
                 guard let place = place, error == nil else {
                     print("Error fetching full place details for placeID \(placeID): \(String(describing: error?.localizedDescription))")
-                    continuation.resume(returning: nil)
+                    
+                    // Corrected line: Explicitly cast nil to the optional type
+                    let result: GoogleDestination? = nil
+                    continuation.resume(returning: result!)
                     return
                 }
                 
                 let ratingAsDouble = place.rating != nil ? Double(place.rating) : nil
+                
+                let priceLevelAsInt = place.priceLevel.rawValue != 0 ? place.priceLevel.rawValue : nil
                 
                 let fullGoogleDest = GoogleDestination(
                     placeID: place.placeID ?? "",
@@ -134,7 +150,10 @@ class HomeViewModel: ObservableObject {
                     websiteURL: place.website?.absoluteString,
                     rating: ratingAsDouble,
                     latitude: place.coordinate.latitude,
-                    longitude: place.coordinate.longitude
+                    longitude: place.coordinate.longitude,
+                    priceLevel: priceLevelAsInt,
+                    description: place.description,
+                    galleryImageUrls: place.photos
                 )
                 
                 continuation.resume(returning: fullGoogleDest)

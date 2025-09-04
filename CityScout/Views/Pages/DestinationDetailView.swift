@@ -78,9 +78,9 @@ struct DestinationDetailView: View {
                 .environmentObject(bookingVM)
         }
         .fullScreenCover(isPresented: $showOnMapView) {
-                    OnMapView(destination: destination)
-                        .environmentObject(locationManager)
-                }
+            OnMapView(mapType: .destination(destination))
+                .environmentObject(locationManager)
+        }
     }
 }
 

@@ -13,7 +13,7 @@ struct SearchView: View {
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
-
+            
             VStack(spacing: 20) {
                 SearchHeaderView(title: "Search") {
                     homeVM.searchText = ""
@@ -22,7 +22,7 @@ struct SearchView: View {
                     }
                 }
                 .padding(.top, 10)
-
+                
                 SearchBarView(searchText: $homeVM.searchText) {
                     // Action on search tapped
                 } onMicrophoneTapped: {
@@ -72,46 +72,56 @@ struct SearchView: View {
                     ForEach(homeVM.searchResults, id: \.id) { anyDestination in
                         switch anyDestination {
                         case .local(let destination):
-                            NavigationLink(destination: DestinationDetailView(destination: destination)) {
+                            // ✅ Corrected: Wrap the card directly in a NavigationLink
+                            // This works because the card's favorite button is not inside a NavigationLink
+                            NavigationLink {
+                                DestinationDetailView(destination: destination)
+                            } label: {
                                 PopularFavoriteDestinationCard(
                                     destination: destination,
-                                    isFavorite: favoritesVM.isFavorite(destination: anyDestination)
-                                ) {
+                                    isFavorite: favoritesVM.isFavorite(destination: anyDestination),
+                                    onFavoriteTapped: {
+                                        Task {
+                                            await favoritesVM.toggleFavorite(destination: anyDestination)
+                                        }
+                                    }
+                                )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                        case .google(let googleDestination, let sessionToken):
+                            // ✅ Corrected: The card itself is a Button that triggers programmatic navigation
+                            // This ensures the favorite toggle button is the only other tappable element
+                            GoogleDestinationCard(
+                                googleDestination: googleDestination,
+                                onFavoriteTapped: {
                                     Task {
                                         await favoritesVM.toggleFavorite(destination: anyDestination)
                                     }
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        
-                        case .google(let googleDestination):
-                            // Change the NavigationLink to a simple Button
-                            Button(action: {
-                                Task {
-                                    // Set isLoading to true to show the progress view
-                                    await MainActor.run {
-                                        homeVM.isLoading = true
-                                        homeVM.searchResults = [] // Clear results to only show progress
-                                    }
+                                },
+                                onCardTapped: {
+                                    guard let sessionToken = sessionToken else { return }
                                     
-                                    // Fetch the full details
-                                    if let fullDetails = await homeVM.fetchPlaceDetails(for: googleDestination.placeID) {
-                                        // Set the state variables to trigger the programmatic navigation
+                                    Task {
                                         await MainActor.run {
-                                            self.selectedGoogleDestination = fullDetails
-                                            self.isShowingGoogleDetails = true
+                                            homeVM.isLoading = true
+                                        }
+                                        
+                                        if let fullDetails = await homeVM.fetchPlaceDetails(for: googleDestination.placeID, with: sessionToken) {
+                                            await MainActor.run {
+                                                self.selectedGoogleDestination = fullDetails
+                                                self.isShowingGoogleDetails = true
+                                                homeVM.searchText = ""
+                                                homeVM.searchResults = []
+                                            }
+                                        }
+                                        
+                                        await MainActor.run {
+                                            homeVM.isLoading = false
                                         }
                                     }
-                                    
-                                    // Reset isLoading after the task completes
-                                    await MainActor.run {
-                                        homeVM.isLoading = false
-                                    }
                                 }
-                            }) {
-                                GoogleDestinationCard(googleDestination: googleDestination)
-                            }
-                            .buttonStyle(PlainButtonStyle())
+                            )
                         }
                     }
                 }

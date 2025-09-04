@@ -96,7 +96,7 @@ class FavoritesViewModel: ObservableObject {
         switch destination {
         case .local(let localDestination):
             await toggleLocalFavorite(destination: localDestination)
-        case .google(let googleDestination):
+        case .google(let googleDestination, _):
             // This is a new method you'll need to create.
             // It will handle saving Google destinations to a separate Firestore collection or in a different structure.
             await toggleGoogleFavorite(destination: googleDestination)

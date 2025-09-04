@@ -18,18 +18,20 @@ struct GoogleDestination: Identifiable {
     let rating: Double?
     let latitude: Double?
     let longitude: Double?
-    
+    let priceLevel: Int?
+    let description: String?
+    let galleryImageUrls: [GMSPlacePhotoMetadata]?
 }
 
 enum AnyDestination: Identifiable {
     case local(Destination)
-    case google(GoogleDestination)
+    case google(GoogleDestination, sessionToken: GMSAutocompleteSessionToken?)
     
     var id: String {
         switch self {
         case .local(let destination):
-            return destination.id ?? "N/A"
-        case .google(let destination):
+            return destination.id ?? UUID().uuidString
+        case .google(let destination, _):
             return destination.id
         }
     }
