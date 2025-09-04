@@ -3,6 +3,7 @@ import Foundation
 import FirebaseAuth
 import SwiftUI
 import FirebaseFirestore
+import FirebaseMessaging
 
 @MainActor
 class AuthenticationViewModel: ObservableObject {
@@ -26,6 +27,15 @@ class AuthenticationViewModel: ObservableObject {
     init() {
         registerAuthStateHandler()
         Task { await checkCurrentUser() }
+        
+        // NEW: Subscribe to FCM token refreshes
+        PushNotificationManager.shared.onTokenRefresh = { [weak self] token in
+            guard let self = self, let userId = self.user?.uid else { return }
+            self.signedInUser?.fcmToken = token
+            Task {
+                await self.saveFCMToken(token, for: userId)
+            }
+        }
     }
 
     deinit {
@@ -47,6 +57,12 @@ class AuthenticationViewModel: ObservableObject {
                             do {
                                 self.signedInUser = try await self.createSignedInUser(from: fbUser)
                                 print("AuthenticationViewModel: SignedInUser updated for: \(self.signedInUser?.email ?? "N/A")")
+                                
+                                // NEW: Save FCM token on successful sign-in/load
+                                if let token = Messaging.messaging().fcmToken {
+                                    self.signedInUser?.fcmToken = token
+                                    await self.saveFCMToken(token, for: fbUser.uid)
+                                }
                             } catch {
                                 print("AuthenticationViewModel: Error creating SignedInUser from Firebase user: \(error.localizedDescription)")
                                 self.signedInUser = nil
@@ -62,6 +78,16 @@ class AuthenticationViewModel: ObservableObject {
                 }
             }
         }
+    
+    // NEW: Method to save the FCM token to Firestore
+    private func saveFCMToken(_ token: String, for userId: String) async {
+        do {
+            try await db.collection("users").document(userId).setData(["fcmToken": token], merge: true)
+            print("FCM token saved successfully for user: \(userId)")
+        } catch {
+            print("Error saving FCM token: \(error.localizedDescription)")
+        }
+    }
 
     // Function to create a SignedInUser from a Firebase.User object and fetch Firestore data
     func createSignedInUser(from firebaseUser: FirebaseAuth.User) async throws -> SignedInUser {

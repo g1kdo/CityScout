@@ -6,7 +6,8 @@ struct TopBarView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var notificationVM = NotificationViewModel()
     
-    // State variable to control the presentation of the fullScreenCover
+    @Binding var isShowingMessagesView: Bool
+    
     @State private var showingNotifications = false
     
     var body: some View {
@@ -38,20 +39,30 @@ struct TopBarView: View {
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
-            // --- CHANGE IS HERE ---
-            // Replaced Color(.systemGray6) with a more distinct secondary background
             .background(Color(.secondarySystemGroupedBackground))
             .clipShape(Capsule())
-            .shadow(color: Color.primary.opacity(0.1), radius: 4, x: 0, y: 2) // Use adaptive shadow
+            .shadow(color: Color.primary.opacity(0.1), radius: 4, x: 0, y: 2)
             
             Spacer()
             
-            // ───────────── Notification Bell with Button and fullScreenCover ─────────────
-            Button(action: {
-                // Toggle the state to show the fullScreenCover
-                showingNotifications.toggle()
-            }) {
-                NotificationBell(unreadCount: notificationVM.unreadCount)
+            // ───────────── Message and Notification Icons ─────────────
+            HStack(spacing: 16) {
+                // NEW: Message icon button
+                Button(action: {
+                    isShowingMessagesView = true
+                }) {
+                    Image(systemName: "message")
+                        .font(.system(size: 20))
+                        .foregroundColor(.primary)
+                }
+                
+                // Notification Bell with Button and fullScreenCover
+                Button(action: {
+                    showingNotifications.toggle()
+                }) {
+                    NotificationBell(unreadCount: notificationVM.unreadCount)
+                        .foregroundColor(.primary)
+                }
             }
         }
         .padding(.horizontal, 20)

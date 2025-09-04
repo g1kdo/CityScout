@@ -12,14 +12,17 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
     let description: String?
     let price: Double
     let galleryImageUrls: [String]?
-    
     let latitude: Double?
     let longitude: Double?
     
+    // MARK: - New Property for Booking Confirmation
+    // This is the ID of the partner who manages this destination.
+    let partnerId: String?
+
     // MARK: - New Property for Recommendation
     let categories: [String] // e.g., ["Adventure", "Beaches"]
     
-    init(id: String? = nil, name: String, imageUrl: String, rating: Double, location: String, participantAvatars: [String]?, description: String?, price: Double, galleryImageUrls: [String]?, categories: [String], latitude: Double? = nil, longitude: Double? = nil) {
+    init(id: String? = nil, name: String, imageUrl: String, rating: Double, location: String, participantAvatars: [String]?, description: String?, price: Double, galleryImageUrls: [String]?, categories: [String], latitude: Double? = nil, longitude: Double? = nil, partnerId: String? = nil) {
         self.id = id
         self.name = name
         self.imageUrl = imageUrl
@@ -32,6 +35,7 @@ struct Destination: Identifiable, Codable, Equatable, Hashable {
         self.latitude = latitude
         self.longitude = longitude
         self.categories = categories
+        self.partnerId = partnerId
     }
     
     func hash(into hasher: inout Hasher) {

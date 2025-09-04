@@ -131,6 +131,7 @@ struct BookingView: View {
                         .foregroundColor(Color(hex: "#FF7029"))
                 }
             }
+            // FIX: Replaced the old alert modifier with the new, simpler one.
             .alert("Success!", isPresented: $bookingVM.bookingSuccess) {
                 Button("OK", role: .cancel) {
                     dismiss()

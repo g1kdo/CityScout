@@ -8,6 +8,10 @@ struct HomeView: View {
     @State private var selectedDestination: Destination?
     @State private var selectedTab: FooterTab = .home
     
+    // --- NEW STATE VARIABLE ---
+    // The state for messages is now here and passed to the TopBarView
+    @State private var isShowingMessagesView: Bool = false
+    
     @State private var showPopularPlacesView: Bool = false
     
     var body: some View {
@@ -15,7 +19,7 @@ struct HomeView: View {
             ZStack {
                 // Layer 1: Your main content
                 VStack(spacing: 0) {
-                    TopBarView()
+                    TopBarView(isShowingMessagesView: $isShowingMessagesView)
                         .environmentObject(authVM)
                         .padding(.bottom, 25)
                     
@@ -50,6 +54,8 @@ struct HomeView: View {
                         vm.showSearchView = true
                     }
                 }
+                // --- NEW LOGIC: Handle navigation to MessagesView ---
+                // The messaging view is now presented via a fullScreenCover
             }
             .onChange(of: navigateToProfile) { oldValue, isActive in
                 if !isActive {
@@ -57,6 +63,12 @@ struct HomeView: View {
                 }
             }
             .onChange(of: vm.showSearchView) { _, isPresented in
+                if !isPresented {
+                    selectedTab = .home
+                }
+            }
+            // --- NEW LOGIC: Reset tab if MessagesView is dismissed ---
+            .onChange(of: isShowingMessagesView) { _, isPresented in
                 if !isPresented {
                     selectedTab = .home
                 }
@@ -87,6 +99,11 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showPopularPlacesView) {
                 PopularPlacesView()
                     .environmentObject(vm)
+            }
+            // --- NEW: Navigation to MessagesView ---
+            .navigationDestination(isPresented: $isShowingMessagesView) {
+                MessagesView()
+                    .environmentObject(authVM)
             }
         }
         .environmentObject(vm)

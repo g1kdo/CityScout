@@ -6,6 +6,7 @@ import FirebaseFirestore
 import FirebaseAppCheck
 import FirebaseAppCheckInterop
 import GoogleMaps
+import FirebaseMessaging
 
 // Define your AppCheckDebugProviderFactory
 #if targetEnvironment(simulator)
@@ -35,7 +36,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Set the cache size to 200 MB
         settings.cacheSizeBytes = Int64(truncating: NSNumber(value: 200 * 1024 * 1024))
         Firestore.firestore().settings = settings
-
+        
         // Initialize Facebook SDK
         ApplicationDelegate.shared.application(
             application,
@@ -44,8 +45,16 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         print("Facebook SDK initialized")
     
         GMSServices.provideAPIKey("AIzaSyCA5WaGeXXo7KRC0HAq7lPz-gweeAMJVw8")
+        
+        // NEW: Register for push notifications
+        PushNotificationManager.shared.registerForPushNotifications()
 
         return true
+    }
+    
+    // NEW: Add a method to receive the APNS token
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Messaging.messaging().apnsToken = deviceToken
     }
 
     func application(

@@ -10,6 +10,7 @@ class BookingViewModel: ObservableObject {
     @Published var checkOutTime: Date = Calendar.current.date(bySettingHour: 11, minute: 0, second: 0, of: Date()) ?? Date()
     @Published var numberOfPeople: Int = 1
     @Published var isLoading = false
+    // FIX: Changed this to a simple Bool for the alert modifier.
     @Published var bookingSuccess = false
     @Published var errorMessage: String?
     @Published var totalCost: Double = 0.0

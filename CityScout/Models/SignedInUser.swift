@@ -1,6 +1,7 @@
 // Models/SignedInUser.swift
 import Foundation
 import FirebaseFirestore
+import FirebaseMessaging
 
 struct SignedInUser: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
@@ -10,18 +11,22 @@ struct SignedInUser: Identifiable, Codable, Equatable {
     var mobileNumber: String?
     var profilePictureURL: String?
     
+    // NEW: Property to store the Firebase Cloud Messaging token for push notifications
+    var fcmToken: String?
+    
     // MARK: - New Properties for Recommendation
     var selectedInterests: [String]? = []
     var interestScores: [String: Int]? = [:]
     var hasSetInterests: Bool? = false
     
-    init(id: String, displayName: String?, email: String, location: String? = nil, mobileNumber: String? = nil, profilePictureURL: URL? = nil) {
+    init(id: String, displayName: String?, email: String, location: String? = nil, mobileNumber: String? = nil, profilePictureURL: URL? = nil, fcmToken: String? = nil) {
         self.id = id
         self.displayName = displayName
         self.email = email
         self.location = location
         self.mobileNumber = mobileNumber
         self.profilePictureURL = profilePictureURL?.absoluteString
+        self.fcmToken = fcmToken
         self.selectedInterests = [] // Initialize as empty
         self.interestScores = [:] // Initialize as empty
     }
@@ -34,6 +39,9 @@ struct SignedInUser: Identifiable, Codable, Equatable {
         if let urlString = data["profilePictureURL"] as? String {
             self.profilePictureURL = urlString
         }
+        
+        // NEW: Update the FCM token from Firestore
+        self.fcmToken = data["fcmToken"] as? String ?? self.fcmToken
         
         // MARK: - Update new properties from Firestore
         self.selectedInterests = data["selectedInterests"] as? [String] ?? self.selectedInterests
