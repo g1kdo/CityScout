@@ -37,10 +37,9 @@
 		31580FA62E688B15006BD203 /* GooglePlacesSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 31580FA52E688B15006BD203 /* GooglePlacesSwift */; };
 		315840012DDCD6870080BF35 /* FacebookBasics in Frameworks */ = {isa = PBXBuildFile; productRef = 315840002DDCD6870080BF35 /* FacebookBasics */; };
 		315840032DDCD8E10080BF35 /* FacebookAEM in Frameworks */ = {isa = PBXBuildFile; productRef = 315840022DDCD8E10080BF35 /* FacebookAEM */; };
+		3159D44A2E703E5C00355715 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 3159D4492E703E5C00355715 /* FirebaseMessaging */; };
 		318E42272DE483C100EE47F5 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 318E42262DE483C100EE47F5 /* Kingfisher */; };
 		31A666812E3BC2B900F563C4 /* GoogleMaps in Frameworks */ = {isa = PBXBuildFile; productRef = 31A666802E3BC2B900F563C4 /* GoogleMaps */; };
-		C5B7827A2E68B7A90037BE1F /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = C5B782792E68B7A90037BE1F /* FirebaseMessaging */; };
-		C5B7827C2E68B80C0037BE1F /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = C5B7827B2E68B80C0037BE1F /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -103,7 +102,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C5B7827A2E68B7A90037BE1F /* FirebaseMessaging in Frameworks */,
 				313433972DCCD57500D0C950 /* AuthenticationServices.framework in Frameworks */,
 				314B75912DC22C1E0045510C /* FirebaseFirestoreCombine-Community in Frameworks */,
 				31A666812E3BC2B900F563C4 /* GoogleMaps in Frameworks */,
@@ -113,13 +111,13 @@
 				314B758D2DC22C1E0045510C /* FirebaseDynamicLinks in Frameworks */,
 				314B757F2DC22C1E0045510C /* FirebaseAppCheck in Frameworks */,
 				314B75A02DC22F820045510C /* GoogleSignIn in Frameworks */,
+				3159D44A2E703E5C00355715 /* FirebaseMessaging in Frameworks */,
 				318E42272DE483C100EE47F5 /* Kingfisher in Frameworks */,
 				315840032DDCD8E10080BF35 /* FacebookAEM in Frameworks */,
 				314B75832DC22C1E0045510C /* FirebaseAuth in Frameworks */,
 				315840012DDCD6870080BF35 /* FacebookBasics in Frameworks */,
 				314B75792DC22C1E0045510C /* FirebaseAnalytics in Frameworks */,
 				314B758F2DC22C1E0045510C /* FirebaseFirestore in Frameworks */,
-				C5B7827C2E68B80C0037BE1F /* FirebaseMessaging in Frameworks */,
 				314B75A22DC22F820045510C /* GoogleSignInSwift in Frameworks */,
 				314B75952DC22C1E0045510C /* FirebaseFunctionsCombine-Community in Frameworks */,
 				31580FA42E688B15006BD203 /* GooglePlaces in Frameworks */,
@@ -237,8 +235,7 @@
 				31A666802E3BC2B900F563C4 /* GoogleMaps */,
 				31580FA32E688B15006BD203 /* GooglePlaces */,
 				31580FA52E688B15006BD203 /* GooglePlacesSwift */,
-				C5B782792E68B7A90037BE1F /* FirebaseMessaging */,
-				C5B7827B2E68B80C0037BE1F /* FirebaseMessaging */,
+				3159D4492E703E5C00355715 /* FirebaseMessaging */,
 			);
 			productName = CityScout;
 			productReference = 314B75182DC225B60045510C /* CityScout.app */;
@@ -533,7 +530,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CityScout/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 98Y9H545L4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CityScout/Info.plist;
@@ -568,7 +565,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CityScout/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 98Y9H545L4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CityScout/Info.plist;
@@ -903,6 +900,11 @@
 			package = 313433982DCCDD5B00D0C950 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
 			productName = FacebookAEM;
 		};
+		3159D4492E703E5C00355715 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 314B75772DC22C1E0045510C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
 		318E42262DE483C100EE47F5 /* Kingfisher */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 318E42252DE483C100EE47F5 /* XCRemoteSwiftPackageReference "Kingfisher" */;
@@ -912,14 +914,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 31A6667F2E3BC2B900F563C4 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */;
 			productName = GoogleMaps;
-		};
-		C5B782792E68B7A90037BE1F /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = FirebaseMessaging;
-		};
-		C5B7827B2E68B80C0037BE1F /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
