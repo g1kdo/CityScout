@@ -25,6 +25,10 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSCalendarsUsageDescription</key>
+	<string>This allows you to save your booked trips directly to your calendar for easy access and reminders.</string>
+	<key>CFBundleIdentifier</key>
+	<string></string>
 	<key>FacebookAppID</key>
 	<string>642645272095696</string>
 	<key>FacebookClientToken</key>

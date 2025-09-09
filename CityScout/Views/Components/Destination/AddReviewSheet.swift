@@ -203,11 +203,11 @@ struct AddReviewSheet: View {
                 Text(alertMessage)
             }
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                                  
+                                   Button("Cancel") { dismiss() }
+                                       .foregroundColor(Color(hex: "#FF7029"))
+                               }
             }
         }
     }

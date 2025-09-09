@@ -1,53 +1,50 @@
 import SwiftUI
 
-// This new view displays a simple list of all upcoming scheduled events.
 struct AllEventsView: View {
-    @Environment(\.dismiss) var dismiss
-    // This view receives the list of upcoming events from its parent.
     let upcomingEvents: [ScheduledEvent]
+    
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ZStack {
-                // Add an adaptive background to ensure it's not transparent
-                Color(.systemGroupedBackground).ignoresSafeArea()
+                Color(.systemGroupedBackground).edgesIgnoringSafeArea(.all)
                 
-                Group {
-                    if upcomingEvents.isEmpty {
-                        VStack {
-                            Image(systemName: "calendar.badge.plus")
-                                .font(.largeTitle)
-                                .foregroundColor(.secondary)
-                                .padding(.bottom, 4)
-                            Text("No Upcoming Events")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                            Text("Book a trip to see it on your schedule.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    } else {
-                        List {
-                            ForEach(upcomingEvents) { event in
-                                // We reuse the ScheduleEventRow but hide the cancel button
-                                // as this is a read-only summary view.
-                                ScheduleEventRow(event: event, showCancelButton: false, onCancel: {})
-                            }
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                        }
-                        .listStyle(.plain)
+                if upcomingEvents.isEmpty {
+                    VStack(spacing: 15) {
+                        Image(systemName: "suitcase.cart.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(Color(hex:"#FF7029"))
+                        Text("No Upcoming Trips")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Text("When you book a trip, you'll see it here.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
+                    .padding()
+                } else {
+                    List {
+                        Section(header: Text("Upcoming Trips")) {
+                            ForEach(upcomingEvents) { event in
+                                // --- FIX: Hide the action bar ---
+                                // This prevents the crash and cleans up the UI.
+                                ScheduleEventRow(event: event, showActionBar: false) {}
+                            }
+                        }
+                    }
+                    .listStyle(InsetGroupedListStyle())
                 }
             }
-            .navigationTitle("All Upcoming Events")
+            .navigationTitle("All My Trips")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                                  
-                                   Button("Done") { dismiss() }
-                                       .foregroundColor(Color(hex: "#FF7029"))
-                               }
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(Color(hex:"#FF7029"))
+                }
             }
         }
     }

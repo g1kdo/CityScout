@@ -74,6 +74,13 @@
             ReferencedContainer = "container:CityScout.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = " FIRAAppCheckDebugToken"
+            value = "03E4A503-FF33-44B6-B6D3-1CC4F1F082A3"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

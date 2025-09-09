@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "123456789.rw.apple.cityscout.CityScout",
+        "paths": [ "/partner-confirm/*", "NOT /_/*" ]
+      }
+    ]
+  }
+}
