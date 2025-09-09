@@ -4,19 +4,18 @@ import Combine
 
 @MainActor
 class ScheduleViewModel: ObservableObject {
-    // This will hold ALL events, both past and future, for the main calendar view.
     @Published var scheduledEvents: [ScheduledEvent] = []
-    
-    // This will hold only events that are happening today or in the future.
-    @Published var upcomingEvents: [ScheduledEvent] = []
-    
+    @Published var pastEvents: [ScheduledEvent] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
     private var listener: ListenerRegistration?
     private var db = Firestore.firestore()
+    
+    // The ViewModel now owns the CalendarSyncManager
+    let calendarSyncManager = CalendarSyncManager()
 
-    // A private helper struct to decode the flat data from a 'booking' document.
+    // The internal data structure now includes the optional calendarEventID
     private struct BookingData: Codable {
         @DocumentID var id: String?
         var userId: String
@@ -24,9 +23,11 @@ class ScheduleViewModel: ObservableObject {
         var destinationName: String
         var destinationLocation: String
         var destinationImageUrl: String
-        var date: Timestamp
+        var startDate: Timestamp
+        var endDate: Timestamp
         var numberOfPeople: Int
-        var price: Double? // Make sure this is being saved with your booking
+        var price: Double?
+        var calendarEventID: String? // New property
     }
 
     func subscribeToSchedule(for userId: String?) {
@@ -35,7 +36,7 @@ class ScheduleViewModel: ObservableObject {
 
         guard let userId = userId else {
             self.scheduledEvents = []
-            self.upcomingEvents = []
+            self.pastEvents = []
             return
         }
 
@@ -44,7 +45,7 @@ class ScheduleViewModel: ObservableObject {
 
         listener = db.collection("bookings")
             .whereField("userId", isEqualTo: userId)
-            .order(by: "date", descending: false)
+            .order(by: "endDate", descending: true)
             .addSnapshotListener { [weak self] querySnapshot, error in
                 guard let self = self else { return }
                 self.isLoading = false
@@ -56,70 +57,80 @@ class ScheduleViewModel: ObservableObject {
 
                 guard let documents = querySnapshot?.documents else {
                     self.scheduledEvents = []
-                    self.upcomingEvents = []
+                    self.pastEvents = []
                     return
                 }
-                // This is the complete decoding logic
+                
                 let allEvents = documents.compactMap { doc -> ScheduledEvent? in
-                    guard let booking = try? doc.data(as: BookingData.self) else {
-                        print("Failed to decode booking data for document \(doc.documentID).")
-                        return nil
-                    }
-                    
+                    guard let booking = try? doc.data(as: BookingData.self) else { return nil }
                     let destination = Destination(
-                        id: booking.destinationId,
-                        name: booking.destinationName,
-                        imageUrl: booking.destinationImageUrl,
-                        rating: 0.0,
-                        location: booking.destinationLocation,
-                        participantAvatars: nil,
-                        description: nil,
-                        price: booking.price ?? 0.0,
-                        galleryImageUrls: [],
-                        categories: []
+                        id: booking.destinationId, name: booking.destinationName, imageUrl: booking.destinationImageUrl,
+                        rating: 0.0, location: booking.destinationLocation, participantAvatars: nil,
+                        description: nil, price: booking.price ?? 0.0, galleryImageUrls: [], categories: []
                     )
-                    
-                    return ScheduledEvent(id: booking.id, date: booking.date.dateValue(), destination: destination)
+                    // Map the new property from the booking data to the event model
+                    return ScheduledEvent(
+                        id: booking.id, startDate: booking.startDate.dateValue(), endDate: booking.endDate.dateValue(),
+                        destination: destination, numberOfPeople: booking.numberOfPeople,
+                        calendarEventID: booking.calendarEventID
+                    )
                 }
                 
-                self.scheduledEvents = allEvents
-                
-                // Filter the full list to create the list of upcoming events.
-                self.upcomingEvents = allEvents.filter { $0.date >= Calendar.current.startOfDay(for: Date()) }
+                let now = Date()
+                self.scheduledEvents = allEvents.filter { $0.endDate >= now }.sorted(by: { $0.startDate < $1.startDate })
+                self.pastEvents = allEvents.filter { $0.endDate < now }
             }
     }
     
-    /// Cancels a booking and deletes it from Firestore.
+    // New function to coordinate adding to calendar and saving the ID
+    func syncEventToCalendar(event: ScheduledEvent) async -> Bool {
+        guard let bookingId = event.id else {
+            errorMessage = "Event ID is missing."
+            return false
+        }
+        
+        if let calendarEventID = await calendarSyncManager.addEventToCalendar(event: event) {
+            do {
+                try await db.collection("bookings").document(bookingId).updateData([
+                    "calendarEventID": calendarEventID
+                ])
+                return true
+            } catch {
+                errorMessage = "Failed to save calendar event ID: \(error.localizedDescription)"
+                return false
+            }
+        }
+        // This handles cases where the event already exists or permission was denied
+        errorMessage = calendarSyncManager.lastSyncError
+        return false
+    }
+    
+    // Updated to also remove the event from the calendar
     func cancelBooking(event: ScheduledEvent) async {
         guard let bookingId = event.id else {
             errorMessage = "Booking ID is missing, cannot cancel."
             return
         }
         
-        let feeDetails = cancellationFeeDetails(for: event)
-        if feeDetails.hasFee {
-            // In a real app, you would trigger your payment provider here
-            // to process a refund minus the fee.
-            print("Cancellation fee of $\(String(format: "%.2f", feeDetails.feeAmount)) applies.")
-        } else {
-            print("Full refund applies.")
+        // If an ID exists, tell the manager to remove the event from the calendar
+        if let calendarEventID = event.calendarEventID {
+            calendarSyncManager.removeEventFromCalendar(withIdentifier: calendarEventID)
         }
-
-        // Delete the booking document from Firestore
+        
+        // Delete the booking from Firestore
         do {
             try await db.collection("bookings").document(bookingId).delete()
-            print("Booking \(bookingId) successfully cancelled and deleted.")
         } catch {
             errorMessage = "Failed to cancel booking: \(error.localizedDescription)"
         }
     }
     
-    /// Determines if a cancellation fee applies and calculates the amount.
     func cancellationFeeDetails(for event: ScheduledEvent) -> (hasFee: Bool, feeAmount: Double) {
-        let hoursUntilBooking = Calendar.current.dateComponents([.hour], from: Date(), to: event.date).hour ?? Int.max
+        let hoursUntilBooking = Calendar.current.dateComponents([.hour], from: Date(), to: event.startDate).hour ?? Int.max
         
-        if hoursUntilBooking < 1 {
-            let fee = event.destination.price * 0.20 // 20% cancellation fee
+        if hoursUntilBooking < 24 {
+            let totalTripPrice = event.destination.price * Double(event.numberOfPeople)
+            let fee = totalTripPrice * 0.20
             return (hasFee: true, feeAmount: fee)
         } else {
             return (hasFee: false, feeAmount: 0)
