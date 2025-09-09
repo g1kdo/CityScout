@@ -11,13 +11,14 @@ struct HomeView: View {
     @State private var selectedTab: FooterTab = .home
     @State private var selectedDestination: Destination?
     @State private var showPopularPlacesView: Bool = false
+    @State private var isShowingMessagesView: Bool = false
 
     var body: some View {
         NavigationStack {
             ZStack {
                 // Layer 1: The main content and navigation bars
                 VStack(spacing: 0) {
-                    TopBarView()
+                    TopBarView(isShowingMessagesView: $isShowingMessagesView)
                         .environmentObject(authVM)
                         .padding(.bottom, 25)
 
@@ -59,6 +60,11 @@ struct HomeView: View {
             .onChange(of: showPopularPlacesView) { _, isPresented in
                 if !isPresented { selectedTab = .home }
             }
+            .onChange(of: isShowingMessagesView) { _, isPresented in
+                          if !isPresented {
+                              selectedTab = .home
+                          }
+                      }
             .onAppear {
                 favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
                 if let userId = authVM.signedInUser?.id {
@@ -87,6 +93,10 @@ struct HomeView: View {
                     .environmentObject(vm)
                     .environmentObject(favoritesVM)
             }
+            .navigationDestination(isPresented: $isShowingMessagesView) {
+                           MessagesView()
+                               .environmentObject(authVM)
+                       }
         }
     }
 
