@@ -9,6 +9,7 @@ import SwiftUI
 import GoogleMaps
 import CoreLocation
 import Kingfisher
+import GooglePlaces
 
 enum MapType {
     case destination(Destination)
@@ -52,11 +53,19 @@ enum MapType {
         switch self {
         case .destination(let dest):
             return dest.imageUrl
-        case .googleDestination:
-            // GoogleDestination doesn't have a single image URL property for the background
+        case .googleDestination(let dest):
             return nil
         }
     }
+    
+    var photoMetadata: GMSPlacePhotoMetadata? {
+            switch self {
+            case .destination:
+                return nil
+            case .googleDestination(let dest):
+                return dest.photoMetadata // Return the metadata object
+            }
+        }
     
     var rating: Double? {
         switch self {
@@ -114,6 +123,15 @@ struct OnMapView: View {
             ZStack {
                 if let imageUrl = mapType.imageUrl {
                     DestinationBackgroundImageView(imageUrl: imageUrl, geometry: geometry)
+                        .ignoresSafeArea(.all)
+                } else if let photoMetadata = mapType.photoMetadata {
+                    GooglePlacesImageView(photoMetadata: photoMetadata)
+                        .scaledToFill()
+                        .frame(minWidth: geometry.size.width, minHeight: geometry.size.height)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.3)]), startPoint: .center, endPoint: .bottom)
+                        )
                         .ignoresSafeArea(.all)
                 } else {
                     // Fallback for GoogleDestination without an imageUrl
@@ -330,9 +348,6 @@ struct OnMapView: View {
         return window.safeAreaInsets.bottom
     }
 }
-
-
-// MARK: - Extracted Subviews
 
 // DestinationBackgroundImageView (No change)
 struct DestinationBackgroundImageView: View {

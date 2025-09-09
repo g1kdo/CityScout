@@ -51,8 +51,11 @@ struct BestDestinationsCarousel: View {
                         isFavorite: favoritesVM.isFavorite(destination: .local(dest))
                     ) {
                         Task {
-                            await favoritesVM.toggleFavorite(destination: .local(dest))
                             if let userId = authVM.signedInUser?.id {
+                                // Corrected: Pass the userId to toggleFavorite
+                                await favoritesVM.toggleFavorite(destination: .local(dest), for: userId)
+                                
+                                // These calls already correctly use the userId
                                 await vm.logUserAction(userId: userId, destinationId: dest.id, actionType: "bookmark")
                                 await vm.updateInterestScores(for: userId, categories: dest.categories, with: 3.0)
                             }

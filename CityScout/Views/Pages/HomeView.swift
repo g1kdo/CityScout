@@ -86,6 +86,7 @@ struct HomeView: View {
             )) {
                 if let dest = selectedDestination {
                     DestinationDetailView(destination: dest)
+                        .environmentObject(favoritesVM)
                 }
             }
             .navigationDestination(isPresented: $showPopularPlacesView) {

@@ -3,6 +3,7 @@ import SwiftUI
 struct SearchView: View {
     @EnvironmentObject var homeVM: HomeViewModel
     @EnvironmentObject var favoritesVM: FavoritesViewModel
+    @EnvironmentObject var authVM: AuthenticationViewModel
     
     // State to hold the fully-loaded GoogleDestination
     @State private var selectedGoogleDestination: GoogleDestination? = nil
@@ -72,55 +73,64 @@ struct SearchView: View {
                     ForEach(homeVM.searchResults, id: \.id) { anyDestination in
                         switch anyDestination {
                         case .local(let destination):
-                            // ✅ Corrected: Wrap the card directly in a NavigationLink
-                            // This works because the card's favorite button is not inside a NavigationLink
-                            NavigationLink {
-                                DestinationDetailView(destination: destination)
-                            } label: {
-                                PopularFavoriteDestinationCard(
-                                    destination: destination,
-                                    isFavorite: favoritesVM.isFavorite(destination: anyDestination),
+                            AnyView(
+                                NavigationLink {
+                                    // Your DestinationDetailView expects a Destination, which is fine here
+                                    DestinationDetailView(destination: destination)
+                                } label: {
+                                    PopularFavoriteDestinationCard(
+                                        // Fix 1: Pass the destination as AnyDestination.local
+                                        destination: AnyDestination.local(destination),
+                                        // Pass the AnyDestination enum case to isFavorite
+                                        isFavorite: favoritesVM.isFavorite(destination: AnyDestination.local(destination)),
+                                        onFavoriteTapped: {
+                                            Task {
+                                                // Fix 2: Add the userId from authVM to the toggleFavorite call
+                                                if let userId = authVM.signedInUser?.id {
+                                                    await favoritesVM.toggleFavorite(destination: AnyDestination.local(destination), for: userId)
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            )
+                        case .google(let googleDestination, let sessionToken):
+                            AnyView(
+                                // ✅ Corrected: The card itself is a Button that triggers programmatic navigation
+                                // This ensures the favorite toggle button is the only other tappable element
+                                GoogleDestinationCard(
+                                    googleDestination: googleDestination,
                                     onFavoriteTapped: {
                                         Task {
-                                            await favoritesVM.toggleFavorite(destination: anyDestination)
+                                            // Fix 2: Add the userId from authVM to the toggleFavorite call
+                                            if let userId = authVM.signedInUser?.id {
+                                                await favoritesVM.toggleFavorite(destination: anyDestination, for: userId)
+                                            }
+                                        }
+                                    },
+                                    onCardTapped: {
+                                        guard let sessionToken = sessionToken else { return }
+
+                                        Task {
+                                            await MainActor.run {
+                                                homeVM.isLoading = true
+                                            }
+
+                                            if let fullDetails = await homeVM.fetchPlaceDetails(for: googleDestination.placeID, with: sessionToken) {
+                                                await MainActor.run {
+                                                    self.selectedGoogleDestination = fullDetails
+                                                    self.isShowingGoogleDetails = true
+                                                    homeVM.searchText = ""
+                                                    homeVM.searchResults = []
+                                                }
+                                            }
+                                            await MainActor.run {
+                                                homeVM.isLoading = false
+                                            }
                                         }
                                     }
                                 )
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                        case .google(let googleDestination, let sessionToken):
-                            // ✅ Corrected: The card itself is a Button that triggers programmatic navigation
-                            // This ensures the favorite toggle button is the only other tappable element
-                            GoogleDestinationCard(
-                                googleDestination: googleDestination,
-                                onFavoriteTapped: {
-                                    Task {
-                                        await favoritesVM.toggleFavorite(destination: anyDestination)
-                                    }
-                                },
-                                onCardTapped: {
-                                    guard let sessionToken = sessionToken else { return }
-                                    
-                                    Task {
-                                        await MainActor.run {
-                                            homeVM.isLoading = true
-                                        }
-                                        
-                                        if let fullDetails = await homeVM.fetchPlaceDetails(for: googleDestination.placeID, with: sessionToken) {
-                                            await MainActor.run {
-                                                self.selectedGoogleDestination = fullDetails
-                                                self.isShowingGoogleDetails = true
-                                                homeVM.searchText = ""
-                                                homeVM.searchResults = []
-                                            }
-                                        }
-                                        
-                                        await MainActor.run {
-                                            homeVM.isLoading = false
-                                        }
-                                    }
-                                }
                             )
                         }
                     }

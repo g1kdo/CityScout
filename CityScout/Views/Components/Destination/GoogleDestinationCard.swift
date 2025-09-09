@@ -16,18 +16,17 @@ struct GoogleDestinationCard: View {
     @State private var isFavorite: Bool = false
     
     let onFavoriteTapped: () -> Void
-    // 🆕 Add a new closure to handle the card tap for navigation
     let onCardTapped: () -> Void
 
     var body: some View {
-        // Wrap the entire card in a Button to handle the tap action
         Button(action: onCardTapped) {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topTrailing) {
-                    // The image part of the card
+                    // This view will now handle its own loading and display
                     GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
                         .frame(height: 100)
-
+                        .clipped() // Ensure the image stays within its frame
+                    
                     // The bookmark button
                     Button(action: onFavoriteTapped) {
                         Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
@@ -39,13 +38,11 @@ struct GoogleDestinationCard: View {
                             .clipShape(Circle())
                     }
                     .padding(6)
-                    // ⚠️ IMPORTANT: Prevent this button's tap from triggering the parent Button's action
                     .buttonStyle(PlainButtonStyle())
                 }
                 .cornerRadius(10)
                 .clipped()
 
-                // A new VStack is added to hold only the text content.
                 VStack(alignment: .leading, spacing: 8) {
                     Text(googleDestination.name)
                         .font(.headline)
@@ -62,7 +59,8 @@ struct GoogleDestinationCard: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
-
+                    
+                    // Display rating and price level from the GoogleDestination object
                     if let rating = googleDestination.rating {
                         HStack(spacing: 4) {
                             Image(systemName: "star.fill")
@@ -88,11 +86,10 @@ struct GoogleDestinationCard: View {
                 }
                 .padding(8)
             }
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(10)
-            .shadow(color: Color.primary.opacity(0.1), radius: 5, x: 0, y: 2)
         }
-        // 🆕 Use .buttonStyle(PlainButtonStyle()) to remove the button's default visual effects
         .buttonStyle(PlainButtonStyle())
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(10)
+        .shadow(color: Color.primary.opacity(0.1), radius: 5, x: 0, y: 2)
     }
 }

@@ -23,16 +23,19 @@ struct PopularPlacesView: View {
             
 
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], spacing: 20)  {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], spacing: 20) {
                     ForEach(homeVM.destinations) { destination in
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(
-                                destination: destination,
+                                destination: .local(destination), // Ensure destination is wrapped as AnyDestination
                                 isFavorite: favoritesVM.isFavorite(destination: .local(destination))
                             ) {
                                 Task {
-                                    await favoritesVM.toggleFavorite(destination: .local(destination))
                                     if let userId = authVM.signedInUser?.id {
+                                        // Corrected: Pass the userId to toggleFavorite
+                                        await favoritesVM.toggleFavorite(destination: .local(destination), for: userId)
+                                        
+                                        // Remaining logic is correct
                                         await homeVM.logUserAction(userId: userId, destinationId: destination.id, actionType: "bookmark")
                                         await homeVM.updateInterestScores(for: userId, categories: destination.categories, with: 3.0)
                                     }
