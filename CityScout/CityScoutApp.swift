@@ -7,7 +7,7 @@ import FirebaseAppCheck
 import FirebaseAppCheckInterop
 import GoogleMaps
 import GooglePlaces
-import FirebaseMessaging
+//import FirebaseMessaging
 
 // Define your AppCheckDebugProviderFactory
 #if targetEnvironment(simulator)
