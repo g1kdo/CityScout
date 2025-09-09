@@ -3,7 +3,7 @@ import SwiftUI
 struct ReviewView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @StateObject private var viewModel = ReviewViewModel()
+    @StateObject private var viewModel = ReviewViewModel(homeViewModel: HomeViewModel())
     @State private var showAddReviewSheet = false
     @State private var reviewToEdit: ReviewViewModel.Review?
     @State private var isShowingEditSheet = false
@@ -75,9 +75,9 @@ struct ReviewView: View {
                     .cornerRadius(10)
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 20)
+                .padding(.bottom, 5)
             }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .background(Color(.systemBackground)).ignoresSafeArea()
             .fullScreenCover(isPresented: $showAddReviewSheet) {
                 AddReviewSheet(viewModel: viewModel, reviewToEdit: reviewToEdit)
             }
@@ -101,38 +101,41 @@ private struct ReviewListContent: View {
     
     var body: some View {
         ForEach(viewModel.sortedReviews) { review in
+            // Find the original review in the main 'reviews' array
+            if let index = viewModel.reviews.firstIndex(where: { $0.id == review.id }) {
                 ReviewCardView(
                     viewModel: viewModel,
-                    review: review,
+                    review: $viewModel.reviews[index],
                     isMyReview: review.authorId == authVM.signedInUser?.id
-            )
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(review.authorId == authVM.signedInUser?.id ? Color.blue.opacity(0.1) : Color(.secondarySystemGroupedBackground))
-            )
-            .swipeActions(edge: .leading) {
-                if review.authorId == authVM.signedInUser?.id {
-                    Button {
-                        reviewToEdit = review
-                        isShowingEditSheet = true
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                    .tint(.blue)
-                }
-            }
-            .swipeActions(edge: .trailing) {
-                if review.authorId == authVM.signedInUser?.id {
-                    Button(role: .destructive) {
-                        Task {
-                            await viewModel.deleteReview(review: review)
+                )
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(review.authorId == authVM.signedInUser?.id ? Color.blue.opacity(0.1) : Color(.secondarySystemGroupedBackground))
+                )
+                .swipeActions(edge: .leading) {
+                    if review.authorId == authVM.signedInUser?.id {
+                        Button {
+                            reviewToEdit = review
+                            isShowingEditSheet = true
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
                         }
-                    } label: {
-                        Label("Delete", systemImage: "trash.fill")
+                        .tint(.blue)
                     }
-                    .tint(.red)
+                }
+                .swipeActions(edge: .trailing) {
+                    if review.authorId == authVM.signedInUser?.id {
+                        Button(role: .destructive) {
+                            Task {
+                                await viewModel.deleteReview(review: review)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash.fill")
+                        }
+                        .tint(.red)
+                    }
                 }
             }
         }
