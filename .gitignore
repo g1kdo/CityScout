@@ -70,3 +70,9 @@ node_modules/
 
 # Swift specific files
 CityScout/Models/Secrets.swift
+
+# Xcode user interface state
+xcuserdata/
+
+# macOS temporary files
+.DS_Store
