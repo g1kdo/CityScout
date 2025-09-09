@@ -20,12 +20,18 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var isLoadingLocation: Bool = false // Indicates if location is being fetched
     @Published var locationError: String? // Stores any errors during location fetching
 
+    // Add an explicit call to start updating location in the `init`
     override init() {
-        self.authorizationStatus = locationManager.authorizationStatus // Get initial status
+        self.authorizationStatus = locationManager.authorizationStatus
         super.init()
-        locationManager.delegate = self // Set self as the delegate for location updates
-        locationManager.desiredAccuracy = kCLLocationAccuracyReduced // Use reduced accuracy for general location
-        locationManager.distanceFilter = 100 // Only update if moved 100 meters
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyReduced
+        locationManager.distanceFilter = 100
+        
+        // Start updating location if permission is already granted
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            startUpdatingLocation()
+        }
     }
 
     // Requests "When In Use" location authorization from the user.

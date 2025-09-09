@@ -5,7 +5,6 @@
 //  Created by Umuco Auca on 07/08/2025.
 //
 
-
 import SwiftUI
 
 struct NotificationView: View {
@@ -24,7 +23,7 @@ struct NotificationView: View {
     // Custom date formatter for displaying time and date
     static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "E,h:mma"
+        formatter.dateFormat = "E, h:mma"
         return formatter
     }()
     
@@ -41,7 +40,6 @@ struct NotificationView: View {
                         .padding()
                         .background(Circle().fill(Color(.systemGray6)).frame(width: 44, height: 44))
                 }
-                .foregroundColor(.black)
                 
                 Spacer()
                 
@@ -73,7 +71,7 @@ struct NotificationView: View {
                             Text(tab.rawValue)
                                 .font(.subheadline)
                                 .fontWeight(selectedTab == tab ? .bold : .regular)
-                                .foregroundColor(selectedTab == tab ? .black : .gray)
+                                .foregroundColor(selectedTab == tab ? .orange : .secondary)
                             
                             Rectangle()
                                 .frame(height: 2)
@@ -99,7 +97,7 @@ struct NotificationView: View {
                         LazyVStack(spacing: 0) {
                             if filteredNotifications.isEmpty {
                                 Text("No notifications found.")
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(.secondary)
                                     .padding()
                             } else {
                                 ForEach(filteredNotifications) { notification in
@@ -117,6 +115,7 @@ struct NotificationView: View {
                                         }
                                     
                                     Divider()
+                                        .background(Color(.separator))
                                 }
                             }
                         }
@@ -130,10 +129,10 @@ struct NotificationView: View {
             ActionSheet(
                 title: Text("Notification Options"),
                 buttons: [
-                    .default(Text(selectedTab == .archived ? "Unarchive" : "Archive")) {
+                    .default(Text(selectedNotification?.isArchived == true ? "Unarchive" : "Archive")) {
                         if let notification = selectedNotification {
                             Task {
-                                if selectedTab == .archived {
+                                if notification.isArchived {
                                     await viewModel.unarchiveNotification(notification)
                                 } else {
                                     await viewModel.archiveNotification(notification)
@@ -153,17 +152,23 @@ struct NotificationView: View {
             )
         }
         .onAppear {
-            viewModel.fetchNotifications()
+            Task {
+                await viewModel.cleanUpOldNotifications()
+                viewModel.fetchNotifications()
+            }
         }
+        .background(Color(.systemBackground).edgesIgnoringSafeArea(.all))
     }
     
     // Helper to filter notifications based on the selected tab
     private var filteredNotifications: [Notification] {
         switch selectedTab {
         case .recent:
-            return viewModel.recentNotifications
+            // The ViewModel will now only contain recent notifications here
+            return viewModel.recentNotifications.filter { !$0.isArchived && !$0.isRead }
         case .earlier:
-            return viewModel.earlierNotifications
+            // This case will show read notifications older than 72 hours
+            return viewModel.recentNotifications.filter { !$0.isArchived && $0.isRead }
         case .archived:
             return viewModel.archivedNotifications
         }
@@ -180,7 +185,7 @@ struct NotificationRow: View {
             // Placeholder for the user's profile image
             Circle()
                 .frame(width: 40, height: 40)
-                .foregroundColor(Color(red: .random(in: 0...1), green: .random(in: 0...1), blue: .random(in: 0...1))) // Random color for demonstration
+                .foregroundColor(Color(.systemGray3))
                 .overlay(Text("😎").font(.title))
             
             VStack(alignment: .leading, spacing: 5) {
@@ -188,12 +193,13 @@ struct NotificationRow: View {
                     Text(notification.title)
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
                     Spacer()
                     
                     Text(NotificationView.timeFormatter.string(from: notification.timestamp))
                         .font(.caption)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary)
                 }
                 
                 Text(notification.message)
@@ -204,6 +210,6 @@ struct NotificationRow: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
-        .background(notification.isRead || selectedTab != .recent ? Color.white : Color.gray.opacity(0.1))
+        .background(notification.isRead || selectedTab != .recent ? Color(.systemBackground) : Color(.systemGray5))
     }
 }

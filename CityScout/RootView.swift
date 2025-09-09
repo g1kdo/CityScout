@@ -31,6 +31,8 @@ struct RootView: View {
                 // User is not authenticated, show the login/welcome screen
                 //                ProgressView()
                 //                    .progressViewStyle(CircularProgressViewStyle())
+                
+                WelcomeView()
             }
         }
     }

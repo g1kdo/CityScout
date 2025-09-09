@@ -42,15 +42,18 @@ struct DestinationDetailView: View {
                     )
                 }
                 
-                // Layer 3: The navigation buttons, overlaid on top of everything
-                HeaderNavButtons(
-                              onDismiss: { dismiss() },
-                              onViewOnMap: {
-                                  showOnMapView = true
-                              }
-                          )
-            }
-            .blur(radius: showGalleryOverlay ? 20 : 0) // Dims and blurs the background
+            HeaderNavButtons(
+                isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
+               onDismiss: { dismiss() },
+               onToggleFavorite: {
+                 Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
+                 },
+                onViewOnMap: {
+                showOnMapView = true
+             }
+        )
+        }
+      .blur(radius: showGalleryOverlay ? 20 : 0) // Dims and blurs the background
 
             // --- NEW TOPMOST LAYER FOR GALLERY ---
             // This appears on top of everything when showGalleryOverlay is true.
@@ -66,15 +69,18 @@ struct DestinationDetailView: View {
         .ignoresSafeArea()
         .navigationBarHidden(true)
         .background(Color(.systemGroupedBackground))
+        .onAppear {
+                    favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
+                }
         .fullScreenCover(isPresented: $showBookingSheet) {
             BookingView(destination: destination)
                 .environmentObject(authVM)
                 .environmentObject(bookingVM)
         }
         .fullScreenCover(isPresented: $showOnMapView) {
-                    OnMapView(destination: destination)
-                        .environmentObject(locationManager)
-                }
+            OnMapView(mapType: .destination(destination))
+                .environmentObject(locationManager)
+        }
     }
 }
 
@@ -157,8 +163,10 @@ private struct HeaderImageView: View {
 
 // MARK: - Header Navigation Buttons
 private struct HeaderNavButtons: View {
+    let isFavorite: Bool
     let onDismiss: () -> Void
-    let onViewOnMap: () -> Void // New action for the map button
+    let onToggleFavorite: () -> Void
+    let onViewOnMap: () -> Void
 
     var body: some View {
         VStack {
@@ -173,8 +181,10 @@ private struct HeaderNavButtons: View {
                 
                 // New map button and existing favorite button in a single HStack
                 HStack(spacing: 12) {
-                    HeaderButton(iconName: "map.fill", action: onViewOnMap)
-                        .foregroundColor(.white) // You can customize the color
+                    HeaderButton(iconName: "mappin.and.ellipse", action: onViewOnMap)
+                        .foregroundColor(.white)
+                    HeaderButton(iconName: isFavorite ? "bookmark.fill" : "bookmark", action: onToggleFavorite)
+                        .foregroundColor(isFavorite ? .red : .white)
                     
                 }
             }
@@ -184,6 +194,8 @@ private struct HeaderNavButtons: View {
         }
     }
 }
+
+
 
 
 // MARK: - Info Row View

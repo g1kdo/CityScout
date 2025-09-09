@@ -1,5 +1,5 @@
 {
-  "originHash" : "1022618aed811cac6061a7efd65d2f05e7fc50093b67fb23c7e6aa50d18fb05d",
+  "originHash" : "8df3c0e22cb4b172c9917548d51b5a1dc20db190d4fe00e69ffcfe7b7de5bc63",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/googleads/google-ads-on-device-conversion-ios-sdk",
       "state" : {
-        "revision" : "e15f979c3eaf477d24e5bfec9d87f1d76fbac297",
-        "version" : "2.2.0"
+        "revision" : "a2d0f1f1666de591eb1a811f40b1706f5c63a2ed",
+        "version" : "2.3.0"
       }
     },
     {
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/grpc-binary.git",
       "state" : {
-        "revision" : "cc0001a0cf963aa40501d9c2b181e7fc9fd8ec71",
-        "version" : "1.69.0"
+        "revision" : "75b31c842f664a0f46a2e590a570e370249fd8f6",
+        "version" : "1.69.1"
       }
     },
     {
@@ -132,7 +132,16 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/googlemaps/ios-maps-sdk",
       "state" : {
-        "revision" : "8f10336ab74ed8fa02317d4e956514b81938be12",
+        "revision" : "b54007c9d9e5957561d1e1f1d1af4f4bb3ddceae",
+        "version" : "10.2.0"
+      }
+    },
+    {
+      "identity" : "ios-places-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/googlemaps/ios-places-sdk",
+      "state" : {
+        "revision" : "987497b1eb8a7bbce8cb1d86b2c7cd64d0302452",
         "version" : "10.1.0"
       }
     },
@@ -177,8 +186,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-protobuf.git",
       "state" : {
-        "revision" : "102a647b573f60f73afdce5613a51d71349fe507",
-        "version" : "1.30.0"
+        "revision" : "e3f69fd321d0c9fcdc16fb576a0cdd956675face",
+        "version" : "1.31.0"
       }
     }
   ],

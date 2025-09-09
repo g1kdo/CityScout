@@ -52,7 +52,7 @@ struct SearchBarView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 15)
-        .background(Color(.systemGray6)) // Light gray background
+        .background(Color(.systemGray5)) // Light gray background
         .cornerRadius(12)
         .padding(.horizontal) // Padding from the screen edges
     }
