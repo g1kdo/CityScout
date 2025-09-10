@@ -10,12 +10,14 @@ import SwiftUI
 struct SearchBarView: View {
     @Binding var searchText: String
     let placeholder: String
+    var isMicrophoneActive: Bool
     let onSearchTapped: (() -> Void)? // Optional action for when search icon is tapped
     let onMicrophoneTapped: (() -> Void)? // Optional action for when microphone icon is tapped
 
-    init(searchText: Binding<String>, placeholder: String = "Search Places", onSearchTapped: (() -> Void)? = nil, onMicrophoneTapped: (() -> Void)? = nil) {
+    init(searchText: Binding<String>, placeholder: String = "Search Places", isMicrophoneActive: Bool, onSearchTapped: (() -> Void)? = nil, onMicrophoneTapped: (() -> Void)? = nil) {
         _searchText = searchText
         self.placeholder = placeholder
+        self.isMicrophoneActive = isMicrophoneActive
         self.onSearchTapped = onSearchTapped
         self.onMicrophoneTapped = onMicrophoneTapped
     }
@@ -46,8 +48,8 @@ struct SearchBarView: View {
             Button(action: {
                 onMicrophoneTapped?() // Trigger microphone action
             }) {
-                Image(systemName: "mic.fill")
-                    .foregroundColor(.gray)
+                Image(systemName: isMicrophoneActive ? "mic.fill.badge.plus" : "mic.fill")
+                    .foregroundColor(isMicrophoneActive ? .blue : .gray)
             }
         }
         .padding(.vertical, 12)
@@ -57,5 +59,3 @@ struct SearchBarView: View {
         .padding(.horizontal) // Padding from the screen edges
     }
 }
-
-

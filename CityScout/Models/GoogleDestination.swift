@@ -19,7 +19,6 @@ struct GoogleDestination: Identifiable {
     let latitude: Double?
     let longitude: Double?
     let priceLevel: Int?
-    let description: String?
     let galleryImageUrls: [GMSPlacePhotoMetadata]?
 }
 
@@ -31,8 +30,8 @@ enum AnyDestination: Identifiable {
         switch self {
         case .local(let destination):
             return destination.id ?? UUID().uuidString
-        case .google(let destination, _):
-            return destination.id
+        case .google(let GoogleDestination, _):
+            return GoogleDestination.id
         }
     }
 }

@@ -46,12 +46,7 @@ struct DestinationDetailView: View {
                 isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
                onDismiss: { dismiss() },
                onToggleFavorite: {
-                   Task {
-                       if let userId = authVM.signedInUser?.id {
-                           // Pass the userId to the toggleFavorite method
-                           await favoritesVM.toggleFavorite(destination: .local(destination), for: userId)
-                       }
-                   }
+                 Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
                  },
                 onViewOnMap: {
                 showOnMapView = true

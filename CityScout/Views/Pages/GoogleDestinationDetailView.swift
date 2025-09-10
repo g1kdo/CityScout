@@ -57,18 +57,9 @@ struct GoogleDestinationDetailView: View {
             
             // Layer 3: The header buttons, always on top
             HeaderNavButtons(
-                isFavorite: favoritesVM.isFavorite(destination: .google(googleDestination, sessionToken: nil)),
-                onDismiss: { dismiss() },
-                onToggleFavorite: {
-                    Task {
-                        if let userId = authVM.signedInUser?.id {
-                            // Pass the userId to the toggleFavorite method
-                            await favoritesVM.toggleFavorite(destination: .google(googleDestination, sessionToken: nil), for: userId)
-                        }
-                    }
-                },
-                onViewOnMap: { showOnMapView = true }
-            )
+                               onDismiss: { dismiss() },
+                               onViewOnMap: { showOnMapView = true }
+                           )
             .blur(radius: showGalleryOverlay ? 20 : 0)
 
             // The gallery overlay
@@ -122,9 +113,8 @@ private struct GoogleDetailsCard: View {
             }
 
             // Description section
-            if let description = googleDestination.description {
-                AboutView(description: description, showFullDescription: $showFullDescription)
-            }
+            AboutView(showFullDescription: $showFullDescription)
+
 
             // Website button
             if let websiteURL = googleDestination.websiteURL, let url = URL(string: websiteURL) {
@@ -147,6 +137,8 @@ private struct GoogleInfoRow: View {
     
     var body: some View {
         HStack {
+            DetailInfoRow(icon: "mappin.and.ellipse", text: googleDestination.location, color: .secondary)
+            Spacer()
             if let rating = googleDestination.rating {
                 DetailInfoRow(icon: "star.fill", text: "\(String(format: "%.1f", rating))", color: .yellow)
             }
@@ -155,7 +147,7 @@ private struct GoogleInfoRow: View {
                 if priceLevel <= 0 {
                     DetailInfoRow(icon: "dollarsign", text: "Free", color: .green)
                 } else {
-                    DetailInfoRow(icon: "dollarsign", text: String(repeating: "$", count: priceLevel), color: .green)
+                    DetailInfoRow(icon: "dollarsign", text: "\(String(format: "%.2f", priceLevel))", color: .green)
                 }
             } else {
                 DetailInfoRow(icon: "dollarsign", text: "N/A", color: .secondary)
@@ -212,9 +204,7 @@ private struct GalleryView: View {
         
         // MARK: - Header Navigation Buttons
         private struct HeaderNavButtons: View {
-            let isFavorite: Bool
             let onDismiss: () -> Void
-            let onToggleFavorite: () -> Void
             let onViewOnMap: () -> Void
             
             var body: some View {
@@ -231,8 +221,6 @@ private struct GalleryView: View {
                         HStack(spacing: 12) {
                             HeaderButton(iconName: "mappin.and.ellipse", action: onViewOnMap)
                                 .foregroundColor(.white)
-                            HeaderButton(iconName: isFavorite ? "bookmark.fill" : "bookmark", action: onToggleFavorite)
-                                .foregroundColor(isFavorite ? .red : .white)
                             
                         }
                     }
@@ -265,7 +253,6 @@ private struct GalleryView: View {
         
 // MARK: - About View
 private struct AboutView: View {
-    let description: String?
     @Binding var showFullDescription: Bool
     
     var body: some View {
@@ -288,18 +275,6 @@ private struct AboutView: View {
             .background(Color.blue.opacity(0.1))
             .cornerRadius(10)
             
-            // Original About Destination Section
-//            Text("About Destination").font(.headline)
-//            Text(description ?? "No description available.")
-//                .font(.subheadline).foregroundColor(.secondary)
-//                .lineLimit(showFullDescription ? nil : 3)
-//            
-//            if (description ?? "").count > 120 {
-//                Button(showFullDescription ? "Read Less" : "Read More") {
-//                    withAnimation(.easeInOut) { showFullDescription.toggle() }
-//                }
-//                .foregroundColor(Color(hex: "#FF7029")).font(.subheadline.bold())
-//            }
         }
     }
 }

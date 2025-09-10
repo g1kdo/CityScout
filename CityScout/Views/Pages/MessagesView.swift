@@ -12,6 +12,7 @@ struct MessagesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var viewModel = MessageViewModel()
+    @EnvironmentObject var homeVM: HomeViewModel
 
     @State private var searchText: String = ""
     @State private var isShowingChatView: Bool = false
@@ -60,7 +61,12 @@ struct MessagesView: View {
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
                 
-                SearchBarView(searchText: $searchText, placeholder: "Search for chats & messages")
+                SearchBarView(searchText: $homeVM.searchText, isMicrophoneActive: homeVM.isListeningToSpeech) {
+                    // Action on search tapped
+                } onMicrophoneTapped: {
+                    // Call the new function on your HomeViewModel
+                    homeVM.handleMicrophoneTapped()
+                }
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -117,6 +123,7 @@ struct MessagesView: View {
                     }
                     self.isFindingNewChatPartner = false
                 }
+                .environmentObject(homeVM)
             }
         }
     }

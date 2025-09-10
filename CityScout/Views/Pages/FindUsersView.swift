@@ -12,6 +12,7 @@ struct FindUsersView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var viewModel = MessageViewModel()
+    @EnvironmentObject var homeVM: HomeViewModel
 
     let onUserSelected: (SignedInUser) -> Void
     @State private var searchText: String = ""
@@ -46,7 +47,13 @@ struct FindUsersView: View {
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
                 
-                SearchBarView(searchText: $searchText, placeholder: "Search for users")
+//                SearchBarView(searchText: $searchText, placeholder: "Search for users")
+                SearchBarView(searchText: $homeVM.searchText, isMicrophoneActive: homeVM.isListeningToSpeech) {
+                    // Action on search tapped
+                } onMicrophoneTapped: {
+                    // Call the new function on your HomeViewModel
+                    homeVM.handleMicrophoneTapped()
+                }
                 
                 ScrollView {
                     LazyVStack {

@@ -2,144 +2,159 @@
 //  FavoritesViewModel.swift
 //  CityScout
 //
-//  Created by Umuco Auca on 20/09/2025.
+//  Created by Umuco Auca on 30/07/2025.
 //
+
 
 import SwiftUI
 import FirebaseFirestore
-import GooglePlaces
 
 @MainActor
 class FavoritesViewModel: ObservableObject {
-    @Published var favorites: [Favorite] = []
+    @Published var favorites: [Destination] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-
-    private var favoritesListener: ListenerRegistration?
-    private let db = Firestore.firestore()
-
+    
+    private var userId: String?
+    private var userFavoritesListener: ListenerRegistration?
+    
+    /// Sets up a real-time listener for the user's favorites.
+    /// Call this when the user's authentication state changes.
     func subscribeToFavorites(for userId: String?) {
-        favoritesListener?.remove()
-
+        // Only set up a listener if the user ID has changed.
+        guard self.userId != userId else { return }
+        
+        // Clean up the old listener if it exists.
+        userFavoritesListener?.remove()
+        self.userFavoritesListener = nil
+        self.userId = userId
+        
         guard let userId = userId else {
-            favorites = []
+            // User logged out, clear data.
+            self.favorites = []
             return
         }
 
         isLoading = true
-        let favoritesCollection = db.collection("favorites")
+        errorMessage = nil
+        
+        let userRef = Firestore.firestore().collection("users").document(userId)
 
-        favoritesListener = favoritesCollection
-            .whereField("userId", isEqualTo: userId)
-            .addSnapshotListener { [weak self] querySnapshot, error in
-                guard let self = self else { return }
+        // Set up the listener on the user's document.
+        userFavoritesListener = userRef.addSnapshotListener { [weak self] documentSnapshot, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                self.errorMessage = "Failed to listen for user favorites: \(error.localizedDescription)"
                 self.isLoading = false
-
-                if let error = error {
-                    print("Error fetching favorites: \(error.localizedDescription)")
-                    self.errorMessage = "Failed to load favorites. Please try again later."
-                    return
-                }
-
-                guard let documents = querySnapshot?.documents else {
-                    self.favorites = []
-                    return
-                }
-
-                self.favorites = documents.compactMap { doc -> Favorite? in
-                    try? doc.data(as: Favorite.self)
-                }
+                return
             }
+            
+            // Get the array of favorite destination IDs.
+            guard let favoriteIds = documentSnapshot?.data()?["favorites"] as? [String], !favoriteIds.isEmpty else {
+                self.favorites = []
+                self.isLoading = false
+                return
+            }
+            
+            // Fetch the full destination documents based on the new list of IDs.
+            self.fetchDestinations(for: favoriteIds)
+        }
     }
 
-    // Pass the userId as an explicit parameter here
-    func toggleFavorite(destination: AnyDestination, for userId: String) async {
-        let favoritesCollection = db.collection("favorites")
-        
+    /// Fetches the full destination documents for a given array of IDs.
+    private func fetchDestinations(for ids: [String]) {
+        guard !ids.isEmpty else {
+            self.favorites = []
+            return
+        }
+
+        let destinationRef = Firestore.firestore().collection("destinations")
+        destinationRef.whereField(FieldPath.documentID(), in: ids).getDocuments { [weak self] snapshot, error in
+            guard let self = self else { return }
+            self.isLoading = false
+            
+            if let error = error {
+                self.errorMessage = "Error fetching favorite destinations: \(error.localizedDescription)"
+                return
+            }
+
+            guard let documents = snapshot?.documents else {
+                self.errorMessage = "No matching destination documents found."
+                return
+            }
+            
+            // Decode the fetched documents into Destination objects.
+            self.favorites = documents.compactMap { try? $0.data(as: Destination.self) }
+        }
+    }
+    
+    // MARK: - New and Corrected Methods
+    
+    /// Toggles a destination's favorite status.
+    func toggleFavorite(destination: AnyDestination) async {
         switch destination {
         case .local(let localDestination):
-            guard let destinationId = localDestination.id else { return }
-
-            if isFavorite(destination: destination) {
-                // Remove local favorite
-                await removeFavorite(userId: userId, type: "local", id: destinationId)
-            } else {
-                // Add local favorite
-                let favorite = Favorite(
-                    userId: userId,
-                    destinationType: "local",
-                    localDestination: localDestination,
-                    googlePlaceID: nil,
-                    googlePlaceName: nil,
-                    googlePlaceLocation: nil
-                )
-                await addFavorite(favorite)
-            }
+            await toggleLocalFavorite(destination: localDestination)
         case .google(let googleDestination, _):
-            if isFavorite(destination: destination) {
-                // Remove Google favorite
-                await removeFavorite(userId: userId, type: "google", id: googleDestination.placeID)
-            } else {
-                // Add Google favorite
-                let favorite = Favorite(
-                    userId: userId,
-                    destinationType: "google",
-                    localDestination: nil,
-                    googlePlaceID: googleDestination.placeID,
-                    googlePlaceName: googleDestination.name,
-                    googlePlaceLocation: googleDestination.location
-                )
-                await addFavorite(favorite)
-            }
+            // This is a new method you'll need to create.
+            // It will handle saving Google destinations to a separate Firestore collection or in a different structure.
+            await toggleGoogleFavorite(destination: googleDestination)
         }
     }
-
-    private func addFavorite(_ favorite: Favorite) async {
-        let favoritesCollection = db.collection("favorites")
-        do {
-            try favoritesCollection.addDocument(from: favorite)
-            print("Successfully added a new favorite.")
-        } catch {
-            print("Error adding favorite: \(error.localizedDescription)")
-        }
-    }
-
-    private func removeFavorite(userId: String, type: String, id: String) async {
-        let favoritesCollection = db.collection("favorites")
-        do {
-            let snapshot = try await favoritesCollection
-                .whereField("userId", isEqualTo: userId)
-                .whereField("destinationType", isEqualTo: type)
-                .getDocuments()
-
-            for doc in snapshot.documents {
-                if type == "local", let fav = try? doc.data(as: Favorite.self), fav.localDestination?.id == id {
-                    try await doc.reference.delete()
-                    print("Successfully removed local favorite.")
-                } else if type == "google", let fav = try? doc.data(as: Favorite.self), fav.googlePlaceID == id {
-                    try await doc.reference.delete()
-                    print("Successfully removed Google favorite.")
-                }
-            }
-        } catch {
-            print("Error removing favorite: \(error.localizedDescription)")
-        }
-    }
-
+    
+    /// Checks if an AnyDestination is in the favorites.
     func isFavorite(destination: AnyDestination) -> Bool {
         switch destination {
         case .local(let localDestination):
-            return favorites.contains { fav in
-                fav.destinationType == "local" && fav.localDestination?.id == localDestination.id
-            }
-        case .google(let googleDestination, _):
-            return favorites.contains { fav in
-                fav.destinationType == "google" && fav.googlePlaceID == googleDestination.placeID
-            }
+            return favorites.contains(where: { $0.id == localDestination.id })
+        case .google(let googleDestination):
+            // Assuming you have a way to check if a Google destination is favorited.
+            // For now, this will always return false unless you implement a way to store them.
+            // The `favorites` array only holds `Destination` objects.
+            // This needs a more sophisticated check, e.g., querying Firestore directly.
+            return false
         }
     }
+    
+    private func toggleLocalFavorite(destination: Destination) async {
+        guard let userId = userId, let destinationId = destination.id else {
+            self.errorMessage = "User or destination ID is missing."
+            return
+        }
 
+        let userRef = Firestore.firestore().collection("users").document(userId)
+        
+        do {
+            if self.isFavorite(destination: .local(destination)) {
+                try await userRef.updateData(["favorites": FieldValue.arrayRemove([destinationId])])
+            } else {
+                try await userRef.updateData(["favorites": FieldValue.arrayUnion([destinationId])])
+            }
+        } catch {
+            self.errorMessage = "Failed to toggle favorite: \(error.localizedDescription)"
+            print("Failed to toggle favorite: \(error.localizedDescription)")
+        }
+    }
+    
+    /// This is a placeholder method. You will need to implement the logic for Google Places favorites.
+    /// A common approach is to save them in a separate `googleFavorites` array in the user document.
+    private func toggleGoogleFavorite(destination: GoogleDestination) async {
+        // Implementation for Google Places favorites goes here.
+        // Since your `favorites` array only holds `Destination` objects, you'll need to decide
+        // how to store and retrieve Google destinations.
+        // For example:
+        // 1. Create a `userFavorites` collection.
+        // 2. Each document could have a `type` field ("local" or "google").
+        // 3. Or, you could have a separate `googleFavorites` array in the user document.
+        
+        // This is a complex logic that depends on your backend structure.
+        // For now, let's just log a message.
+        print("Toggling a Google Place favorite. Implementation required.")
+    }
+
+    // Clean up the listener when the view model is deallocated.
     deinit {
-        favoritesListener?.remove()
+        userFavoritesListener?.remove()
     }
 }

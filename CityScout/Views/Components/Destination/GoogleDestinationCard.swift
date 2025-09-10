@@ -15,30 +15,15 @@ struct GoogleDestinationCard: View {
     
     @State private var isFavorite: Bool = false
     
-    let onFavoriteTapped: () -> Void
     let onCardTapped: () -> Void
 
     var body: some View {
         Button(action: onCardTapped) {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topTrailing) {
-                    // This view will now handle its own loading and display
                     GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
                         .frame(height: 100)
-                        .clipped() // Ensure the image stays within its frame
-                    
-                    // The bookmark button
-                    Button(action: onFavoriteTapped) {
-                        Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 16))
-                            .foregroundColor(isFavorite ? .red : .primary)
-                            .shadow(radius: 2)
-                            .padding(8)
-                            .background(.thinMaterial)
-                            .clipShape(Circle())
-                    }
-                    .padding(6)
-                    .buttonStyle(PlainButtonStyle())
+                        .clipped()
                 }
                 .cornerRadius(10)
                 .clipped()
@@ -60,7 +45,6 @@ struct GoogleDestinationCard: View {
                             .lineLimit(1)
                     }
                     
-                    // Display rating and price level from the GoogleDestination object
                     if let rating = googleDestination.rating {
                         HStack(spacing: 4) {
                             Image(systemName: "star.fill")
@@ -70,17 +54,44 @@ struct GoogleDestinationCard: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .font(.caption)
+                                .foregroundColor(.yellow)
+                            Text(String(format: "%.1f", "N/A"))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
+                    // ⚠️ Corrected logic for price level
                     if let priceLevel = googleDestination.priceLevel {
                         HStack(spacing: 4) {
-                            Text(String(repeating: "$", count: priceLevel))
+                            if priceLevel == 0 {
+                                Text("Free")
+                                    .font(.footnote)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.green)
+                            } else {
+                                Text(String(repeating: "$", count: priceLevel))
+                                    .font(.footnote)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(Color(hex: "#FF7029"))
+                                Text("per Person")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            Text("$")
                                 .font(.footnote)
                                 .fontWeight(.bold)
                                 .foregroundColor(Color(hex: "#FF7029"))
-                            Text("per Person")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
+                                Text("N/A")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
                         }
                     }
                 }
