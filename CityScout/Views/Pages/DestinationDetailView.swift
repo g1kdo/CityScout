@@ -1,3 +1,10 @@
+//
+//  DestinationDetailView.swift
+//  CityScout
+//
+//  Created by Umuco Auca on 20/09/2025.
+//
+
 import SwiftUI
 import Kingfisher
 
@@ -46,18 +53,18 @@ struct DestinationDetailView: View {
                     )
                 }
                 
-            HeaderNavButtons(
-                isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
-               onDismiss: { dismiss() },
-               onToggleFavorite: {
-                 Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
-                 },
-                onViewOnMap: {
-                showOnMapView = true
-             }
-        )
-        }
-      .blur(radius: showGalleryOverlay ? 20 : 0)
+                HeaderNavButtons(
+                    isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
+                    onDismiss: { dismiss() },
+                    onToggleFavorite: {
+                    Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
+                    },
+                    onViewOnMap: {
+                    showOnMapView = true
+                }
+                )
+            }
+          .blur(radius: showGalleryOverlay ? 20 : 0)
 
             if showGalleryOverlay {
                 FullScreenGalleryView(
@@ -117,7 +124,7 @@ private struct DetailsCard: View {
                             Text(destination.location).font(.subheadline).foregroundColor(.secondary)
                         }
                         Spacer()
-                       HStack(spacing: -12) {
+                        HStack(spacing: -12) {
                             if let avatars = destination.participantAvatars {
                                 ForEach(avatars.prefix(3), id: \.self) { imageUrl in
                                     AvatarImageView(imageUrl: imageUrl)

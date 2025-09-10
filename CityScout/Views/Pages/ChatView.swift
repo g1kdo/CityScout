@@ -8,7 +8,7 @@
 import SwiftUI
 import Kingfisher
 import AVFoundation
-import PhotosUI // Added the missing import for PhotosUI
+import PhotosUI
 
 struct ChatView: View {
     // FIX: The chat object must be passed into the view.
@@ -25,8 +25,16 @@ struct ChatView: View {
     @State private var selectedImage: UIImage?
     @State private var showingVoiceRecorder = false
     @State private var isShowingReportSheet = false
+    @State private var alertMessage: String = ""
+    @State private var showingAlert = false
     
     @State private var reportReason: String = ""
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+
+    private var isMuted: Bool {
+        guard let userId = authVM.signedInUser?.id, let muted = chat.mutedBy?[userId] else { return false }
+        return muted
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,7 +61,7 @@ struct ChatView: View {
                         .font(.headline)
                         .lineLimit(1)
                     
-                    if let userId = authVM.signedInUser?.id, let muted = chat.mutedBy?[userId], muted {
+                    if isMuted {
                         Text("Conversation Muted")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -75,11 +83,16 @@ struct ChatView: View {
                     Button(action: {
                         Task {
                             if let userId = authVM.signedInUser?.id, let chatId = chat.id {
-                                await viewModel.muteChat(chatId: chatId, forUser: userId)
+                                if isMuted {
+                                    // NEW: Added unmute functionality
+                                    await viewModel.muteChat(chatId: chatId, forUser: userId)
+                                } else {
+                                    await viewModel.muteChat(chatId: chatId, forUser: userId)
+                                }
                             }
                         }
                     }) {
-                        Text("Mute Conversation")
+                        Text(isMuted ? "Unmute Conversation" : "Mute Conversation")
                     }
                     Button("Report User", role: .destructive, action: { isShowingReportSheet = true })
                 } label: {
@@ -113,7 +126,17 @@ struct ChatView: View {
                                 isFromCurrentUser: message.senderId == authVM.signedInUser?.id,
                                 // Pass partner info directly for efficiency
                                 partnerDisplayName: chat.partnerDisplayName,
-                                partnerProfilePictureURL: chat.partnerProfilePictureURL
+                                partnerProfilePictureURL: chat.partnerProfilePictureURL,
+                                onLongPress: {
+                                    // NEW: Long press action to trigger delete
+                                    if let currentUserId = authVM.signedInUser?.id, message.senderId == currentUserId {
+                                        Task {
+                                            if let chatId = chat.id {
+                                                await viewModel.deleteMessage(chatId: chatId, messageId: message.id!)
+                                            }
+                                        }
+                                    }
+                                }
                             )
                             .id(message.id)
                         }
@@ -189,6 +212,7 @@ private struct MessageRow: View {
     // NEW: Partner info is passed in directly to avoid lookups
     let partnerDisplayName: String?
     let partnerProfilePictureURL: URL?
+    let onLongPress: () -> Void
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
@@ -200,6 +224,9 @@ private struct MessageRow: View {
                 messageContent
                 Spacer()
             }
+        }
+        .onLongPressGesture {
+            onLongPress()
         }
     }
     
@@ -312,61 +339,135 @@ private struct MessageInputView: View {
     }
 }
 
-// NEW: Voice Note Player View
-struct VoiceNotePlayerView: View {
+// NEW: This class will handle all audio playback logic.
+// It is an ObservableObject to allow SwiftUI to react to changes.
+private class AudioPlayerManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
+    @Published var isPlaying = false
+    @Published var duration: TimeInterval = 0
+    @Published var currentTime: TimeInterval = 0
+    
+    private var audioPlayer: AVAudioPlayer?
+    private var timer: Timer?
+    
+    func startPlayback(audioData: Data) {
+        do {
+            audioPlayer = try AVAudioPlayer(data: audioData)
+            audioPlayer?.delegate = self
+            audioPlayer?.prepareToPlay()
+            audioPlayer?.play()
+            
+            self.duration = audioPlayer?.duration ?? 0
+            self.isPlaying = true
+            
+            self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                guard let self = self, let player = self.audioPlayer else { return }
+                self.currentTime = player.currentTime
+            }
+        } catch {
+            print("Error initializing audio player: \(error.localizedDescription)")
+        }
+    }
+    
+    func pausePlayback() {
+        audioPlayer?.pause()
+        self.isPlaying = false
+        self.timer?.invalidate()
+        self.timer = nil
+    }
+    
+    func stopPlayback() {
+        audioPlayer?.stop()
+        self.isPlaying = false
+        self.timer?.invalidate()
+        self.timer = nil
+        self.currentTime = 0
+    }
+    
+    // MARK: - AVAudioPlayerDelegate
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        self.stopPlayback()
+    }
+}
+
+// NEW: Voice Note Player View as a struct, using the new manager.
+private struct VoiceNotePlayerView: View {
     let audioUrl: String
     let isFromCurrentUser: Bool
-    @State private var audioPlayer: AVAudioPlayer?
-    @State private var isPlaying = false
     
+    @State private var audioData: Data?
+    @State private var isDownloading = false
+    @StateObject private var audioManager = AudioPlayerManager()
+
     var body: some View {
-        Button(action: {
-            if isPlaying {
-                audioPlayer?.pause()
+        VStack(alignment: .leading, spacing: 4) {
+            if isDownloading {
+                ProgressView("Downloading...")
+                    .progressViewStyle(CircularProgressViewStyle())
             } else {
-                playAudio()
-            }
-        }) {
-            HStack {
-                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .resizable()
-                    .frame(width: 25, height: 25)
-                    .foregroundColor(isFromCurrentUser ? .white : .primary)
+                Button(action: {
+                    if audioManager.isPlaying {
+                        audioManager.pausePlayback()
+                    } else if let data = audioData {
+                        audioManager.startPlayback(audioData: data)
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: audioManager.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                            .resizable()
+                            .frame(width: 20, height: 20)
+                            .foregroundColor(isFromCurrentUser ? .white : .primary)
+                        
+                        Text("Voice Note (\(formattedTime(time: audioManager.duration)))")
+                            .font(.caption)
+                            .foregroundColor(isFromCurrentUser ? .white : .primary)
+                    }
+                }
                 
-                Text("Voice Note")
-                    .foregroundColor(isFromCurrentUser ? .white : .primary)
+                // Progress bar
+                if audioManager.duration > 0 {
+                    ProgressView(value: audioManager.currentTime, total: audioManager.duration)
+                        .progressViewStyle(LinearProgressViewStyle(tint: isFromCurrentUser ? .white : .orange))
+                }
             }
-            .padding(12)
-            .background(isFromCurrentUser ? Color(hex: "#24BAEC") : Color(.systemGray6))
-            .cornerRadius(15)
         }
+        .padding(12)
+        .background(isFromCurrentUser ? Color(hex: "#24BAEC") : Color(.systemGray6))
+        .cornerRadius(15)
         .onAppear {
-            prepareAudioPlayer()
+            if audioData == nil {
+                Task {
+                    await downloadAudioFile()
+                }
+            }
+        }
+        .onDisappear {
+            audioManager.stopPlayback()
         }
     }
     
-    private func prepareAudioPlayer() {
+    private func formattedTime(time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private func downloadAudioFile() async {
         guard let url = URL(string: audioUrl) else { return }
         
-        // This is a simplified approach. In a real app, you would
-        // download the audio file to a temporary location first.
+        isDownloading = true
         do {
-            let data = try Data(contentsOf: url)
-            audioPlayer = try AVAudioPlayer(data: data)
-            audioPlayer?.delegate = nil // You might want to implement a delegate for playback completion
+            let (data, _) = try await URLSession.shared.data(from: url)
+            self.audioData = data
+            print("Audio file downloaded successfully.")
         } catch {
-            print("Error preparing audio player: \(error.localizedDescription)")
+            print("Error downloading audio file: \(error.localizedDescription)")
         }
-    }
-    
-    private func playAudio() {
-        audioPlayer?.play()
-        isPlaying = true
+        isDownloading = false
     }
 }
 
 // NEW: Voice Recorder Button
-struct VoiceRecorderButton: View {
+private struct VoiceRecorderButton: View {
     @Binding var isRecording: Bool
     let onStart: () -> Void
     let onStop: () -> Void
@@ -388,7 +489,7 @@ struct VoiceRecorderButton: View {
 }
 
 // NEW: Report User Sheet
-struct ReportUserSheet: View {
+private struct ReportUserSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var reportReason: String
     let onReport: (String) -> Void

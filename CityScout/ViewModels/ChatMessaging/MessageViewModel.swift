@@ -1,8 +1,8 @@
 //
 //  MessageViewModel.swift
 //  CityScout
-//
-//  Created by Umuco Auca on 20/09/2025.
+// CityScout
+// Created by Umuco Auca on 20/09/2025.
 //
 
 import Foundation
@@ -11,7 +11,6 @@ import FirebaseAuth
 import FirebaseStorage
 import Combine
 import AVFoundation
-
 import PhotosUI
 import SwiftUI
 
@@ -22,8 +21,8 @@ class MessageViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var typingStatus: Set<String> = [] // User IDs of people who are typing
-    @Published var users: [SignedInUser] = [] // NEW: For finding new chat partners
-    @Published var recommendedUsers: [SignedInUser] = [] // NEW: For proximity-based matching
+    @Published var users: [SignedInUser] = [] // For finding new chat partners
+    @Published var recommendedUsers: [SignedInUser] = [] // For proximity-based matching
     
     private var db = Firestore.firestore()
     private var storage = FirebaseStorage.Storage.storage()
@@ -35,6 +34,9 @@ class MessageViewModel: ObservableObject {
     @Published var isRecording = false
     @Published var audioDuration: TimeInterval = 0
     private var recordingTimer: Timer?
+    
+    // NEW: In-memory cache for audio data
+    private var audioCache: [String: Data] = [:]
 
     init() {
         subscribeToChats()
@@ -204,8 +206,28 @@ class MessageViewModel: ObservableObject {
             let downloadUrl = try await storageRef.downloadURL()
             await sendMessage(chatId: chatId, text: nil, audioUrl: downloadUrl.absoluteString, recipientId: recipientId)
         } catch {
-            self.errorMessage = "Failed to upload voice note: \(error.localizedDescription)"
+            self.errorMessage = "Failed to upload voice note: \(error.localizedDescription)";
             print("Error uploading voice note: \(error.localizedDescription)")
+        }
+    }
+    
+    // NEW: Function to download audio and cache it
+    func getAudioData(from urlString: String) async -> Data? {
+        // Check cache first
+        if let cachedData = audioCache[urlString] {
+            return cachedData
+        }
+
+        guard let url = URL(string: urlString) else { return nil }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            // Cache the downloaded data
+            audioCache[urlString] = data
+            return data
+        } catch {
+            print("Error downloading audio file: \(error.localizedDescription)")
+            return nil
         }
     }
     
@@ -289,8 +311,27 @@ class MessageViewModel: ObservableObject {
             self.errorMessage = "Failed to submit report."
         }
     }
-
     
+    // NEW: Delete a message for all users
+    func deleteMessage(chatId: String, messageId: String) async {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            self.errorMessage = "You must be logged in to delete a message."
+            return
+        }
+        
+        let db = Firestore.firestore()
+        let messageRef = db.collection("chats").document(chatId).collection("messages").document(messageId)
+        
+        do {
+            try await messageRef.delete()
+            print("Message \(messageId) deleted successfully.")
+            // Success feedback can be provided here
+        } catch {
+            print("Error deleting message: \(error.localizedDescription)")
+            self.errorMessage = "Failed to delete message."
+        }
+    }
+
     // MARK: - Utility Functions
     
     func markAllMessagesAsRead(chatId: String) async {
@@ -332,8 +373,7 @@ class MessageViewModel: ObservableObject {
                 }
             }
         } catch {
-            print("Error checking for existing chat: \(error.localizedDescription)")
-            self.errorMessage = "Error checking for existing chat."
+            self.errorMessage = "Error checking for existing chat: \(error.localizedDescription)"
             return nil
         }
         
@@ -409,10 +449,6 @@ class MessageViewModel: ObservableObject {
             
             let currentUserInterests = currentUserData["selectedInterests"] as? [String] ?? []
             let currentUserEvents = currentUserData["scheduledEvents"] as? [String] ?? [] // Assuming event IDs are stored here
-            
-            // This is a simplified approach for demonstration. In a real-world app,
-            // this would be a complex, server-side operation (e.g., a Cloud Function).
-            // A Cloud Function can do a more efficient multi-collection query and comparison.
             
             let usersSnapshot = try await db.collection("users").getDocuments()
             
