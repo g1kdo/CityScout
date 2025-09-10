@@ -15,37 +15,19 @@ struct GoogleDestinationCard: View {
     
     @State private var isFavorite: Bool = false
     
-    let onFavoriteTapped: () -> Void
-    // 🆕 Add a new closure to handle the card tap for navigation
     let onCardTapped: () -> Void
 
     var body: some View {
-        // Wrap the entire card in a Button to handle the tap action
         Button(action: onCardTapped) {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topTrailing) {
-                    // The image part of the card
                     GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
                         .frame(height: 100)
-
-                    // The bookmark button
-                    Button(action: onFavoriteTapped) {
-                        Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 16))
-                            .foregroundColor(isFavorite ? .red : .primary)
-                            .shadow(radius: 2)
-                            .padding(8)
-                            .background(.thinMaterial)
-                            .clipShape(Circle())
-                    }
-                    .padding(6)
-                    // ⚠️ IMPORTANT: Prevent this button's tap from triggering the parent Button's action
-                    .buttonStyle(PlainButtonStyle())
+                        .clipped()
                 }
                 .cornerRadius(10)
                 .clipped()
 
-                // A new VStack is added to hold only the text content.
                 VStack(alignment: .leading, spacing: 8) {
                     Text(googleDestination.name)
                         .font(.headline)
@@ -62,7 +44,7 @@ struct GoogleDestinationCard: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
-
+                    
                     if let rating = googleDestination.rating {
                         HStack(spacing: 4) {
                             Image(systemName: "star.fill")
@@ -72,27 +54,53 @@ struct GoogleDestinationCard: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .font(.caption)
+                                .foregroundColor(.yellow)
+                            Text(String(format: "%.1f", "N/A"))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
+                    // ⚠️ Corrected logic for price level
                     if let priceLevel = googleDestination.priceLevel {
                         HStack(spacing: 4) {
-                            Text(String(repeating: "$", count: priceLevel))
+                            if priceLevel == 0 {
+                                Text("Free")
+                                    .font(.footnote)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.green)
+                            } else {
+                                Text(String(repeating: "$", count: priceLevel))
+                                    .font(.footnote)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(Color(hex: "#FF7029"))
+                                Text("per Person")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            Text("$")
                                 .font(.footnote)
                                 .fontWeight(.bold)
                                 .foregroundColor(Color(hex: "#FF7029"))
-                            Text("per Person")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
+                                Text("N/A")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
                         }
                     }
                 }
                 .padding(8)
             }
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(10)
-            .shadow(color: Color.primary.opacity(0.1), radius: 5, x: 0, y: 2)
         }
-        // 🆕 Use .buttonStyle(PlainButtonStyle()) to remove the button's default visual effects
         .buttonStyle(PlainButtonStyle())
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(10)
+        .shadow(color: Color.primary.opacity(0.1), radius: 5, x: 0, y: 2)
     }
 }

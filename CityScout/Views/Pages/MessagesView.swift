@@ -12,6 +12,7 @@ struct MessagesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var viewModel = MessageViewModel()
+    @EnvironmentObject var homeVM: HomeViewModel
 
     @State private var searchText: String = ""
     @State private var isShowingChatView: Bool = false
@@ -62,7 +63,6 @@ struct MessagesView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 15)
                 .background(Color(.secondarySystemGroupedBackground))
-               
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -115,6 +115,7 @@ struct MessagesView: View {
                     }
                     self.isFindingNewChatPartner = false
                 }
+                .environmentObject(homeVM)
             }
         }
     }

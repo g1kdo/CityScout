@@ -51,4 +51,3 @@ struct PopularPlacesView: View {
     }
 }
 
-

@@ -1,8 +1,8 @@
 //
-//  GoogleDestinationDetailView.swift
-//  CityScout
+//  GoogleDestinationDetailView.swift
+//  CityScout
 //
-//  Created by Umuco Auca on 03/09/2025.
+//  Created by Umuco Auca on 03/09/2025.
 //
 
 import SwiftUI
@@ -16,48 +16,53 @@ struct GoogleDestinationDetailView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var favoritesVM = FavoritesViewModel()
     @StateObject private var locationManager = LocationManager()
-    
+
     @State private var showGalleryOverlay = false
     @State private var selectedImageIndex = 0
-    
     @State private var showOnMapView = false
-    
+
     // MARK: - Body
     var body: some View {
         ZStack {
-            // Main ZStack to contain all content layers
-            ZStack {
-                // Layer 1: The full-screen background image, with a vertical offset
-                GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
-                    .offset(y: -200) // Pushes the image up slightly
+            // Layer 1: The non-scrollable header image
+            GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
+                .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height / 2)
+                .clipped()
+                .ignoresSafeArea()
+                .offset(y: -170)
                 
-                // Layer 2: The details card, pushed to the bottom of the screen
-                VStack {
-                    Spacer() // Pushes the content to the bottom
-                    GoogleDetailsCard(
-                        googleDestination: googleDestination,
-                        onImageTapped: { index in
-                            self.selectedImageIndex = index
-                            withAnimation(.easeInOut) {
-                                self.showGalleryOverlay = true
-                            }
+
+            // Layer 2: The scrollable card view
+            ScrollView(.vertical, showsIndicators: false) {
+                // This spacer pushes the card content down, so it starts below the header image
+                Spacer()
+                    .frame(height: UIScreen.main.bounds.height / 2)
+
+                // The details card itself
+                GoogleDetailsCard(
+                    googleDestination: googleDestination,
+                    onImageTapped: { index in
+                        self.selectedImageIndex = index
+                        withAnimation(.easeInOut) {
+                            self.showGalleryOverlay = true
                         }
-                    )
-                }
-                
-                // Layer 3: The header buttons, positioned at the top
-                HeaderNavButtons(
-                    isFavorite: favoritesVM.isFavorite(destination: .google(googleDestination, sessionToken: nil)),
-                    onDismiss: { dismiss() },
-                    onToggleFavorite: {
-                        Task { await favoritesVM.toggleFavorite(destination: .google(googleDestination, sessionToken: nil)) }
-                    },
-                    onViewOnMap: { showOnMapView = true }
+                    }
                 )
+                // This is crucial: it gives the card a solid background as it scrolls over the image.
+                .background(Color(.systemBackground))
+                .clipShape(RoundedCorners(radius: 40, corners: [.topLeft, .topRight]))
             }
-            .blur(radius: showGalleryOverlay ? 20 : 0) // Dims and blurs the background
+            .ignoresSafeArea()
+            .offset(y: -30)
             
-            // --- TOPMOST LAYER FOR GALLERY ---
+            // Layer 3: The header buttons, always on top
+            HeaderNavButtons(
+                               onDismiss: { dismiss() },
+                               onViewOnMap: { showOnMapView = true }
+                           )
+            .blur(radius: showGalleryOverlay ? 20 : 0)
+
+            // The gallery overlay
             if showGalleryOverlay {
                 FullScreenGalleryView(
                     photoMetadata: googleDestination.galleryImageUrls!,
@@ -80,59 +85,49 @@ struct GoogleDestinationDetailView: View {
     }
 }
 
-// MARK: - Corrected Google Details Card
+// MARK: - Google Details Card
 private struct GoogleDetailsCard: View {
     let googleDestination: GoogleDestination
     let onImageTapped: (Int) -> Void
-    
+
     @State private var showFullDescription = false
     @Environment(\.openURL) var openURL
-    
+
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
-                // Header section with name and location
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(googleDestination.name).font(.title2).bold()
-                        Text(googleDestination.location).font(.subheadline).foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    // No participant avatars for Google Destinations
+        VStack(alignment: .leading, spacing: 20) {
+            // Header section with name and location
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(googleDestination.name).font(.title2).bold()
+                    Text(googleDestination.location).font(.subheadline).foregroundColor(.secondary)
                 }
-                
-                // Info row
-                GoogleInfoRow(googleDestination: googleDestination)
-                
-                // Gallery section
-                if let photoMetadata = googleDestination.galleryImageUrls, !photoMetadata.isEmpty {
-                    GalleryView(photoMetadata: photoMetadata, onImageTapped: onImageTapped)
-                }
-                
-                // Description section
-                if let description = googleDestination.description {
-                    AboutView(description: description, showFullDescription: $showFullDescription)
-                }
-                
-                // Website button
-                if let websiteURL = googleDestination.websiteURL, let url = URL(string: websiteURL) {
-                    Link("Visit Website", destination: url)
-                        .font(.headline.bold())
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(hex: "#24BAEC"))
-                        .cornerRadius(16)
-                }
-                
-                // Add some padding to prevent the scroll view from cutting off the bottom content
-                Color.clear.frame(height: 50)
+                Spacer()
             }
-            .padding(24)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedCorners(radius: 40, corners: [.topLeft, .topRight]))
+
+            // Info row
+            GoogleInfoRow(googleDestination: googleDestination)
+
+            // Gallery section
+            if let photoMetadata = googleDestination.galleryImageUrls, !photoMetadata.isEmpty {
+                GalleryView(photoMetadata: photoMetadata, onImageTapped: onImageTapped)
+            }
+
+            // Description section
+            AboutView(showFullDescription: $showFullDescription)
+
+
+            // Website button
+            if let websiteURL = googleDestination.websiteURL, let url = URL(string: websiteURL) {
+                Link("Visit Website", destination: url)
+                    .font(.headline.bold())
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(hex: "#24BAEC"))
+                    .cornerRadius(16)
+            }
         }
-        .frame(height: UIScreen.main.bounds.height * 0.6)
+        .padding(24)
     }
 }
 
@@ -142,6 +137,8 @@ private struct GoogleInfoRow: View {
     
     var body: some View {
         HStack {
+            DetailInfoRow(icon: "mappin.and.ellipse", text: googleDestination.location, color: .secondary)
+            Spacer()
             if let rating = googleDestination.rating {
                 DetailInfoRow(icon: "star.fill", text: "\(String(format: "%.1f", rating))", color: .yellow)
             }
@@ -150,7 +147,7 @@ private struct GoogleInfoRow: View {
                 if priceLevel <= 0 {
                     DetailInfoRow(icon: "dollarsign", text: "Free", color: .green)
                 } else {
-                    DetailInfoRow(icon: "dollarsign", text: String(repeating: "$", count: priceLevel), color: .green)
+                    DetailInfoRow(icon: "dollarsign", text: "\(String(format: "%.2f", priceLevel))", color: .green)
                 }
             } else {
                 DetailInfoRow(icon: "dollarsign", text: "N/A", color: .secondary)
@@ -207,9 +204,7 @@ private struct GalleryView: View {
         
         // MARK: - Header Navigation Buttons
         private struct HeaderNavButtons: View {
-            let isFavorite: Bool
             let onDismiss: () -> Void
-            let onToggleFavorite: () -> Void
             let onViewOnMap: () -> Void
             
             var body: some View {
@@ -226,8 +221,6 @@ private struct GalleryView: View {
                         HStack(spacing: 12) {
                             HeaderButton(iconName: "mappin.and.ellipse", action: onViewOnMap)
                                 .foregroundColor(.white)
-                            HeaderButton(iconName: isFavorite ? "bookmark.fill" : "bookmark", action: onToggleFavorite)
-                                .foregroundColor(isFavorite ? .red : .white)
                             
                         }
                     }
@@ -258,44 +251,33 @@ private struct GalleryView: View {
         
         
         
-        // MARK: - About View
-        private struct AboutView: View {
-            let description: String?
-            @Binding var showFullDescription: Bool
-            
-            var body: some View {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("About Destination").font(.headline)
-                    Text(description ?? "No description available.")
-                        .font(.subheadline).foregroundColor(.secondary)
-                        .lineLimit(showFullDescription ? nil : 3)
-                    
-                    if (description ?? "").count > 120 {
-                        Button(showFullDescription ? "Read Less" : "Read More") {
-                            withAnimation(.easeInOut) { showFullDescription.toggle() }
-                        }
-                        .foregroundColor(Color(hex: "#FF7029")).font(.subheadline.bold())
-                    }
+// MARK: - About View
+private struct AboutView: View {
+    @Binding var showFullDescription: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // New Disclaimer Section
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.blue)
+                    Text("Disclaimer")
+                        .font(.headline)
+                        .foregroundColor(.blue)
                 }
+                Text("This destination is provided by Google Places. It is not part of our official, curated list of partners. We've included it to give you a wider range of options, but please note that booking and other services may not be available directly through our app.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-        }
-        
-        // MARK: - Book Now Button View
-        private struct BookNowButton: View {
-            let action: () -> Void
+            .padding(.vertical, 10)
+            .padding(.horizontal, 15)
+            .background(Color.blue.opacity(0.1))
+            .cornerRadius(10)
             
-            var body: some View {
-                Button(action: action) {
-                    Text("Book Now")
-                        .font(.headline.bold())
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(hex: "#24BAEC"))
-                        .cornerRadius(16)
-                }
-            }
         }
+    }
+}
         
         
         // MARK: - Reusable Helper Components

@@ -96,6 +96,7 @@ struct HomeView: View {
             .navigationDestination(isPresented: $isShowingMessagesView) {
                            MessagesView()
                                .environmentObject(authVM)
+                               .environmentObject(vm)
                        }
         }
     }

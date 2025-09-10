@@ -13,6 +13,7 @@ struct FindUsersView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     // FIX: Use the main message view model, but initialize a local instance if no environment object is provided
     @StateObject private var viewModel = MessageViewModel()
+    @EnvironmentObject var homeVM: HomeViewModel
 
     let onUserSelected: (SignedInUser) -> Void
     @State private var searchText: String = ""
@@ -48,8 +49,12 @@ struct FindUsersView: View {
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
                 
-                // NEW: Search bar now filters the recommended users
-                SearchBarView(searchText: $searchText, placeholder: "Search recommended users")
+
+                SearchBarView(searchText: $searchText, placeholder: "Search recommended users", isMicrophoneActive: homeVM.isListeningToSpeech) {
+                    // Action on search tapped
+                } onMicrophoneTapped: {
+                    homeVM.handleMicrophoneTapped()
+                }
                 
                 ScrollView {
                     LazyVStack {

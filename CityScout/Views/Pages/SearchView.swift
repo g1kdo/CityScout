@@ -3,17 +3,17 @@ import SwiftUI
 struct SearchView: View {
     @EnvironmentObject var homeVM: HomeViewModel
     @EnvironmentObject var favoritesVM: FavoritesViewModel
-    
+
     // State to hold the fully-loaded GoogleDestination
     @State private var selectedGoogleDestination: GoogleDestination? = nil
-    
+
     // Programmatic navigation link
     @State private var isShowingGoogleDetails = false
 
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
-            
+
             VStack(spacing: 20) {
                 SearchHeaderView(title: "Search") {
                     homeVM.searchText = ""
@@ -22,13 +22,14 @@ struct SearchView: View {
                     }
                 }
                 .padding(.top, 10)
-                
-                SearchBarView(searchText: $homeVM.searchText) {
+
+                SearchBarView(searchText: $homeVM.searchText, isMicrophoneActive: homeVM.isListeningToSpeech) {
                     // Action on search tapped
                 } onMicrophoneTapped: {
-                    print("Microphone tapped!")
+                    // Call the new function on your HomeViewModel
+                    homeVM.handleMicrophoneTapped()
                 }
-                
+
                 searchContent
             }
         }
@@ -36,7 +37,6 @@ struct SearchView: View {
         .onDisappear {
             homeVM.searchText = ""
         }
-        // This is the new programmatic navigation link
         .navigationDestination(isPresented: $isShowingGoogleDetails) {
             if let destination = selectedGoogleDestination {
                 GoogleDestinationDetailView(googleDestination: destination)
@@ -94,11 +94,11 @@ struct SearchView: View {
                             // This ensures the favorite toggle button is the only other tappable element
                             GoogleDestinationCard(
                                 googleDestination: googleDestination,
-                                onFavoriteTapped: {
-                                    Task {
-                                        await favoritesVM.toggleFavorite(destination: anyDestination)
-                                    }
-                                },
+//                                onFavoriteTapped: {
+//                                    Task {
+//                                        await favoritesVM.toggleFavorite(destination: anyDestination)
+//                                    }
+//                                },
                                 onCardTapped: {
                                     guard let sessionToken = sessionToken else { return }
                                     
