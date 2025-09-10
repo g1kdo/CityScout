@@ -58,7 +58,11 @@ struct MessagesView: View {
                     }
                     .padding(.horizontal)
                     
-                    SearchBarView(searchText: $searchText, placeholder: "Search for chats & messages")
+                    SearchBarView(searchText: $searchText, placeholder: "Search for chats & messages", isMicrophoneActive: homeVM.isListeningToSpeech) {
+                        // Action on search tapped
+                    } onMicrophoneTapped: {
+                        homeVM.handleMicrophoneTapped()
+                    }
                 }
                 .padding(.top, 10)
                 .padding(.bottom, 15)
