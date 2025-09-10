@@ -1,3 +1,10 @@
+//
+//  DestinationDetailView.swift
+//  CityScout
+//
+//  Created by Umuco Auca on 20/09/2025.
+//
+
 import SwiftUI
 import Kingfisher
 
@@ -9,54 +16,56 @@ struct DestinationDetailView: View {
     @StateObject private var bookingVM = BookingViewModel()
     @StateObject private var favoritesVM = FavoritesViewModel()
     @StateObject private var locationManager = LocationManager()
+    
+    // NEW: We will use the main MessageViewModel to start a chat
+    @EnvironmentObject var messageVM: MessageViewModel
 
     @State private var showBookingSheet = false
-    
-    // --- STATE VARIABLES FOR GALLERY ---
     @State private var showGalleryOverlay = false
     @State private var selectedImageIndex = 0
     @State private var showOnMapView = false
+    
+    // NEW: State to trigger navigation to the ChatView
+    @State private var isShowingFacilitatorChat: Bool = false
+    @State private var facilitatorChat: Chat?
 
     // MARK: - Body
     var body: some View {
         ZStack {
-            // This ZStack contains the main page content.
             ZStack {
-                // Layer 1: The full-screen background image
                 HeaderImageView(imageUrl: destination.imageUrl)
                     .offset(y: -200)
                 
-                // Layer 2: The details card and button, pushed to the bottom
                 VStack {
                     Spacer()
+                    // Fix: Passing the new @Binding properties to DetailsCard
                     DetailsCard(
                         destination: destination,
                         onBookNow: { showBookingSheet = true },
                         onImageTapped: { index in
-                            // This closure is called from the GalleryView when a thumbnail is tapped.
                             self.selectedImageIndex = index
                             withAnimation(.easeInOut) {
                                 self.showGalleryOverlay = true
                             }
-                        }
+                        },
+                        isShowingFacilitatorChat: $isShowingFacilitatorChat,
+                        facilitatorChat: $facilitatorChat
                     )
                 }
                 
-            HeaderNavButtons(
-                isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
-               onDismiss: { dismiss() },
-               onToggleFavorite: {
-                 Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
-                 },
-                onViewOnMap: {
-                showOnMapView = true
-             }
-        )
-        }
-      .blur(radius: showGalleryOverlay ? 20 : 0) // Dims and blurs the background
+                HeaderNavButtons(
+                    isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
+                    onDismiss: { dismiss() },
+                    onToggleFavorite: {
+                    Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
+                    },
+                    onViewOnMap: {
+                    showOnMapView = true
+                }
+                )
+            }
+          .blur(radius: showGalleryOverlay ? 20 : 0)
 
-            // --- NEW TOPMOST LAYER FOR GALLERY ---
-            // This appears on top of everything when showGalleryOverlay is true.
             if showGalleryOverlay {
                 FullScreenGalleryView(
                     imageUrls: destination.galleryImageUrls ?? [],
@@ -70,8 +79,8 @@ struct DestinationDetailView: View {
         .navigationBarHidden(true)
         .background(Color(.systemGroupedBackground))
         .onAppear {
-                    favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
-                }
+            favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
+        }
         .fullScreenCover(isPresented: $showBookingSheet) {
             BookingView(destination: destination)
                 .environmentObject(authVM)
@@ -81,6 +90,12 @@ struct DestinationDetailView: View {
             OnMapView(mapType: .destination(destination))
                 .environmentObject(locationManager)
         }
+        // NEW: Navigation to the facilitator chat
+        .navigationDestination(isPresented: $isShowingFacilitatorChat) {
+            if let chat = facilitatorChat {
+                ChatView(chat: chat)
+            }
+        }
     }
 }
 
@@ -88,10 +103,14 @@ struct DestinationDetailView: View {
 private struct DetailsCard: View {
     let destination: Destination
     let onBookNow: () -> Void
-    // New closure to handle thumbnail taps
     let onImageTapped: (Int) -> Void
     
     @State private var showFullDescription = false
+    // NEW: Environment object to access the message view model
+    @EnvironmentObject var messageVM: MessageViewModel
+    @EnvironmentObject var authVM: AuthenticationViewModel
+    @Binding var isShowingFacilitatorChat: Bool
+    @Binding var facilitatorChat: Chat?
 
     var body: some View {
         GeometryReader { geometry in
@@ -105,19 +124,19 @@ private struct DetailsCard: View {
                             Text(destination.location).font(.subheadline).foregroundColor(.secondary)
                         }
                         Spacer()
-                       HStack(spacing: -12) {
+                        HStack(spacing: -12) {
                             if let avatars = destination.participantAvatars {
                                 ForEach(avatars.prefix(3), id: \.self) { imageUrl in
                                     AvatarImageView(imageUrl: imageUrl)
                                         .frame(width: 50, height: 50)
                                         .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2)) // Use adaptive background for stroke
+                                        .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
                                 }
                                 if avatars.count > 3 {
                                     Text("+\(avatars.count - 3)")
                                         .font(.caption)
                                         .frame(width: 32, height: 32)
-                                        .background(Color.secondary.opacity(0.3)) // Replaced .gray
+                                        .background(Color.secondary.opacity(0.3))
                                         .clipShape(Circle())
                                 }
                             }
@@ -127,7 +146,6 @@ private struct DetailsCard: View {
 
                     InfoRow(destination: destination)
 
-                    // The GalleryView now receives the onImageTapped closure.
                     if let imageUrls = destination.galleryImageUrls, !imageUrls.isEmpty {
                         GalleryView(imageUrls: imageUrls, onImageTapped: onImageTapped)
                     }
@@ -135,7 +153,26 @@ private struct DetailsCard: View {
                     AboutView(description: destination.description, showFullDescription: $showFullDescription)
                     
                     BookNowButton(action: onBookNow)
-                        .padding(.bottom, 150)
+                    
+                    // NEW: Contact Facilitator Button
+                    if let facilitatorId = destination.partnerId, facilitatorId != authVM.signedInUser?.id {
+                        Button(action: {
+                            Task {
+                                self.facilitatorChat = await messageVM.startNewChat(with: facilitatorId)
+                                self.isShowingFacilitatorChat = true
+                            }
+                        }) {
+                            Text("Contact Facilitator")
+                                .font(.headline.bold())
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .cornerRadius(16)
+                        }
+                    }
+                    
+                    Color.clear.frame(height: 50)
                 }
                 .padding(24)
                 .background(Color(.systemBackground))
@@ -179,7 +216,6 @@ private struct HeaderNavButtons: View {
                 
                 Spacer()
                 
-                // New map button and existing favorite button in a single HStack
                 HStack(spacing: 12) {
                     HeaderButton(iconName: "mappin.and.ellipse", action: onViewOnMap)
                         .foregroundColor(.white)
@@ -219,7 +255,6 @@ private struct InfoRow: View {
 // MARK: - Gallery View
 private struct GalleryView: View {
     let imageUrls: [String]
-    // New closure property
     let onImageTapped: (Int) -> Void
 
     var body: some View {
@@ -229,10 +264,8 @@ private struct GalleryView: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    // We now iterate over the indices to pass the correct index on tap.
                     ForEach(imageUrls.indices, id: \.self) { index in
                         Button {
-                            // Call the closure with the index of the tapped image.
                             onImageTapped(index)
                         } label: {
                             ZStack {
@@ -331,15 +364,12 @@ private struct RoundedCorners: Shape {
 }
 
 // --- UPDATED HELPER VIEW ---
-// This is the full-screen gallery view with the corrected dismiss logic.
 private struct FullScreenGalleryView: View {
     let imageUrls: [String]
     @Binding var isPresented: Bool
     @State var selectedImageIndex: Int
 
     var body: some View {
-        // --- CHANGE IS HERE ---
-        // The dismiss gesture is now on the ZStack itself.
         ZStack {
             Color.black.opacity(0.8).ignoresSafeArea()
 
@@ -349,9 +379,6 @@ private struct FullScreenGalleryView: View {
                         .resizable()
                         .scaledToFit()
                         .tag(index)
-                        // This empty gesture on the image itself
-                        // prevents the ZStack's gesture from firing
-                        // when the user taps or swipes the image.
                         .onTapGesture {}
                 }
             }

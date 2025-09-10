@@ -11,17 +11,19 @@ import Kingfisher
 struct FindUsersView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
+    // FIX: Use the main message view model, but initialize a local instance if no environment object is provided
     @StateObject private var viewModel = MessageViewModel()
     @EnvironmentObject var homeVM: HomeViewModel
 
     let onUserSelected: (SignedInUser) -> Void
     @State private var searchText: String = ""
     
+    // FIX: Filter the recommended users list instead of all users.
     var filteredUsers: [SignedInUser] {
         if searchText.isEmpty {
-            return viewModel.users
+            return viewModel.recommendedUsers
         } else {
-            return viewModel.users.filter { user in
+            return viewModel.recommendedUsers.filter { user in
                 user.displayName?.localizedCaseInsensitiveContains(searchText) ?? false ||
                 user.email.localizedCaseInsensitiveContains(searchText)
             }
@@ -47,18 +49,17 @@ struct FindUsersView: View {
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
                 
-//                SearchBarView(searchText: $searchText, placeholder: "Search for users")
-                SearchBarView(searchText: $homeVM.searchText, placeholder: "Search recommended users", isMicrophoneActive: homeVM.isListeningToSpeech) {
+
+                SearchBarView(searchText: $searchText, placeholder: "Search recommended users", isMicrophoneActive: homeVM.isListeningToSpeech) {
                     // Action on search tapped
                 } onMicrophoneTapped: {
-                    // Call the new function on your HomeViewModel
                     homeVM.handleMicrophoneTapped()
                 }
                 
                 ScrollView {
                     LazyVStack {
                         if viewModel.isLoading {
-                            ProgressView("Loading users...")
+                            ProgressView("Finding users...")
                                 .padding()
                         } else if let errorMessage = viewModel.errorMessage {
                             Text(errorMessage)
@@ -69,15 +70,19 @@ struct FindUsersView: View {
                                 .foregroundColor(.secondary)
                                 .padding()
                         } else if filteredUsers.isEmpty {
-                             Text("No other users found.")
+                             Text("No users recommended based on your interests.")
                                 .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
                                 .padding()
                         } else {
-                            ForEach(filteredUsers) { user in
-                                UserRow(user: user)
-                                    .onTapGesture {
-                                        onUserSelected(user)
-                                    }
+                            // NEW: Section for Recommended Users
+                            Section(header: Text("Recommended Users").font(.subheadline).foregroundColor(.secondary).padding(.leading)) {
+                                ForEach(filteredUsers) { user in
+                                    UserRow(user: user)
+                                        .onTapGesture {
+                                            onUserSelected(user)
+                                        }
+                                }
                             }
                         }
                     }
@@ -87,7 +92,8 @@ struct FindUsersView: View {
             .navigationBarHidden(true)
             .onAppear {
                 Task {
-                    await viewModel.fetchUsers()
+                    // FIX: Call the new function to fetch recommended users
+                    await viewModel.fetchRecommendedUsers()
                 }
             }
         }
@@ -120,4 +126,3 @@ private struct UserRow: View {
         .padding(.vertical, 10)
     }
 }
-

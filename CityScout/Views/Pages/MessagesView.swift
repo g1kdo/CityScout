@@ -17,7 +17,6 @@ struct MessagesView: View {
     @State private var searchText: String = ""
     @State private var isShowingChatView: Bool = false
     @State private var selectedChat: Chat?
-    // FIX: State to present the new FindUsersView
     @State private var isFindingNewChatPartner: Bool = false
 
     var filteredChats: [Chat] {
@@ -25,9 +24,8 @@ struct MessagesView: View {
             return viewModel.chats
         } else {
             return viewModel.chats.filter { chat in
-                chat.partnerDisplayName.localizedCaseInsensitiveContains(searchText) ||
-                // FIX: Added optional chaining to safely access lastMessage.text
-                chat.lastMessage?.text.localizedCaseInsensitiveContains(searchText) ?? false
+                (chat.partnerDisplayName ?? "").localizedCaseInsensitiveContains(searchText) ||
+                (chat.lastMessage?.text ?? "").localizedCaseInsensitiveContains(searchText)
             }
         }
     }
@@ -35,38 +33,36 @@ struct MessagesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Header
-                HStack(spacing: 15) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "chevron.left")
-                            .font(.title2)
-                            .foregroundColor(.primary)
+                // Main Header and Search Bar
+                VStack(spacing: 15) {
+                    HStack(spacing: 15) {
+                        Button(action: { dismiss() }) {
+                            Image(systemName: "chevron.left")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                        }
+
+                        Text("Messages")
+                            .font(.headline)
+                            .fontWeight(.bold)
+
+                        Spacer()
+
+                        Button(action: {
+                            self.isFindingNewChatPartner = true
+                        }) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                        }
                     }
-
-                    Text("Messages")
-                        .font(.headline)
-                        .fontWeight(.bold)
-
-                    Spacer()
-
-                    // FIX: New button to initiate a new conversation
-                    Button(action: {
-                        self.isFindingNewChatPartner = true
-                    }) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.primary)
-                    }
+                    .padding(.horizontal)
+                    
+                    SearchBarView(searchText: $searchText, placeholder: "Search for chats & messages")
                 }
-                .padding()
+                .padding(.top, 10)
+                .padding(.bottom, 15)
                 .background(Color(.secondarySystemGroupedBackground))
-                
-//                SearchBarView(searchText: $homeVM.searchText, isMicrophoneActive: homeVM.isListeningToSpeech) {
-//                    // Action on search tapped
-//                } onMicrophoneTapped: {
-//                    // Call the new function on your HomeViewModel
-//                    homeVM.handleMicrophoneTapped()
-//                }
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -96,6 +92,7 @@ struct MessagesView: View {
                         }
                     }
                 }
+                .background(Color(.systemGroupedBackground))
             }
             .navigationBarHidden(true)
             .onAppear {
@@ -108,17 +105,12 @@ struct MessagesView: View {
                         .environmentObject(authVM)
                 }
             }
-            // FIX: New fullScreenCover for finding users
             .fullScreenCover(isPresented: $isFindingNewChatPartner) {
                 FindUsersView { user in
-                    // This closure is called when a user is selected
                     Task {
-                        if let userId = authVM.signedInUser?.id, let recipientId = user.id {
-                            let chatId = await viewModel.startNewChat(with: recipientId)
-                            if !chatId.isEmpty {
-                                self.selectedChat = viewModel.chats.first(where: { $0.id == chatId })
-                                self.isShowingChatView = true
-                            }
+                        self.selectedChat = await viewModel.startNewChat(with: user.id!)
+                        if self.selectedChat != nil {
+                            self.isShowingChatView = true
                         }
                     }
                     self.isFindingNewChatPartner = false
@@ -144,11 +136,10 @@ private struct ChatRow: View {
             
             VStack(alignment: .leading) {
                 HStack {
-                    Text(chat.partnerDisplayName)
+                    Text(chat.partnerDisplayName ?? "Unknown User")
                         .font(.headline)
                         .lineLimit(1)
                     Spacer()
-                    // FIX: Get unread count from the map for the current user
                     if let userId = authVM.signedInUser?.id, let unreadCount = chat.unreadCount?[userId], unreadCount > 0 {
                         Text("\(unreadCount)")
                             .font(.caption2).bold()
@@ -156,11 +147,10 @@ private struct ChatRow: View {
                             .padding(8)
                             .background(Circle().fill(Color.red))
                     }
-                    Text(formattedTime(from: chat.lastMessage?.timestamp.dateValue() ?? Date()))
+                    Text(formattedTime(from: chat.lastUpdated?.dateValue() ?? Date()))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
-                // FIX: Added optional chaining and a default value for lastMessage
                 Text(chat.lastMessage?.text ?? "No messages yet.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -178,3 +168,4 @@ private struct ChatRow: View {
         return formatter.string(from: date)
     }
 }
+
