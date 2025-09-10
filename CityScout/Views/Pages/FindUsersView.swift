@@ -48,7 +48,7 @@ struct FindUsersView: View {
                 .background(Color(.secondarySystemGroupedBackground))
                 
 //                SearchBarView(searchText: $searchText, placeholder: "Search for users")
-                SearchBarView(searchText: $homeVM.searchText, isMicrophoneActive: homeVM.isListeningToSpeech) {
+                SearchBarView(searchText: $homeVM.searchText, placeholder: "Search recommended users", isMicrophoneActive: homeVM.isListeningToSpeech) {
                     // Action on search tapped
                 } onMicrophoneTapped: {
                     // Call the new function on your HomeViewModel

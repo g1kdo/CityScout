@@ -61,12 +61,12 @@ struct MessagesView: View {
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
                 
-                SearchBarView(searchText: $homeVM.searchText, isMicrophoneActive: homeVM.isListeningToSpeech) {
-                    // Action on search tapped
-                } onMicrophoneTapped: {
-                    // Call the new function on your HomeViewModel
-                    homeVM.handleMicrophoneTapped()
-                }
+//                SearchBarView(searchText: $homeVM.searchText, isMicrophoneActive: homeVM.isListeningToSpeech) {
+//                    // Action on search tapped
+//                } onMicrophoneTapped: {
+//                    // Call the new function on your HomeViewModel
+//                    homeVM.handleMicrophoneTapped()
+//                }
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
