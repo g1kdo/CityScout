@@ -181,3 +181,80 @@ exports.updateDestinationRating = functions.firestore
             console.error("Transaction failed: ", error);
         });
     });
+
+// A Cloud Function that handles user deletion
+exports.onUserDelete = functions.auth.user().onDelete(async (user) => {
+    try {
+        const userId = user.uid;
+
+        // 1. Anonymize reviews by this user
+        const reviewsRef = db.collection("reviews").where("authorId", "==", userId);
+        const reviewsSnapshot = await reviewsRef.get();
+        const reviewBatch = db.batch();
+        reviewsSnapshot.forEach((doc) => {
+            const reviewRef = doc.ref;
+            reviewBatch.update(reviewRef, {
+                authorId: null,
+                authorDisplayName: "Anonymous",
+                authorProfilePictureURL: null,
+            });
+        });
+        await reviewBatch.commit();
+        console.log(`Anonymized all reviews for user: ${userId}`);
+
+        // 2. Anonymize chat messages sent by this user
+        const chatsRef = db.collection("chats");
+        const chatsSnapshot = await chatsRef.where("members", "array-contains", userId).get();
+        const chatUpdatePromises = [];
+        for (const chatDoc of chatsSnapshot.docs) {
+            const chatId = chatDoc.id;
+            const messagesRef = chatsRef.doc(chatId).collection("messages").where("senderId", "==", userId);
+            const messagesSnapshot = await messagesRef.get();
+            const messageBatch = db.batch();
+            messagesSnapshot.forEach((doc) => {
+                const messageRef = doc.ref;
+                messageBatch.update(messageRef, {
+                    senderId: null,
+                });
+            });
+            chatUpdatePromises.push(messageBatch.commit());
+        }
+        await Promise.all(chatUpdatePromises);
+        console.log(`Anonymized all chat messages for user: ${userId}`);
+
+        // 3. Anonymize booking requests made by this user
+        const bookingsRef = db.collection("bookings").where("userId", "==", userId);
+        const bookingsSnapshot = await bookingsRef.get();
+        const bookingBatch = db.batch();
+        bookingsSnapshot.forEach((doc) => {
+            const bookingRef = doc.ref;
+            bookingBatch.update(bookingRef, {
+                userId: null,
+            });
+        });
+        await bookingBatch.commit();
+        console.log(`Anonymized all booking requests for user: ${userId}`);
+
+        // 4. Delete the user's profile document
+        const userDocRef = db.collection("users").doc(userId);
+        await userDocRef.delete();
+        console.log(`Deleted user document for user: ${userId}`);
+
+        // 5. Delete the user's profile picture from Firebase Storage
+        if (user.photoURL) {
+            const fileRef = storage.bucket().file(`profile_pictures/${userId}`);
+            try {
+                await fileRef.delete();
+                console.log(`Deleted profile picture for user: ${userId}`);
+            } catch (error) {
+                // Handle cases where the file might not exist, but don't stop the function.
+                console.warn(`Could not delete profile picture for user: ${userId}, file might not exist. Error: ${error.message}`);
+            }
+        }
+        
+        return null;
+    } catch (error) {
+        console.error("Error handling user deletion:", error);
+        return null;
+    }
+});

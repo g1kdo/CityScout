@@ -18,8 +18,7 @@ class ReviewViewModel: ObservableObject {
     private let usersCollection = "users"
     
     @Published var isPerformingInitialFetch = true
-    
-    // New property to hold a reference to HomeViewModel
+
     private let homeViewModel: HomeViewModel
     
     struct Review: Identifiable, Codable, Equatable {
@@ -41,63 +40,10 @@ class ReviewViewModel: ObservableObject {
         }
     }
 
-    struct Destination: Identifiable, Codable, Equatable, Hashable {
-        @DocumentID var id: String?
-        let name: String
-        let imageUrl: String
-        let rating: Double
-        let location: String
-        let participantAvatars: [String]?
-        let description: String?
-        let price: Double
-        let galleryImageUrls: [String]?
-        let latitude: Double?
-        let longitude: Double?
-        
-        let partnerId: String?
-        let categories: [String]
-    }
-
     // Update init to accept HomeViewModel
     init(homeViewModel: HomeViewModel) {
         self.homeViewModel = homeViewModel
         fetchReviews()
-    }
-    
-    func fetchDestinationSuggestions(query: String) {
-        self.destinationSuggestions = []
-        self.destinationSearchError = nil
-        self.isSearchingDestinations = true
-        
-        guard !query.isEmpty else {
-            self.isSearchingDestinations = false
-            return
-        }
-
-        let capitalizedQuery = query.capitalized
-        
-        db.collection(destinationsCollection)
-            .whereField("name", isGreaterThanOrEqualTo: capitalizedQuery)
-            .whereField("name", isLessThanOrEqualTo: capitalizedQuery + "\u{f8ff}")
-            .limit(to: 5)
-            .getDocuments { [weak self] snapshot, error in
-                guard let self = self else { return }
-                self.isSearchingDestinations = false
-                
-                if let error = error {
-                    self.destinationSearchError = "Error searching destinations: \(error.localizedDescription)"
-                    return
-                }
-                
-                guard let documents = snapshot?.documents else {
-                    self.destinationSuggestions = []
-                    return
-                }
-                
-                self.destinationSuggestions = documents.compactMap { doc -> Destination? in
-                    try? doc.data(as: Destination.self)
-                }
-            }
     }
 
     func fetchReviews() {
@@ -185,68 +131,110 @@ class ReviewViewModel: ObservableObject {
     
     // MARK: - New Function to react to a review
     func reactToReview(review: Review, userId: String, reaction: String) async {
-        guard let reviewId = review.id else { return }
-        
-        let reviewRef = db.collection(reviewsCollection).document(reviewId)
-        
-        do {
-            // Use a transaction to safely update the counts
-            try await db.runTransaction { (transaction, errorPointer) -> Any? in
-                let reviewDoc: DocumentSnapshot
-                do {
-                    reviewDoc = try transaction.getDocument(reviewRef)
-                } catch let fetchError as NSError {
-                    errorPointer?.pointee = fetchError
-                    return nil
-                }
-                
-                guard let reviewData = reviewDoc.data(),
-                      var currentAgrees = reviewData["agrees"] as? Int,
-                      var currentDisagrees = reviewData["disagrees"] as? Int,
-                      var reactedUsers = reviewData["reactedUsers"] as? [String: String] else {
-                    return nil
-                }
-                
-                let existingReaction = reactedUsers[userId]
-                
-                // Logic to update counts based on new and existing reactions
-                if existingReaction == reaction {
-                    // User is un-reacting
-                    if reaction == "agree" {
-                        currentAgrees -= 1
+            guard let reviewId = review.id else { return }
+            let docRef = db.collection(reviewsCollection).document(reviewId)
+
+            do {
+                try await db.runTransaction({ (transaction, errorPointer) -> Any? in
+                    let document: DocumentSnapshot
+                    do {
+                        document = try transaction.getDocument(docRef)
+                    } catch let fetchError as NSError {
+                        errorPointer?.pointee = fetchError
+                        return nil
+                    }
+
+                    guard let oldReview = try? document.data(as: Review.self) else {
+                        let error = NSError(domain: "AppError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unable to retrieve review data from snapshot."])
+                        errorPointer?.pointee = error
+                        return nil
+                    }
+
+                    var newAgrees = oldReview.agrees
+                    var newDisagrees = oldReview.disagrees
+                    var newReactedUsers = oldReview.reactedUsers
+
+                    let oldReaction = newReactedUsers[userId]
+
+                    if oldReaction == reaction {
+                        // User is un-reacting
+                        if reaction == "agree" {
+                            newAgrees -= 1
+                        } else if reaction == "disagree" {
+                            newDisagrees -= 1
+                        }
+                        newReactedUsers.removeValue(forKey: userId)
+                    } else if let oldReaction = oldReaction {
+                        // User is changing their reaction
+                        if oldReaction == "agree" {
+                            newAgrees -= 1
+                        } else if oldReaction == "disagree" {
+                            newDisagrees -= 1
+                        }
+                        if reaction == "agree" {
+                            newAgrees += 1
+                        } else if reaction == "disagree" {
+                            newDisagrees += 1
+                        }
+                        newReactedUsers[userId] = reaction
                     } else {
-                        currentDisagrees -= 1
+                        // User is adding a new reaction
+                        if reaction == "agree" {
+                            newAgrees += 1
+                        } else if reaction == "disagree" {
+                            newDisagrees += 1
+                        }
+                        newReactedUsers[userId] = reaction
                     }
-                    reactedUsers.removeValue(forKey: userId)
-                } else {
-                    // User is changing reaction or adding a new one
-                    if existingReaction == "agree" {
-                        currentAgrees -= 1
-                    } else if existingReaction == "disagree" {
-                        currentDisagrees -= 1
-                    }
-                    if reaction == "agree" {
-                        currentAgrees += 1
-                    } else {
-                        currentDisagrees += 1
-                    }
-                    reactedUsers[userId] = reaction
-                }
-                
-                // Update the document in the transaction
-                transaction.updateData([
-                    "agrees": currentAgrees,
-                    "disagrees": currentDisagrees,
-                    "reactedUsers": reactedUsers
-                ], forDocument: reviewRef)
-                
-                return nil
+
+                    // After transaction, send a notification to the review author
+                                   // and the user who reacted (if they haven't already reacted)
+                                   if oldReaction != reaction {
+                                       
+                                       Task {
+                                                              if let destination = try? await self.db.collection("destinations").document(review.destinationId).getDocument(as: Destination.self) {
+                                                                  let weight: Double = (reaction == "agree") ? 2.0 : -1.0
+                                                                  await self.homeViewModel.updateInterestScores(for: userId, categories: destination.categories, with: weight)
+                                                                  await self.homeViewModel.logUserAction(userId: userId, destinationId: review.destinationId, actionType: "reaction", metadata: ["reaction": reaction])
+                                                              }
+                                                          }
+                                       // Fetch the user's display name for the notification
+                                       let userDoc = try? transaction.getDocument(self.db.collection(self.usersCollection).document(userId))
+                                       let userName = userDoc?.data()?["displayName"] as? String ?? "A user"
+
+                                       // Notify the review author
+                                       let authorNotificationData: [String: Any] = [
+                                           "title": "New Reaction on Your Review",
+                                           "message": "\(userName) reacted with '\(reaction)' to your review on \(oldReview.destinationName).",
+                                           "timestamp": FieldValue.serverTimestamp(),
+                                           "isRead": false,
+                                           "isArchived": false,
+                                           "sourceUserId": userId
+                                       ]
+                                       let authorNotifRef = self.db.collection(self.usersCollection).document(oldReview.authorId).collection("notifications")
+                                       _ = transaction.setData(authorNotificationData, forDocument: authorNotifRef.document())
+
+                                       // Notify the user who reacted
+                                       let reactNotificationData: [String: Any] = [
+                                           "title": "Reaction Confirmed",
+                                           "message": "Your reaction '\(reaction)' on \(oldReview.authorDisplayName)'s review was successful.",
+                                           "timestamp": FieldValue.serverTimestamp(),
+                                           "isRead": false,
+                                           "isArchived": false,
+                                           "destinationId": oldReview.destinationId
+                                       ]
+                                       let reactNotifRef = self.db.collection(self.usersCollection).document(userId).collection("notifications")
+                                       _ = transaction.setData(reactNotificationData, forDocument: reactNotifRef.document())
+                                   }
+
+                    transaction.updateData(["agrees": newAgrees, "disagrees": newDisagrees, "reactedUsers": newReactedUsers], forDocument: docRef)
+                    return nil
+                })
+            } catch {
+                print("Transaction failed: \(error)")
             }
-        } catch {
-            print("Error reacting to review: \(error.localizedDescription)")
-            self.errorMessage = "Failed to update review reaction."
         }
-    }
+
 
     func deleteReview(review: Review) async {
         guard let reviewId = review.id else { return }
@@ -274,27 +262,6 @@ class ReviewViewModel: ObservableObject {
             print("Error editing review: \(error.localizedDescription)")
             errorMessage = "Failed to edit review."
             return false
-        }
-    }
-    
-    func updateReviewsProfilePicture(userId: String, newPictureURL: URL?) async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            let querySnapshot = try await db.collection(reviewsCollection)
-                .whereField("authorId", isEqualTo: userId)
-                .getDocuments()
-
-            for document in querySnapshot.documents {
-                let docRef = db.collection(reviewsCollection).document(document.documentID)
-                try await docRef.updateData(["authorProfilePictureURL": newPictureURL?.absoluteString as Any])
-            }
-            isLoading = false
-            print("Successfully updated profile pictures for reviews by user: \(userId)")
-        } catch {
-            errorMessage = "Failed to update profile pictures for reviews: \(error.localizedDescription)"
-            isLoading = false
-            print("Error updating profile pictures for reviews: \(error.localizedDescription)")
         }
     }
     
@@ -349,22 +316,92 @@ class ReviewViewModel: ObservableObject {
         }
     }
     
-    enum SortOption: String, CaseIterable {
-        case newest = "Newest"
-        case highestRating = "Highest Rating"
-        case lowestRating = "Lowest Rating"
-    }
+    func fetchDestinationSuggestions(query: String) {
+            if query.isEmpty {
+                destinationSuggestions = []
+                isSearchingDestinations = false
+                return
+            }
 
-    @Published var sortOption: SortOption = .newest
+            isSearchingDestinations = true
+            destinationSearchError = nil
 
-    var sortedReviews: [Review] {
-        switch sortOption {
-        case .newest:
-            return reviews.sorted { $0.timestamp > $1.timestamp }
-        case .highestRating:
-            return reviews.sorted { $0.rating > $1.rating }
-        case .lowestRating:
-            return reviews.sorted { $0.rating < $1.rating }
+            let lowercasedQuery = query.lowercased()
+
+            // Fetch all destinations and filter client-side for "contains" search
+            // Firestore doesn't directly support "contains" for arbitrary strings efficiently.
+            // For production, if you have thousands of destinations, consider:
+            // 1. Algolia/Elasticsearch for rich text search.
+            // 2. Maintaining a searchable denormalized field (e.g., lowercase, remove spaces)
+            // 3. Using a "starts-with" query if that fits your needs:
+            //    .whereField("name", isGreaterThanOrEqualTo: lowercasedQuery)
+            //    .whereField("name", isLessThanOrEqualTo: lowercasedQuery + "~") // '~' is a character after all other characters
+
+            db.collection(destinationsCollection)
+                .getDocuments { [weak self] snapshot, error in
+                    guard let self = self else { return }
+                    self.isSearchingDestinations = false
+
+                    if let error = error {
+                        self.destinationSearchError = "Error fetching destinations: \(error.localizedDescription)"
+                        self.destinationSuggestions = []
+                        return
+                    }
+
+                    guard let documents = snapshot?.documents else {
+                        self.destinationSuggestions = []
+                        return
+                    }
+
+                    let allDestinations = documents.compactMap { doc -> Destination? in
+                        try? doc.data(as: Destination.self)
+                    }
+
+                    // Filter destinations whose name contains the query (case-insensitive)
+                    self.destinationSuggestions = allDestinations.filter {
+                        $0.name.lowercased().contains(lowercasedQuery)
+                    }
+                }
         }
+
+        // New function to update a user's profile picture across all their reviews
+        func updateReviewsProfilePicture(userId: String, newPictureURL: URL?) async {
+            isLoading = true
+            errorMessage = nil
+            do {
+                let querySnapshot = try await db.collection(reviewsCollection)
+                    .whereField("authorId", isEqualTo: userId)
+                    .getDocuments()
+
+                for document in querySnapshot.documents {
+                    let docRef = db.collection(reviewsCollection).document(document.documentID)
+                    try await docRef.updateData(["authorProfilePictureURL": newPictureURL?.absoluteString as Any])
+                }
+                isLoading = false
+                print("Successfully updated profile pictures for reviews by user: \(userId)")
+            } catch {
+                errorMessage = "Failed to update profile pictures for reviews: \(error.localizedDescription)"
+                isLoading = false
+                print("Error updating profile pictures for reviews: \(error.localizedDescription)")
+            }
+        }
+        
+        enum SortOption: String, CaseIterable {
+               case newest = "Newest"
+               case highestRating = "Highest Rating"
+               case lowestRating = "Lowest Rating"
+           }
+
+           @Published var sortOption: SortOption = .newest
+
+           var sortedReviews: [Review] {
+               switch sortOption {
+               case .newest:
+                   return reviews.sorted { $0.timestamp > $1.timestamp }
+               case .highestRating:
+                   return reviews.sorted { $0.rating > $1.rating }
+               case .lowestRating:
+                   return reviews.sorted { $0.rating < $1.rating }
+               }
+           }
     }
-}
