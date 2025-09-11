@@ -128,3 +128,56 @@ exports.onMessageDeleted = functions.firestore
         
         return null;
     });
+
+// NEW FUNCTION: Triggers on any change to the 'reviews' collection.
+exports.updateDestinationRating = functions.firestore
+    .document('reviews/{reviewId}')
+    .onWrite(async (change, context) => {
+        const reviewData = change.after.exists ? change.after.data() : null;
+        const previousReviewData = change.before.exists ? change.before.data() : null;
+
+        let destinationId;
+        if (reviewData) {
+            destinationId = reviewData.destinationId;
+        } else if (previousReviewData) {
+            destinationId = previousReviewData.destinationId;
+        } else {
+            return null; // No document to get destinationId from, so exit.
+        }
+
+        const reviewsRef = db.collection('reviews').where('destinationId', '==', destinationId);
+        const reviewsSnapshot = await reviewsRef.get();
+        
+        let totalRating = 0;
+        let uniqueAvatars = new Set();
+
+        reviewsSnapshot.forEach(doc => {
+            const review = doc.data();
+            totalRating += review.rating;
+            if (review.authorProfilePictureURL) {
+                uniqueAvatars.add(review.authorProfilePictureURL);
+            }
+        });
+
+        const reviewCount = reviewsSnapshot.size;
+        const averageRating = reviewCount > 0 ? totalRating / reviewCount : 0;
+        const participantAvatars = Array.from(uniqueAvatars);
+
+        const destinationRef = db.collection('destinations').doc(destinationId);
+        
+        // Use a transaction for the update to ensure it's atomic
+        return db.runTransaction(t => {
+            return t.get(destinationRef).then(doc => {
+                if (!doc.exists) {
+                    console.error("Destination document does not exist:", destinationId);
+                    return Promise.resolve();
+                }
+                t.update(destinationRef, {
+                    rating: averageRating,
+                    participantAvatars: participantAvatars
+                });
+            });
+        }).catch(error => {
+            console.error("Transaction failed: ", error);
+        });
+    });

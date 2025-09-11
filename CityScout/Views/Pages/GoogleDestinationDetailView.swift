@@ -14,7 +14,7 @@ struct GoogleDestinationDetailView: View {
     let googleDestination: GoogleDestination
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @StateObject private var favoritesVM = FavoritesViewModel()
+    @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var locationManager = LocationManager()
 
     @State private var showGalleryOverlay = false
@@ -150,7 +150,7 @@ private struct GoogleInfoRow: View {
                     DetailInfoRow(icon: "dollarsign", text: "\(String(format: "%.2f", priceLevel))", color: .green)
                 }
             } else {
-                DetailInfoRow(icon: "dollarsign", text: "N/A", color: .secondary)
+                DetailInfoRow(icon: "dollarsign", text: "N/A", color: .green)
             }
         }
         .padding(.vertical, 12)

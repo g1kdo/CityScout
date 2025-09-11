@@ -1,4 +1,3 @@
-// Models/Destination.swift
 import Foundation
 import FirebaseFirestore
 

@@ -4,7 +4,7 @@ struct FavoritePlacesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
 
-    @StateObject private var viewModel = FavoritesViewModel()
+    @StateObject private var viewModel = FavoritesViewModel(homeViewModel: HomeViewModel())
 
     var body: some View {
         NavigationStack {

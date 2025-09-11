@@ -4,7 +4,7 @@ import FirebaseFirestore
 struct HomeView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var vm = HomeViewModel()
-    @StateObject private var favoritesVM = FavoritesViewModel()
+    @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var reviewVM = ReviewViewModel(homeViewModel: HomeViewModel())
 
     @State private var navigateToProfile = false

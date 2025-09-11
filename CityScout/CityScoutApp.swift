@@ -14,7 +14,7 @@ import FirebaseMessaging
 class AppCheckDebugProviderFactory: NSObject, AppCheckProviderFactory {
     func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
         let debugProvider = AppCheckDebugProvider(app: app)
-        print("AppCheck Debug Token: \(debugProvider?.localDebugToken())")
+        print("AppCheck Debug Token: \(String(describing: debugProvider?.localDebugToken()))")
         return debugProvider
     }
 }
