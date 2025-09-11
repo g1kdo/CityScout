@@ -1,8 +1,8 @@
 //
 //  MessageViewModel.swift
 //  CityScout
-// CityScout
-// Created by Umuco Auca on 20/09/2025.
+//
+//  Created by Umuco Auca on 20/09/2025.
 //
 
 import Foundation
@@ -24,20 +24,25 @@ class MessageViewModel: ObservableObject {
     @Published var users: [SignedInUser] = [] // For finding new chat partners
     @Published var recommendedUsers: [SignedInUser] = [] // For proximity-based matching
     
+    // MARK: - Pagination Properties
+    private var messagesBatchSize: Int = 20
+    private var lastDocument: DocumentSnapshot?
+    @Published var canLoadMoreMessages = true
+    
+    // Voice Recording
+    private var audioRecorder: AudioRecorder?
+    @Published var isRecording = false
+    @Published var audioDuration: TimeInterval = 0
+    private var recordingTimer: Timer?
+    
+    // In-memory cache for audio data
+    private var audioCache: [String: Data] = [:]
+
     private var db = Firestore.firestore()
     private var storage = FirebaseStorage.Storage.storage()
     public var messagesListener: ListenerRegistration?
     private var chatsListener: ListenerRegistration?
     
-    // NEW: Audio Recording Properties
-    private var audioRecorder: AVAudioRecorder?
-    @Published var isRecording = false
-    @Published var audioDuration: TimeInterval = 0
-    private var recordingTimer: Timer?
-    
-    // NEW: In-memory cache for audio data
-    private var audioCache: [String: Data] = [:]
-
     init() {
         subscribeToChats()
     }
@@ -55,7 +60,6 @@ class MessageViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // Remove existing listener to prevent duplicates
         chatsListener?.remove()
         
         chatsListener = db.collection("chats")
@@ -79,9 +83,6 @@ class MessageViewModel: ObservableObject {
                 self.chats = documents.compactMap { doc -> Chat? in
                     do {
                         var chat = try doc.data(as: Chat.self)
-                        // This manual update is a quick fix to ensure the partner info is correct
-                        // A better approach would be to have a Cloud Function update the partner info
-                        // when a message is sent.
                         if let lastMessage = chat.lastMessage {
                             let partnerId = (lastMessage.senderId == userId) ? lastMessage.receiverId : lastMessage.senderId
                             if partnerId != chat.partnerId {
@@ -89,7 +90,6 @@ class MessageViewModel: ObservableObject {
                                 Task { await self.updateChatPartnerInfo(chatId: doc.documentID, partnerId: partnerId) }
                             }
                         }
-                        
                         return chat
                     } catch {
                         print("Error decoding chat document: \(error.localizedDescription)")
@@ -98,7 +98,6 @@ class MessageViewModel: ObservableObject {
                 }
             }
     }
-    
     // NEW: Update the Chat document with correct partner information
     private func updateChatPartnerInfo(chatId: String, partnerId: String) async {
         do {
@@ -113,6 +112,7 @@ class MessageViewModel: ObservableObject {
             ])
         } catch {
             print("Error updating chat partner info: \(error.localizedDescription)")
+            self.errorMessage = "Failed to update chat partner information."
         }
     }
     
@@ -121,36 +121,85 @@ class MessageViewModel: ObservableObject {
     func subscribeToMessages(chatId: String) {
         messagesListener?.remove()
         
-        messagesListener = db.collection("chats").document(chatId).collection("messages")
-            .order(by: "timestamp")
-            .addSnapshotListener { [weak self] (querySnapshot, error) in
-                guard let self = self else { return }
-                
-                if let error = error {
-                    print("Error fetching messages: \(error.localizedDescription)")
-                    return
-                }
-                
-                guard let documents = querySnapshot?.documents else {
-                    self.messages = []
-                    return
-                }
-                
-                self.messages = documents.compactMap { doc in
-                    try? doc.data(as: Message.self)
-                }
-                
-                // Mark messages as read for the current user
-                Task {
-                    await self.markAllMessagesAsRead(chatId: chatId)
-                }
+        let initialQuery = db.collection("chats").document(chatId).collection("messages")
+            .order(by: "timestamp", descending: true)
+            .limit(to: messagesBatchSize)
+        
+        messagesListener = initialQuery.addSnapshotListener { [weak self] (querySnapshot, error) in
+            guard let self = self else { return }
+            
+            if let error = error {
+                self.errorMessage = "Failed to fetch messages: \(error.localizedDescription)"
+                print("Error fetching messages: \(error.localizedDescription)")
+                return
             }
+            
+            guard let documents = querySnapshot?.documents else {
+                self.messages = []
+                return
+            }
+            
+            self.lastDocument = documents.last
+            self.messages = documents.compactMap { doc in
+                try? doc.data(as: Message.self)
+            }.reversed()
+            
+            self.canLoadMoreMessages = documents.count >= self.messagesBatchSize
+            
+            Task {
+                await self.markAllMessagesAsRead(chatId: chatId)
+            }
+        }
     }
     
-    func sendMessage(chatId: String, text: String?, imageUrl: String? = nil, audioUrl: String? = nil, recipientId: String) async {
-        guard let userId = Auth.auth().currentUser?.uid else { return }
+    // MARK: - Pagination
+    func loadMoreMessages(chatId: String) {
+        guard let lastDocument = lastDocument, canLoadMoreMessages else { return }
         
-        // Determine the message type based on the content provided
+        let nextQuery = db.collection("chats").document(chatId).collection("messages")
+            .order(by: "timestamp", descending: true)
+            .start(afterDocument: lastDocument)
+            .limit(to: messagesBatchSize)
+        
+        nextQuery.getDocuments { [weak self] (querySnapshot, error) in
+            guard let self = self else { return }
+            
+            if let error = error {
+                self.errorMessage = "Failed to fetch older messages: \(error.localizedDescription)"
+                print("Error fetching older messages: \(error.localizedDescription)")
+                self.canLoadMoreMessages = false
+                return
+            }
+            
+            guard let documents = querySnapshot?.documents else {
+                self.canLoadMoreMessages = false
+                return
+            }
+            
+            if documents.isEmpty {
+                self.canLoadMoreMessages = false
+                return
+            }
+            
+            let olderMessages = documents.compactMap { doc in
+                try? doc.data(as: Message.self)
+            }.reversed()
+            
+            self.messages.insert(contentsOf: olderMessages, at: 0)
+            self.lastDocument = documents.last
+            
+            if documents.count < self.messagesBatchSize {
+                self.canLoadMoreMessages = false
+            }
+        }
+    }
+
+    func sendMessage(chatId: String, text: String?, imageUrl: String? = nil, audioUrl: String? = nil, recipientId: String) async {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            self.errorMessage = "User not authenticated."
+            return
+        }
+        
         var messageType: Message.MessageType = .text
         if imageUrl != nil {
             messageType = .image
@@ -172,6 +221,7 @@ class MessageViewModel: ObservableObject {
         do {
             try db.collection("chats").document(chatId).collection("messages").addDocument(from: newMessage)
         } catch {
+            self.errorMessage = "Failed to send message: \(error.localizedDescription)"
             print("Error sending message: \(error.localizedDescription)")
         }
     }
@@ -197,7 +247,10 @@ class MessageViewModel: ObservableObject {
     }
 
     func uploadVoiceNoteAndSendMessage(chatId: String, audioUrl: URL, recipientId: String) async {
-        guard let userId = Auth.auth().currentUser?.uid else { return }
+        guard let userId = Auth.auth().currentUser?.uid else {
+            self.errorMessage = "User not authenticated."
+            return
+        }
         
         let storageRef = storage.reference().child("voice_notes/\(UUID().uuidString).m4a")
         
@@ -213,20 +266,22 @@ class MessageViewModel: ObservableObject {
     
     // NEW: Function to download audio and cache it
     func getAudioData(from urlString: String) async -> Data? {
-        // Check cache first
         if let cachedData = audioCache[urlString] {
             return cachedData
         }
 
-        guard let url = URL(string: urlString) else { return nil }
+        guard let url = URL(string: urlString) else {
+            self.errorMessage = "Invalid audio URL."
+            return nil
+        }
 
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            // Cache the downloaded data
             audioCache[urlString] = data
             return data
         } catch {
             print("Error downloading audio file: \(error.localizedDescription)")
+            self.errorMessage = "Failed to download audio file."
             return nil
         }
     }
@@ -247,7 +302,7 @@ class MessageViewModel: ObservableObject {
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
             ]
             
-            audioRecorder = try AVAudioRecorder(url: audioFileName, settings: settings)
+            audioRecorder = try AudioRecorder(url: audioFileName, settings: settings)
             audioRecorder?.record()
             
             isRecording = true
@@ -286,6 +341,18 @@ class MessageViewModel: ObservableObject {
         }
     }
     
+    func unmuteChat(chatId: String, forUser userId: String) async {
+        let chatRef = db.collection("chats").document(chatId)
+        do {
+            try await chatRef.updateData([
+                "mutedBy.\(userId)": FieldValue.delete()
+            ])
+        } catch {
+            print("Error unmuting chat: \(error.localizedDescription)")
+            self.errorMessage = "Failed to unmute chat."
+        }
+    }
+    
     // NEW: Report User Logic
     func reportUser(chatId: String, recipientId: String, reason: String) async {
         guard let userId = Auth.auth().currentUser?.uid else {
@@ -305,14 +372,12 @@ class MessageViewModel: ObservableObject {
         do {
             _ = try await db.collection("userReports").addDocument(data: reportData)
             print("User \(recipientId) reported successfully from chat \(chatId).")
-            // You can add a success message or alert here
         } catch {
             print("Error reporting user: \(error.localizedDescription)")
             self.errorMessage = "Failed to submit report."
         }
     }
     
-    // NEW: Delete a message for all users
     func deleteMessage(chatId: String, messageId: String) async {
         guard let userId = Auth.auth().currentUser?.uid else {
             self.errorMessage = "You must be logged in to delete a message."
@@ -325,7 +390,6 @@ class MessageViewModel: ObservableObject {
         do {
             try await messageRef.delete()
             print("Message \(messageId) deleted successfully.")
-            // Success feedback can be provided here
         } catch {
             print("Error deleting message: \(error.localizedDescription)")
             self.errorMessage = "Failed to delete message."
@@ -356,7 +420,6 @@ class MessageViewModel: ObservableObject {
         
         let chatRef = db.collection("chats")
         
-        // Check if a chat already exists between these two users
         let existingChatQuery = chatRef.whereField("participants", isEqualTo: [userId, recipientId])
         let existingChatQueryReversed = chatRef.whereField("participants", isEqualTo: [recipientId, userId])
 
@@ -377,11 +440,9 @@ class MessageViewModel: ObservableObject {
             return nil
         }
         
-        // If no existing chat is found, create a new one
         do {
             let newChatRef = chatRef.document()
             
-            // Fetch the partner's display name and profile picture for the new Chat document
             let partnerDoc = try await db.collection("users").document(recipientId).getDocument()
             let partnerDisplayName = partnerDoc.data()?["displayName"] as? String ?? "Unknown User"
             let partnerProfilePictureURLString = partnerDoc.data()?["profilePictureURL"] as? String
@@ -418,7 +479,6 @@ class MessageViewModel: ObservableObject {
             try await newChatRef.setData(initialData)
             print("New chat created with ID: \(newChatRef.documentID)")
             
-            // Re-fetch the new chat document to ensure the model is correct
             let newChatDoc = try await newChatRef.getDocument()
             return try? newChatDoc.data(as: Chat.self)
             
@@ -478,7 +538,6 @@ class MessageViewModel: ObservableObject {
                 }
             }
             
-            // Sort by score in descending order
             let sortedUsers = scoredUsers.sorted { $0.score > $1.score }.map { $0.user }
             
             self.recommendedUsers = sortedUsers
@@ -494,7 +553,6 @@ class MessageViewModel: ObservableObject {
         }
     }
     
-    // NEW: Function to fetch all users (used for general search, to be replaced by recommended users)
     func fetchUsers() async {
         guard let currentUserId = Auth.auth().currentUser?.uid else { return }
         
@@ -513,5 +571,47 @@ class MessageViewModel: ObservableObject {
             self.errorMessage = "Failed to fetch users: \(error.localizedDescription)"
         }
         isLoading = false
+    }
+}
+
+// MARK: - Helper Classes
+
+// Simple Haptic Manager
+class HapticManager {
+    static let shared = HapticManager()
+    private init() {}
+    
+    func play(feedback style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        #if os(iOS)
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.impactOccurred()
+        #endif
+    }
+}
+
+// AudioRecorder class
+private class AudioRecorder {
+    private var audioRecorder: AVAudioRecorder?
+    private var audioURL: URL?
+
+    init(url: URL, settings: [String: Any]) throws {
+        self.audioRecorder = try AVAudioRecorder(url: url, settings: settings)
+        self.audioURL = url
+    }
+
+    func record() {
+        self.audioRecorder?.record()
+    }
+    
+    func stop() {
+        self.audioRecorder?.stop()
+    }
+    
+    var url: URL? {
+        self.audioURL
+    }
+    
+    var currentTime: TimeInterval {
+        self.audioRecorder?.currentTime ?? 0
     }
 }

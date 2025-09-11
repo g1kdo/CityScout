@@ -128,3 +128,133 @@ exports.onMessageDeleted = functions.firestore
         
         return null;
     });
+
+// NEW FUNCTION: Triggers on any change to the 'reviews' collection.
+exports.updateDestinationRating = functions.firestore
+    .document('reviews/{reviewId}')
+    .onWrite(async (change, context) => {
+        const reviewData = change.after.exists ? change.after.data() : null;
+        const previousReviewData = change.before.exists ? change.before.data() : null;
+
+        let destinationId;
+        if (reviewData) {
+            destinationId = reviewData.destinationId;
+        } else if (previousReviewData) {
+            destinationId = previousReviewData.destinationId;
+        } else {
+            return null; // No document to get destinationId from, so exit.
+        }
+
+        const reviewsRef = db.collection('reviews').where('destinationId', '==', destinationId);
+        const reviewsSnapshot = await reviewsRef.get();
+        
+        let totalRating = 0;
+        let uniqueAvatars = new Set();
+
+        reviewsSnapshot.forEach(doc => {
+            const review = doc.data();
+            totalRating += review.rating;
+            if (review.authorProfilePictureURL) {
+                uniqueAvatars.add(review.authorProfilePictureURL);
+            }
+        });
+
+        const reviewCount = reviewsSnapshot.size;
+        const averageRating = reviewCount > 0 ? totalRating / reviewCount : 0;
+        const participantAvatars = Array.from(uniqueAvatars);
+
+        const destinationRef = db.collection('destinations').doc(destinationId);
+        
+        // Use a transaction for the update to ensure it's atomic
+        return db.runTransaction(t => {
+            return t.get(destinationRef).then(doc => {
+                if (!doc.exists) {
+                    console.error("Destination document does not exist:", destinationId);
+                    return Promise.resolve();
+                }
+                t.update(destinationRef, {
+                    rating: averageRating,
+                    participantAvatars: participantAvatars
+                });
+            });
+        }).catch(error => {
+            console.error("Transaction failed: ", error);
+        });
+    });
+
+// A Cloud Function that handles user deletion
+exports.onUserDelete = functions.auth.user().onDelete(async (user) => {
+    try {
+        const userId = user.uid;
+
+        // 1. Anonymize reviews by this user
+        const reviewsRef = db.collection("reviews").where("authorId", "==", userId);
+        const reviewsSnapshot = await reviewsRef.get();
+        const reviewBatch = db.batch();
+        reviewsSnapshot.forEach((doc) => {
+            const reviewRef = doc.ref;
+            reviewBatch.update(reviewRef, {
+                authorId: null,
+                authorDisplayName: "Anonymous",
+                authorProfilePictureURL: null,
+            });
+        });
+        await reviewBatch.commit();
+        console.log(`Anonymized all reviews for user: ${userId}`);
+
+        // 2. Anonymize chat messages sent by this user
+        const chatsRef = db.collection("chats");
+        const chatsSnapshot = await chatsRef.where("members", "array-contains", userId).get();
+        const chatUpdatePromises = [];
+        for (const chatDoc of chatsSnapshot.docs) {
+            const chatId = chatDoc.id;
+            const messagesRef = chatsRef.doc(chatId).collection("messages").where("senderId", "==", userId);
+            const messagesSnapshot = await messagesRef.get();
+            const messageBatch = db.batch();
+            messagesSnapshot.forEach((doc) => {
+                const messageRef = doc.ref;
+                messageBatch.update(messageRef, {
+                    senderId: null,
+                });
+            });
+            chatUpdatePromises.push(messageBatch.commit());
+        }
+        await Promise.all(chatUpdatePromises);
+        console.log(`Anonymized all chat messages for user: ${userId}`);
+
+        // 3. Anonymize booking requests made by this user
+        const bookingsRef = db.collection("bookings").where("userId", "==", userId);
+        const bookingsSnapshot = await bookingsRef.get();
+        const bookingBatch = db.batch();
+        bookingsSnapshot.forEach((doc) => {
+            const bookingRef = doc.ref;
+            bookingBatch.update(bookingRef, {
+                userId: null,
+            });
+        });
+        await bookingBatch.commit();
+        console.log(`Anonymized all booking requests for user: ${userId}`);
+
+        // 4. Delete the user's profile document
+        const userDocRef = db.collection("users").doc(userId);
+        await userDocRef.delete();
+        console.log(`Deleted user document for user: ${userId}`);
+
+        // 5. Delete the user's profile picture from Firebase Storage
+        if (user.photoURL) {
+            const fileRef = storage.bucket().file(`profile_pictures/${userId}`);
+            try {
+                await fileRef.delete();
+                console.log(`Deleted profile picture for user: ${userId}`);
+            } catch (error) {
+                // Handle cases where the file might not exist, but don't stop the function.
+                console.warn(`Could not delete profile picture for user: ${userId}, file might not exist. Error: ${error.message}`);
+            }
+        }
+        
+        return null;
+    } catch (error) {
+        console.error("Error handling user deletion:", error);
+        return null;
+    }
+});

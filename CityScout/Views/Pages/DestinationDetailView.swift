@@ -38,7 +38,6 @@ struct DestinationDetailView: View {
                 
                 VStack {
                     Spacer()
-                    // Fix: Passing the new @Binding properties to DetailsCard
                     DetailsCard(
                         destination: destination,
                         onBookNow: { showBookingSheet = true },
@@ -51,6 +50,8 @@ struct DestinationDetailView: View {
                         isShowingFacilitatorChat: $isShowingFacilitatorChat,
                         facilitatorChat: $facilitatorChat
                     )
+                    .environmentObject(messageVM)
+                    .environmentObject(authVM)
                 }
                 
                 HeaderNavButtons(
@@ -94,6 +95,8 @@ struct DestinationDetailView: View {
         .navigationDestination(isPresented: $isShowingFacilitatorChat) {
             if let chat = facilitatorChat {
                 ChatView(chat: chat)
+                    .environmentObject(messageVM)
+                    .environmentObject(authVM)
             }
         }
     }
@@ -111,6 +114,8 @@ private struct DetailsCard: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @Binding var isShowingFacilitatorChat: Bool
     @Binding var facilitatorChat: Chat?
+    
+    @State private var showTooltip = false // NEW: State for tooltip visibility
 
     var body: some View {
         GeometryReader { geometry in
@@ -121,7 +126,34 @@ private struct DetailsCard: View {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(destination.name).font(.title2).bold()
-                            Text(destination.location).font(.subheadline).foregroundColor(.secondary)
+                            HStack(spacing: 4) { // NEW: Combined location and new button
+                                Text(destination.location).font(.subheadline).foregroundColor(.secondary)
+                                if let facilitatorId = destination.partnerId, facilitatorId != authVM.signedInUser?.id {
+                                    Image(systemName: "headphones.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(Color(hex: "#24BAEC"))
+                                        .onTapGesture {
+                                            Task {
+                                                self.facilitatorChat = await messageVM.startNewChat(with: facilitatorId)
+                                                self.isShowingFacilitatorChat = true
+                                            }
+                                        }
+                                        .onLongPressGesture(minimumDuration: 0.5) { // NEW: Add long-press gesture
+                                            withAnimation {
+                                                self.showTooltip = true
+                                            }
+                                        }
+                                        .popover(isPresented: $showTooltip, arrowEdge: .top) { // NEW: Popover for tooltip
+                                            Text("Message Partner")
+                                                .font(.caption)
+                                                .padding(8)
+                                                .background(Color(.systemGray6))
+                                                .foregroundColor(.primary)
+                                                .cornerRadius(8)
+                                                .presentationCompactAdaptation(.popover)
+                                        }
+                                }
+                            }
                         }
                         Spacer()
                         HStack(spacing: -12) {
@@ -153,24 +185,6 @@ private struct DetailsCard: View {
                     AboutView(description: destination.description, showFullDescription: $showFullDescription)
                     
                     BookNowButton(action: onBookNow)
-                    
-                    // NEW: Contact Facilitator Button
-                    if let facilitatorId = destination.partnerId, facilitatorId != authVM.signedInUser?.id {
-                        Button(action: {
-                            Task {
-                                self.facilitatorChat = await messageVM.startNewChat(with: facilitatorId)
-                                self.isShowingFacilitatorChat = true
-                            }
-                        }) {
-                            Text("Contact Facilitator")
-                                .font(.headline.bold())
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.green)
-                                .cornerRadius(16)
-                        }
-                    }
                     
                     Color.clear.frame(height: 50)
                 }
