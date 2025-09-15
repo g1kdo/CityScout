@@ -3,7 +3,7 @@ import FirebaseFirestore
 
 struct HomeView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @StateObject private var vm = HomeViewModel()
+    @StateObject private var homeVM = HomeViewModel()
     @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var reviewVM = ReviewViewModel(homeViewModel: HomeViewModel())
 
@@ -34,9 +34,9 @@ struct HomeView: View {
                 .background(Color(.systemBackground)).ignoresSafeArea()
 
                 // Layer 2 (Conditional): The Search View Overlay
-                if vm.showSearchView {
+                if homeVM.showSearchView {
                     SearchView()
-                        .environmentObject(vm)
+                        .environmentObject(homeVM)
                         .environmentObject(favoritesVM)
                         .transition(.move(edge: .bottom))
                 }
@@ -47,14 +47,14 @@ struct HomeView: View {
                     navigateToProfile = true
                 } else if newTab == .search {
                     withAnimation {
-                        vm.showSearchView = true
+                        homeVM.showSearchView = true
                     }
                 }
             }
             .onChange(of: navigateToProfile) { _, isActive in
                 if !isActive { selectedTab = .home }
             }
-            .onChange(of: vm.showSearchView) { _, isPresented in
+            .onChange(of: homeVM.showSearchView) { _, isPresented in
                 if !isPresented { selectedTab = .home }
             }
             .onChange(of: showPopularPlacesView) { _, isPresented in
@@ -69,7 +69,7 @@ struct HomeView: View {
                 favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
                 if let userId = authVM.signedInUser?.id {
                     Task {
-                        await vm.fetchPersonalizedDestinations(for: userId)
+                        await homeVM.fetchPersonalizedDestinations(for: userId)
                     }
                 }
             }
@@ -90,13 +90,13 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $showPopularPlacesView) {
                 PopularPlacesView()
-                    .environmentObject(vm)
+                    .environmentObject(homeVM)
                     .environmentObject(favoritesVM)
             }
             .navigationDestination(isPresented: $isShowingMessagesView) {
                            MessagesView()
                                .environmentObject(authVM)
-                               .environmentObject(vm)
+                               .environmentObject(homeVM)
                        }
         }
     }
@@ -106,7 +106,7 @@ struct HomeView: View {
         switch selectedTab {
         case .home:
             HomeContentView(
-                vm: vm,
+                homeVM: homeVM,
                 favoritesVM: favoritesVM,
                 selectedDestination: $selectedDestination,
                 showPopularPlacesView: $showPopularPlacesView

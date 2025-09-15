@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct PersonalizedSectionsView: View {
-    @ObservedObject var vm: HomeViewModel
+    @EnvironmentObject var authVM: AuthenticationViewModel
+    @ObservedObject var homeVM: HomeViewModel
     @ObservedObject var favoritesVM: FavoritesViewModel
     @Binding var selectedDestination: Destination?
     
@@ -22,16 +23,16 @@ struct PersonalizedSectionsView: View {
     private var sortedInterests: [String] {
         // Step 1: Filter interests with a score > 0 and sort them in descending order
         let interestsWithScores = allInterests.filter { key in
-            return (vm.userInterestScores[key] ?? 0) > 0
+            return (homeVM.userInterestScores[key] ?? 0) > 0
         }.sorted { (key1, key2) -> Bool in
-            let score1 = vm.userInterestScores[key1] ?? 0
-            let score2 = vm.userInterestScores[key2] ?? 0
+            let score1 = homeVM.userInterestScores[key1] ?? 0
+            let score2 = homeVM.userInterestScores[key2] ?? 0
             return score1 > score2
         }
         
         // Step 2: Get interests with a score of 0 or those not in the interestScores dictionary.
         let interestsWithoutScores = allInterests.filter { key in
-            return (vm.userInterestScores[key] ?? 0) <= 0
+            return (homeVM.userInterestScores[key] ?? 0) <= 0
         }
         
         // Step 3: Combine the sorted high-score interests with the zero-score interests
@@ -47,7 +48,7 @@ struct PersonalizedSectionsView: View {
             // We now loop through `sortedInterests`
             ForEach(sortedInterests, id: \.self) { interest in
                 // And check if there are destinations for that interest
-                if let destinations = vm.categorizedDestinations[interest], !destinations.isEmpty {
+                if let destinations = homeVM.categorizedDestinations[interest], !destinations.isEmpty {
                     // Section Header
                     HStack {
                         Text("\(capitalizeFirstLetter(interest)) Destinations")
@@ -65,6 +66,7 @@ struct PersonalizedSectionsView: View {
                                     favoritesVM: favoritesVM,
                                     selectedDestination: $selectedDestination
                                 )
+                                .environmentObject(authVM)
                             }
                         }
                         .padding(.horizontal)
@@ -74,7 +76,7 @@ struct PersonalizedSectionsView: View {
         }
     }
 }
-//else if !vm.isFetching {
+//else if !homeVM.isFetching {
 //                Text("We're tailoring recommendations for you!")
 //                    .font(.subheadline)
 //                    .foregroundColor(.secondary)
@@ -85,25 +87,27 @@ struct PersonalizedSectionsView: View {
 //    }
 //}
 
-// FIX: New helper view to handle the complex logic and break up the expression.
 private struct HomeDestinationCardWrapper: View {
     let destination: Destination
     @ObservedObject var favoritesVM: FavoritesViewModel
     @Binding var selectedDestination: Destination?
-    
+    @EnvironmentObject var authVM: AuthenticationViewModel
+    @EnvironmentObject var homeVM: HomeViewModel
+
     var body: some View {
         HomeDestinationCard(
-            destination: destination,
-            // Wrap the Destination in AnyDestination for the FavoritesViewModel methods
-            isFavorite: favoritesVM.isFavorite(destination: .local(destination))
-        ) {
-            Task {
-                // Wrap the Destination in AnyDestination for the FavoritesViewModel method
-                await favoritesVM.toggleFavorite(destination: .local(destination))
-            }
-        }
+            destination: destination
+        )
         .onTapGesture {
             selectedDestination = destination
+            // Log and update score on tap
+            if let userId = authVM.signedInUser?.id {
+                Task {
+                    await homeVM.logUserAction(userId: userId, destinationId: destination.id, actionType: "card_click")
+                    // Increase score on click
+                    await homeVM.updateInterestScores(for: userId, categories: destination.categories, with: 1.0)
+                }
+            }
         }
     }
 }

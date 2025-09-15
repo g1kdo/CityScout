@@ -82,6 +82,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct CityScoutApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authVM = AuthenticationViewModel()
+    @StateObject private var homeVM = HomeViewModel()
 
     var body: some Scene {
         WindowGroup {
