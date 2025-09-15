@@ -1,15 +1,14 @@
 import SwiftUI
 
-/// A bell outline icon with an optional unread badge, centered in a light gray circular background.
 struct NotificationBell: View {
     let unreadCount: Int
 
     var body: some View {
         ZStack {
             // Gray circular background
-            Circle()
-                .fill(Color(.systemGray6))
-                .frame(width: 44, height: 44)
+//            Circle()
+//                .fill(Color(.systemGray6))
+//                .frame(width: 44, height: 44)
 
             // Outline bell icon centered
             Image(systemName: "bell")

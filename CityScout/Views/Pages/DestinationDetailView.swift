@@ -14,7 +14,7 @@ struct DestinationDetailView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var bookingVM = BookingViewModel()
-    @StateObject private var favoritesVM = FavoritesViewModel()
+    @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var locationManager = LocationManager()
     
     // NEW: We will use the main MessageViewModel to start a chat
@@ -58,7 +58,9 @@ struct DestinationDetailView: View {
                     isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
                     onDismiss: { dismiss() },
                     onToggleFavorite: {
-                    Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
+                        Task {
+                            await favoritesVM.toggleFavorite(destination: .local(destination))
+                        }
                     },
                     onViewOnMap: {
                     showOnMapView = true
