@@ -10,10 +10,9 @@ import FirebaseFirestore
 
 struct HomeView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @StateObject private var vm = HomeViewModel()
-    @StateObject private var favoritesVM = FavoritesViewModel()
+    @StateObject private var homeVM = HomeViewModel()
+    @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var reviewVM = ReviewViewModel(homeViewModel: HomeViewModel())
-    @StateObject private var messageVM = MessageViewModel()
 
     @State private var navigateToProfile = false
     @State private var selectedTab: FooterTab = .home
@@ -24,11 +23,14 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                // Layer 1: The main content and navigation bars
                 VStack(spacing: 0) {
                     TopBarView(isShowingMessagesView: $isShowingMessagesView)
                         .environmentObject(authVM)
                         .padding(.bottom, 25)
 
+                    // This is where the content for the selected tab goes.
+                    // It is now a direct child of the main VStack.
                     currentTabView
 
                     Spacer()
@@ -38,9 +40,10 @@ struct HomeView: View {
                 .padding(.top, safeAreaTop())
                 .background(Color(.systemBackground)).ignoresSafeArea()
 
-                if vm.showSearchView {
+                // Layer 2 (Conditional): The Search View Overlay
+                if homeVM.showSearchView {
                     SearchView()
-                        .environmentObject(vm)
+                        .environmentObject(homeVM)
                         .environmentObject(favoritesVM)
                         .transition(.move(edge: .bottom))
                 }
@@ -51,29 +54,29 @@ struct HomeView: View {
                     navigateToProfile = true
                 } else if newTab == .search {
                     withAnimation {
-                        vm.showSearchView = true
+                        homeVM.showSearchView = true
                     }
                 }
             }
             .onChange(of: navigateToProfile) { _, isActive in
                 if !isActive { selectedTab = .home }
             }
-            .onChange(of: vm.showSearchView) { _, isPresented in
+            .onChange(of: homeVM.showSearchView) { _, isPresented in
                 if !isPresented { selectedTab = .home }
             }
             .onChange(of: showPopularPlacesView) { _, isPresented in
                 if !isPresented { selectedTab = .home }
             }
             .onChange(of: isShowingMessagesView) { _, isPresented in
-                if !isPresented {
-                    selectedTab = .home
-                }
-            }
+                          if !isPresented {
+                              selectedTab = .home
+                          }
+                      }
             .onAppear {
                 favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
                 if let userId = authVM.signedInUser?.id {
                     Task {
-                        await vm.fetchPersonalizedDestinations(for: userId)
+                        await homeVM.fetchPersonalizedDestinations(for: userId)
                     }
                 }
             }
@@ -90,22 +93,19 @@ struct HomeView: View {
             )) {
                 if let dest = selectedDestination {
                     DestinationDetailView(destination: dest)
-                        .environmentObject(messageVM)
                 }
             }
             .navigationDestination(isPresented: $showPopularPlacesView) {
                 PopularPlacesView()
-                    .environmentObject(vm)
+                    .environmentObject(homeVM)
                     .environmentObject(favoritesVM)
             }
             .navigationDestination(isPresented: $isShowingMessagesView) {
-                MessagesView()
-                    .environmentObject(authVM)
-                    .environmentObject(vm)
-                    .environmentObject(messageVM)
-            }
+                           MessagesView()
+                               .environmentObject(authVM)
+                               .environmentObject(homeVM)
+                       }
         }
-        .environmentObject(messageVM)
     }
 
     @ViewBuilder
@@ -113,7 +113,7 @@ struct HomeView: View {
         switch selectedTab {
         case .home:
             HomeContentView(
-                vm: vm,
+                homeVM: homeVM,
                 favoritesVM: favoritesVM,
                 selectedDestination: $selectedDestination,
                 showPopularPlacesView: $showPopularPlacesView
