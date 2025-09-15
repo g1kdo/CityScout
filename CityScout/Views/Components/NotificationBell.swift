@@ -13,7 +13,7 @@ struct NotificationBell: View {
             // Outline bell icon centered
             Image(systemName: "bell")
                 .font(.system(size: 20))
-                .foregroundColor(.black)
+                .foregroundColor(.primary)
         }
         .overlay(alignment: .topTrailing) {
             if unreadCount > 0 {
