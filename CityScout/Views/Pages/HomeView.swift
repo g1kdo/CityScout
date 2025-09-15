@@ -1,3 +1,10 @@
+//
+//  HomeView.swift
+//  CityScout
+//
+//  Created by Umuco Auca on 14/08/2025.
+//
+
 import SwiftUI
 import FirebaseFirestore
 

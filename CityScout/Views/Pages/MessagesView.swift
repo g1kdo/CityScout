@@ -11,7 +11,7 @@ import Kingfisher
 struct MessagesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @StateObject private var viewModel = MessageViewModel()
+    @EnvironmentObject var messageVM: MessageViewModel
     @EnvironmentObject var homeVM: HomeViewModel
 
     @State private var searchText: String = ""
@@ -21,9 +21,9 @@ struct MessagesView: View {
 
     var filteredChats: [Chat] {
         if searchText.isEmpty {
-            return viewModel.chats
+            return messageVM.chats
         } else {
-            return viewModel.chats.filter { chat in
+            return messageVM.chats.filter { chat in
                 (chat.partnerDisplayName ?? "").localizedCaseInsensitiveContains(searchText) ||
                 (chat.lastMessage?.text ?? "").localizedCaseInsensitiveContains(searchText)
             }
@@ -31,99 +31,97 @@ struct MessagesView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Main Header and Search Bar
-                VStack(spacing: 15) {
-                    HStack(spacing: 15) {
-                        Button(action: { dismiss() }) {
-                            Image(systemName: "chevron.left")
-                                .font(.title2)
-                                .foregroundColor(.primary)
-                        }
-
-                        Text("Messages")
-                            .font(.headline)
-                            .fontWeight(.bold)
-
-                        Spacer()
-
-                        Button(action: {
-                            self.isFindingNewChatPartner = true
-                        }) {
-                            Image(systemName: "square.and.pencil")
-                                .font(.title2)
-                                .foregroundColor(.primary)
-                        }
+        VStack(spacing: 0) {
+            VStack(spacing: 15) {
+                HStack(spacing: 15) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "chevron.left")
+                            .font(.title2)
+                            .foregroundColor(.primary)
                     }
-                    .padding(.horizontal)
-                    
-                    SearchBarView(searchText: $searchText, placeholder: "Search for chats & messages", isMicrophoneActive: homeVM.isListeningToSpeech) {
-                        // Action on search tapped
-                    } onMicrophoneTapped: {
-                        homeVM.handleMicrophoneTapped()
+
+                    Text("Messages")
+                        .font(.headline)
+                        .fontWeight(.bold)
+
+                    Spacer()
+
+                    Button(action: {
+                        self.isFindingNewChatPartner = true
+                    }) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.title2)
+                            .foregroundColor(.primary)
                     }
                 }
-                .padding(.top, 10)
-                .padding(.bottom, 15)
-                .background(Color(.secondarySystemGroupedBackground))
+                .padding(.horizontal)
 
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        if viewModel.isLoading {
-                            ProgressView("Loading chats...")
-                                .padding()
-                        } else if let errorMessage = viewModel.errorMessage {
-                            Text(errorMessage)
-                                .foregroundColor(.red)
-                                .padding()
-                        } else if filteredChats.isEmpty && !searchText.isEmpty {
-                            Text("No chats found for \"\(searchText)\"")
-                                .foregroundColor(.secondary)
-                                .padding()
-                        } else if filteredChats.isEmpty {
-                            Text("You have no active chats.")
-                                .foregroundColor(.secondary)
-                                .padding()
-                        } else {
-                            ForEach(filteredChats) { chat in
-                                ChatRow(chat: chat)
-                                    .onTapGesture {
-                                        self.selectedChat = chat
-                                        self.isShowingChatView = true
-                                    }
-                            }
+                SearchBarView(searchText: $searchText, placeholder: "Search for chats & messages", isMicrophoneActive: homeVM.isListeningToSpeech) {
+                    // Action on search tapped
+                } onMicrophoneTapped: {
+                    homeVM.handleMicrophoneTapped()
+                }
+            }
+            .padding(.top, 10)
+            .padding(.bottom, 15)
+            .background(Color(.secondarySystemGroupedBackground))
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if messageVM.isLoading {
+                        ProgressView("Loading chats...")
+                            .padding()
+                    } else if let errorMessage = messageVM.errorMessage {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .padding()
+                    } else if filteredChats.isEmpty && !searchText.isEmpty {
+                        Text("No chats found for \"\(searchText)\"")
+                            .foregroundColor(.secondary)
+                            .padding()
+                    } else if filteredChats.isEmpty {
+                        Text("You have no active chats.")
+                            .foregroundColor(.secondary)
+                            .padding()
+                    } else {
+                        ForEach(filteredChats) { chat in
+                            ChatRow(chat: chat)
+                                .onTapGesture {
+                                    self.selectedChat = chat
+                                    self.isShowingChatView = true
+                                }
                         }
                     }
                 }
-                .background(Color(.systemGroupedBackground))
             }
-            .navigationBarHidden(true)
-            .onAppear {
-                viewModel.subscribeToChats()
+            .background(Color(.systemGroupedBackground))
+        }
+        .navigationBarHidden(true)
+        .onAppear {
+            messageVM.subscribeToChats()
+        }
+        .navigationDestination(isPresented: $isShowingChatView) {
+            if let chat = selectedChat {
+                ChatView(chat: chat)
+                    .environmentObject(messageVM)
+                    .environmentObject(authVM)
             }
-            .navigationDestination(isPresented: $isShowingChatView) {
-                if let chat = selectedChat {
-                    ChatView(chat: chat)
-                        .environmentObject(viewModel)
-                        .environmentObject(authVM)
-                }
-            }
-            .fullScreenCover(isPresented: $isFindingNewChatPartner) {
-                FindUsersView { user in
-                    Task {
-                        self.selectedChat = await viewModel.startNewChat(with: user.id!)
-                        if self.selectedChat != nil {
-                            self.isShowingChatView = true
-                        }
+        }
+        .fullScreenCover(isPresented: $isFindingNewChatPartner) {
+            FindUsersView { user in
+                Task {
+                    self.selectedChat = await messageVM.startNewChat(with: user.id!)
+                    if self.selectedChat != nil {
+                        self.isShowingChatView = true
                     }
-                    self.isFindingNewChatPartner = false
                 }
-                .environmentObject(homeVM)
+                self.isFindingNewChatPartner = false
             }
+            .environmentObject(homeVM)
         }
     }
 }
+
 
 private struct ChatRow: View {
     let chat: Chat
@@ -172,4 +170,3 @@ private struct ChatRow: View {
         return formatter.string(from: date)
     }
 }
-
