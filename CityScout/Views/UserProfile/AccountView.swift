@@ -98,7 +98,7 @@ struct AccountView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    Divider()
+                  //  Divider()
                     
                     VStack(alignment: .leading, spacing: 8) {
                         Button("Delete Account and Data") {

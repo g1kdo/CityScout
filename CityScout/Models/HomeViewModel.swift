@@ -10,6 +10,14 @@ class HomeViewModel: ObservableObject {
     @Published var destinations: [Destination] = []
     @Published var categorizedDestinations: [String: [Destination]] = [:]
     
+    @Published var userInterestScores: [String: Double] = [:]
+    
+    // A complete list of all 10 interest categories
+    private let allInterests: [String] = [
+            "Adventure", "Beaches", "Mountains", "City Breaks", "Foodie",
+            "Cultural", "Historical", "Nature", "Relaxing", "Family"
+        ]
+    
     // MARK: - Search Properties
     @Published var searchText: String = ""
     @Published var searchResults: [AnyDestination] = []
@@ -312,57 +320,56 @@ class HomeViewModel: ObservableObject {
     }
     
     func fetchPersonalizedDestinations(for userId: String) async {
-        guard !isFetching else { return }
-        isFetching = true
-        
-        let db = Firestore.firestore()
-        let userRef = db.collection("users").document(userId)
-        
-        do {
-            let document = try await userRef.getDocument()
-            guard document.exists, let interestScores = document.data()?["interestScores"] as? [String: Double] else {
-                print("No interest scores found for user.")
-                isFetching = false
-                return
-            }
+            guard !isFetching else { return }
+            isFetching = true
             
-            let topInterests = interestScores.sorted { $0.value > $1.value }.map { $0.key }.prefix(3)
+            let db = Firestore.firestore()
+            let userRef = db.collection("users").document(userId)
             
-            var newCategorizedDestinations: [String: [Destination]] = [:]
-            
-            await withTaskGroup(of: (String, [Destination]).self) { group in
-                for interest in topInterests {
-                    group.addTask {
-                        do {
-                            let snapshot = try await db.collection("destinations")
-                                .whereField("categories", arrayContains: interest)
-                                .getDocuments()
-                            let destinations = snapshot.documents.compactMap { doc -> Destination? in
-                                try? doc.data(as: Destination.self)
+            do {
+                let document = try await userRef.getDocument()
+                let interestScores = document.data()?["interestScores"] as? [String: Double] ?? [:]
+                
+                await MainActor.run {
+                    self.userInterestScores = interestScores
+                }
+
+                var newCategorizedDestinations: [String: [Destination]] = [:]
+                
+                await withTaskGroup(of: (String, [Destination]).self) { group in
+                    // Now, we iterate over the complete list of all interests
+                    for interest in self.allInterests {
+                        group.addTask {
+                            do {
+                                let snapshot = try await db.collection("destinations")
+                                    .whereField("categories", arrayContains: interest)
+                                    .getDocuments()
+                                let destinations = snapshot.documents.compactMap { doc -> Destination? in
+                                    try? doc.data(as: Destination.self)
+                                }
+                                return (interest, destinations)
+                            } catch {
+                                print("Error fetching destinations for \(interest): \(error)")
+                                return (interest, [])
                             }
-                            return (interest, destinations)
-                        } catch {
-                            print("Error fetching destinations for \(interest): \(error)")
-                            return (interest, [])
                         }
+                    }
+                    
+                    for await (interest, destinations) in group {
+                        newCategorizedDestinations[interest] = destinations
                     }
                 }
                 
-                for await (interest, destinations) in group {
-                    newCategorizedDestinations[interest] = destinations
+                await MainActor.run {
+                    self.categorizedDestinations = newCategorizedDestinations
                 }
+                
+            } catch {
+                print("Error fetching user interests: \(error)")
             }
             
-            await MainActor.run {
-                self.categorizedDestinations = newCategorizedDestinations
-            }
-            
-        } catch {
-            print("Error fetching user interests: \(error)")
+            isFetching = false
         }
-        
-        isFetching = false
-    }
 
     deinit {
         destinationsListener?.remove()
