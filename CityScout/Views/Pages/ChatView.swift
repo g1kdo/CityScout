@@ -61,19 +61,21 @@ struct ChatView: View {
     // MARK: - Sub-views for better modularity
     
     private var headerView: some View {
-        HStack(spacing: 15) {
+        HStack(spacing: 25) {
             Button(action: { dismiss() }) {
                 Image(systemName: "chevron.left")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .background(Circle().fill(Color(.systemGray6)).frame(width: 40, height: 40))
             }
             
-            KFImage(chat.partnerProfilePictureURL)
-                .placeholder { Image(systemName: "person.circle.fill").resizable().foregroundColor(.secondary) }
-                .resizable()
-                .scaledToFill()
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
+            
+//            KFImage(chat.partnerProfilePictureURL)
+//                .placeholder { Image(systemName: "person.circle.fill").resizable().foregroundColor(.secondary) }
+//                .resizable()
+//                .scaledToFill()
+//                .frame(width: 40, height: 40)
+//                .clipShape(Circle())
             
             VStack(alignment: .leading) {
                 Text(chat.partnerDisplayName ?? "Unknown User")
@@ -116,6 +118,7 @@ struct ChatView: View {
                 Image(systemName: "ellipsis")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .background(Circle().fill(Color(.systemGray6)).frame(width: 40, height: 40))
             }
         }
         .padding()
@@ -136,45 +139,66 @@ struct ChatView: View {
             ScrollView {
                 LazyVStack(spacing: 10) {
                     if viewModel.canLoadMoreMessages {
-                        ProgressView()
-                            .onAppear {
-                                if let chatId = chat.id {
-                                    viewModel.loadMoreMessages(chatId: chatId)
-                                }
-                            }
-                    }
-                    
-                    ForEach(viewModel.messages) { message in
-                        MessageRow(
-                            message: message,
-                            isFromCurrentUser: message.senderId == authVM.signedInUser?.id,
-                            partnerDisplayName: chat.partnerDisplayName,
-                            partnerProfilePictureURL: chat.partnerProfilePictureURL,
-                            onLongPress: {
-                                if let currentUserId = authVM.signedInUser?.id, message.senderId == currentUserId {
-                                    Task {
-                                        if let chatId = chat.id {
-                                            await viewModel.deleteMessage(chatId: chatId, messageId: message.id!)
-                                        }
+                                        ProgressView()
+                                            .onAppear {
+                                                if let chatId = chat.id {
+                                                    viewModel.loadMoreMessages(chatId: chatId)
+                                                }
+                                            }
                                     }
-                                    HapticManager.shared.play(feedback: .medium)
+                                    
+                                    // --- MODIFIED FOREACH LOOP ---
+                                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                                        let previousMessage = index > 0 ? viewModel.messages[index - 1] : nil
+                                        let messageDate = message.timestamp.dateValue()
+                                        
+                                        // 1. Check if the date has changed since the last message
+                                        if shouldShowDateHeader(currentMessageDate: messageDate, previousMessageDate: previousMessage?.timestamp.dateValue()) {
+                                            DateHeaderView(date: messageDate)
+                                                .padding(.vertical, 10)
+                                                .id("date-\(message.id ?? UUID().uuidString)") // Give the header an ID for potential scrolling
+                                        }
+                                        
+                                        // 2. The Message Row
+                                        MessageRow(
+                                            message: message,
+                                            isFromCurrentUser: message.senderId == authVM.signedInUser?.id,
+                                            partnerDisplayName: chat.partnerDisplayName,
+                                            partnerProfilePictureURL: chat.partnerProfilePictureURL,
+                                            onLongPress: {
+                                                if let currentUserId = authVM.signedInUser?.id, message.senderId == currentUserId {
+                                                    Task {
+                                                        if let chatId = chat.id {
+                                                            await viewModel.deleteMessage(chatId: chatId, messageId: message.id!)
+                                                        }
+                                                    }
+                                                    HapticManager.shared.play(feedback: .medium)
+                                                }
+                                            }
+                                        )
+                                        .id(message.id) // The message row ID
+                                    }
+                                }
+                                .padding()
+                            }
+                            .onChange(of: viewModel.messages) { _, newMessages in
+                                if let lastMessageId = newMessages.last?.id {
+                                    withAnimation {
+                                        proxy.scrollTo(lastMessageId, anchor: .bottom)
+                                    }
                                 }
                             }
-                        )
-                        .id(message.id)
+                        }
                     }
-                }
-                .padding()
-            }
-            .onChange(of: viewModel.messages) { _, newMessages in
-                if let lastMessageId = newMessages.last?.id {
-                    withAnimation {
-                        proxy.scrollTo(lastMessageId, anchor: .bottom)
+
+
+                    private func shouldShowDateHeader(currentMessageDate: Date, previousMessageDate: Date?) -> Bool {
+                        guard let previousDate = previousMessageDate else {
+                            return true // Always show the header for the very first message
+                        }
+                        let calendar = Calendar.current
+                        return !calendar.isDate(currentMessageDate, inSameDayAs: previousDate)
                     }
-                }
-            }
-        }
-    }
     
     private var messageInputView: some View {
         MessageInputView(
@@ -486,6 +510,41 @@ private struct VoiceRecorderButton: View {
                 .resizable()
                 .frame(width: 35, height: 35)
                 .foregroundColor(isRecording ? .red : Color(hex: "#FF7029"))
+        }
+    }
+}
+
+
+private struct DateHeaderView: View {
+    let date: Date
+
+    var body: some View {
+        Text(formattedDate(from: date))
+            .font(.caption).bold()
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(Color(.systemGray))) // Aesthetic background for the date
+    }
+
+    private func formattedDate(from date: Date) -> String {
+        let now = Date()
+        let calendar = Calendar.current
+
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else {
+            // Format as Sun, Sep 21
+            let formatter = DateFormatter()
+            // Check if the year is the current year. If not, include the year.
+            if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
+                formatter.dateFormat = "E, MMM d" // e.g., Sun, Sep 21
+            } else {
+                formatter.dateFormat = "E, MMM d, yyyy" // e.g., Sun, Sep 21, 2024
+            }
+            return formatter.string(from: date)
         }
     }
 }

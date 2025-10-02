@@ -38,7 +38,9 @@ struct FindUsersView: View {
                         Image(systemName: "chevron.left")
                             .font(.title2)
                             .foregroundColor(.primary)
+                            .background(Circle().fill(Color(.systemGray6)).frame(width: 40, height: 40))
                     }
+                    Spacer()
 
                     Text("New Message")
                         .font(.headline)

@@ -33,12 +33,14 @@ struct MessagesView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 15) {
-                HStack(spacing: 15) {
+                HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "chevron.left")
                             .font(.title2)
                             .foregroundColor(.primary)
+                            .background(Circle().fill(Color(.systemGray6)).frame(width: 40, height: 40))
                     }
+                    Spacer()
 
                     Text("Messages")
                         .font(.headline)
@@ -85,16 +87,23 @@ struct MessagesView: View {
                             .padding()
                     } else {
                         ForEach(filteredChats) { chat in
-                            ChatRow(chat: chat)
-                                .onTapGesture {
-                                    self.selectedChat = chat
-                                    self.isShowingChatView = true
-                                }
-                        }
+                                                   VStack(spacing: 0) { // Wrap ChatRow and Divider in a VStack
+                                                       ChatRow(chat: chat)
+                                                           .onTapGesture {
+                                                               self.selectedChat = chat
+                                                               self.isShowingChatView = true
+                                                           }
+                                                       
+                                                       // Aesthetic and Subtle Line (Divider)
+                                                       Divider()
+                                                           .padding(.leading, 80) // ⬅️ Start the line after the profile picture (50px image + 15px spacing + ~15px margin)
+                                                           .padding(.trailing)
+                                                   }
+                                               }
                     }
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Color(.systemBackground))
         }
         .navigationBarHidden(true)
         .onAppear {
@@ -128,45 +137,75 @@ private struct ChatRow: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
 
     var body: some View {
-        HStack(alignment: .top, spacing: 15) {
+        // Adjust alignment to .center for better vertical alignment with the picture
+        HStack(alignment: .center, spacing: 15) { // ⬅️ Changed .top to .center
+            // Profile Picture (No change needed here)
             KFImage(chat.partnerProfilePictureURL)
                 .placeholder { Image(systemName: "person.circle.fill").resizable().foregroundColor(.secondary) }
                 .resizable()
                 .scaledToFill()
                 .frame(width: 50, height: 50)
                 .clipShape(Circle())
-            
-            VStack(alignment: .leading) {
+           
+            // Name and Last Message
+            VStack(alignment: .leading, spacing: 4) { // ⬅️ Added spacing for the text
+                // Top Row: Name and Time/Unread Badge (Re-arranging for a common pattern)
                 HStack {
                     Text(chat.partnerDisplayName ?? "Unknown User")
                         .font(.headline)
+                        .fontWeight(chat.hasUnreadMessages(for: authVM.signedInUser?.id) ? .bold : .regular) // Bold name if unread
                         .lineLimit(1)
+                    
                     Spacer()
+                    
+                    Text(formattedTime(from: chat.lastUpdated?.dateValue() ?? Date()))
+                        .font(.subheadline) // Slightly larger time font
+                        .foregroundColor(.secondary)
+                }
+                
+                // Bottom Row: Latest Message and Unread Badge (Moving badge to the side)
+                HStack {
+                    Text(chat.lastMessage?.text ?? "No messages yet.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1) // ⬅️ Changed limit to 1 for a cleaner look
+                    
+                    Spacer()
+                    
+                    // Unread Count Badge
                     if let userId = authVM.signedInUser?.id, let unreadCount = chat.unreadCount?[userId], unreadCount > 0 {
                         Text("\(unreadCount)")
                             .font(.caption2).bold()
                             .foregroundColor(.white)
-                            .padding(8)
-                            .background(Circle().fill(Color.red))
+                            .frame(minWidth: 20) // Ensure a minimum width for single-digit badges
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 6)
+                            .background(Capsule().fill(Color.blue)) // ⬅️ Using Blue and Capsule for a more modern look (common in Telegram/WhatsApp)
                     }
-                    Text(formattedTime(from: chat.lastUpdated?.dateValue() ?? Date()))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
                 }
-                Text(chat.lastMessage?.text ?? "No messages yet.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .padding(.top, 2)
             }
+            // Removed redundant padding and relying on the overall padding
         }
         .padding(.horizontal)
-        .padding(.vertical, 10)
+        .padding(.vertical, 10) // ⬅️ Consistent padding
+        // Added helper for unread check
+        .listRowInsets(EdgeInsets()) // Ensure it fills the full width in a List/ScrollView
+        .background(Color(.systemBackground)) // Set a background color for consistency
     }
 
     private func formattedTime(from date: Date) -> String {
+        // You might want to extend this logic to show "Yesterday" or the date for older messages
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
+        formatter.timeStyle = .short // e.g., 5:30 PM
+        formatter.dateStyle = .none
         return formatter.string(from: date)
+    }
+}
+
+// Helper extension (assumes Chat is a class/struct you have)
+extension Chat {
+    func hasUnreadMessages(for userId: String?) -> Bool {
+        guard let userId = userId, let unread = unreadCount?[userId] else { return false }
+        return unread > 0
     }
 }
