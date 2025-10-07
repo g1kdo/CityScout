@@ -99,15 +99,34 @@ class MessageViewModel: ObservableObject {
             }
     }
     // NEW: Update the Chat document with correct partner information
+
     private func updateChatPartnerInfo(chatId: String, partnerId: String) async {
         do {
-            let partnerDoc = try await db.collection("users").document(partnerId).getDocument()
-            let partnerDisplayName = partnerDoc.data()?["displayName"] as? String ?? "Unknown User"
-            let partnerProfilePictureURLString = partnerDoc.data()?["profilePictureURL"] as? String
+            // --- Dual-Collection Lookup for Partner Info ---
+            var partnerDisplayName: String = "Unknown User"
+            var partnerProfilePictureURLString: String? = nil
             
+            // 1. Try fetching from the "users" collection (Standard User)
+            let userDoc = try await db.collection("users").document(partnerId).getDocument()
+            
+            if userDoc.exists {
+                partnerDisplayName = userDoc.data()?["displayName"] as? String ?? "Unknown User (User)"
+                partnerProfilePictureURLString = userDoc.data()?["profilePictureURL"] as? String
+            } else {
+                // 2. If not a User, try fetching from the "partners" collection (Partner)
+                let partnerDoc = try await db.collection("partners").document(partnerId).getDocument()
+                
+                if partnerDoc.exists {
+                    // Use the field name you specified for partners
+                    partnerDisplayName = partnerDoc.data()?["partnerDisplayName"] as? String ?? "Unknown User (Partner)"
+                    partnerProfilePictureURLString = partnerDoc.data()?["profilePictureURL"] as? String
+                }
+            }
+            
+            // --- Update Chat Document ---
             try await db.collection("chats").document(chatId).updateData([
                 "partnerId": partnerId,
-                "partnerDisplayName": partnerDisplayName as Any,
+                "partnerDisplayName": partnerDisplayName as Any, // Use the resolved name
                 "partnerProfilePictureURL": partnerProfilePictureURLString as Any
             ])
         } catch {
@@ -420,6 +439,7 @@ class MessageViewModel: ObservableObject {
         
         let chatRef = db.collection("chats")
         
+        // --- Existing Chat Check ---
         let existingChatQuery = chatRef.whereField("participants", isEqualTo: [userId, recipientId])
         let existingChatQueryReversed = chatRef.whereField("participants", isEqualTo: [recipientId, userId])
 
@@ -440,13 +460,36 @@ class MessageViewModel: ObservableObject {
             return nil
         }
         
+        // --- Dual-Collection Lookup for Recipient Info ---
+        var partnerDisplayName: String = "Unknown User"
+        var partnerProfilePictureURLString: String? = nil
+        
+        do {
+            // 1. Try fetching from the "users" collection (Standard User)
+            let userDoc = try await db.collection("users").document(recipientId).getDocument()
+            
+            if userDoc.exists {
+                partnerDisplayName = userDoc.data()?["displayName"] as? String ?? "Unknown User (User)"
+                partnerProfilePictureURLString = userDoc.data()?["profilePictureURL"] as? String
+            } else {
+                // 2. If not a User, try fetching from the "partners" collection (Partner)
+                let partnerDoc = try await db.collection("partners").document(recipientId).getDocument()
+                
+                if partnerDoc.exists {
+                    // Use the field name you specified for partners
+                    partnerDisplayName = partnerDoc.data()?["partnerDisplayName"] as? String ?? "Unknown User (Partner)"
+                    partnerProfilePictureURLString = partnerDoc.data()?["profilePictureURL"] as? String
+                }
+            }
+        } catch {
+            print("Error fetching user/partner data for new chat: \(error.localizedDescription)")
+        }
+        
+        // --- Chat Creation ---
         do {
             let newChatRef = chatRef.document()
-            
-            let partnerDoc = try await db.collection("users").document(recipientId).getDocument()
-            let partnerDisplayName = partnerDoc.data()?["displayName"] as? String ?? "Unknown User"
-            let partnerProfilePictureURLString = partnerDoc.data()?["profilePictureURL"] as? String
-            
+                
+            // Create the initial message
             let initialMessageText = "Say hello!"
             let initialMessage = Message(
                 senderId: userId,
@@ -458,13 +501,13 @@ class MessageViewModel: ObservableObject {
                 messageType: .text,
                 isRead: false
             )
-            
+                
             let initialData: [String: Any] = [
                 "participants": [userId, recipientId],
                 "lastUpdated": Timestamp(date: Date()),
                 "lastMessage": try Firestore.Encoder().encode(initialMessage),
                 "partnerId": recipientId,
-                "partnerDisplayName": partnerDisplayName as Any,
+                "partnerDisplayName": partnerDisplayName as Any, // Use the resolved name
                 "partnerProfilePictureURL": partnerProfilePictureURLString as Any,
                 "unreadCount": [
                     userId: 0,
@@ -475,13 +518,13 @@ class MessageViewModel: ObservableObject {
                     recipientId: false
                 ]
             ]
-            
+                
             try await newChatRef.setData(initialData)
-            print("New chat created with ID: \(newChatRef.documentID)")
-            
+            print("New chat created with ID: \(newChatRef.documentID) with partner name: \(partnerDisplayName)")
+                
             let newChatDoc = try await newChatRef.getDocument()
             return try? newChatDoc.data(as: Chat.self)
-            
+                
         } catch {
             print("Error creating new chat: \(error.localizedDescription)")
             self.errorMessage = "Error creating new chat."
