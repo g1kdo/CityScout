@@ -14,7 +14,7 @@ struct DestinationDetailView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var bookingVM = BookingViewModel()
-    @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
+    @StateObject private var favoritesVM = FavoritesViewModel()
     @StateObject private var locationManager = LocationManager()
     
     // NEW: We will use the main MessageViewModel to start a chat

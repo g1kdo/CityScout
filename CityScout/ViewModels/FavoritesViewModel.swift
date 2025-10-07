@@ -5,6 +5,7 @@
 //  Created by Umuco Auca on 30/07/2025.
 //
 
+
 import SwiftUI
 import FirebaseFirestore
 
@@ -17,17 +18,8 @@ class FavoritesViewModel: ObservableObject {
     private var userId: String?
     private var userFavoritesListener: ListenerRegistration?
     
-    // THE FIX: Add a reference to HomeViewModel
-    private let homeViewModel: HomeViewModel
-    
     /// Sets up a real-time listener for the user's favorites.
     /// Call this when the user's authentication state changes.
-    
-    // THE FIX: Update init to accept HomeViewModel
-    init(homeViewModel: HomeViewModel) {
-        self.homeViewModel = homeViewModel
-    }
-    
     func subscribeToFavorites(for userId: String?) {
         // Only set up a listener if the user ID has changed.
         guard self.userId != userId else { return }
@@ -133,23 +125,11 @@ class FavoritesViewModel: ObservableObject {
 
         let userRef = Firestore.firestore().collection("users").document(userId)
         
-        let isCurrentlyFavorite = self.isFavorite(destination: .local(destination))
-        
         do {
-            if isCurrentlyFavorite {
+            if self.isFavorite(destination: .local(destination)) {
                 try await userRef.updateData(["favorites": FieldValue.arrayRemove([destinationId])])
-                // THE FIX: Decrease interest score and log user action
-                Task {
-                    await homeViewModel.updateInterestScores(for: userId, categories: destination.categories, with: -1.0)
-                    await homeViewModel.logUserAction(userId: userId, destinationId: destinationId, actionType: "unfavorite")
-                }
             } else {
                 try await userRef.updateData(["favorites": FieldValue.arrayUnion([destinationId])])
-                // THE FIX: Increase interest score and log user action
-                Task {
-                    await homeViewModel.updateInterestScores(for: userId, categories: destination.categories, with: 1.0)
-                    await homeViewModel.logUserAction(userId: userId, destinationId: destinationId, actionType: "favorite")
-                }
             }
         } catch {
             self.errorMessage = "Failed to toggle favorite: \(error.localizedDescription)"

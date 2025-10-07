@@ -10,6 +10,7 @@
 import SwiftUI
 
 struct PopularPlacesView: View {
+    @EnvironmentObject var authVM: AuthenticationViewModel
     @EnvironmentObject var homeVM: HomeViewModel
     @EnvironmentObject var favoritesVM: FavoritesViewModel
     @Environment(\.dismiss) var dismiss
@@ -31,6 +32,10 @@ struct PopularPlacesView: View {
                             ) {
                                 Task {
                                     await favoritesVM.toggleFavorite(destination: .local(destination))
+                                    if let userId = authVM.signedInUser?.id {
+                                        await homeVM.logUserAction(userId: userId, destinationId: destination.id, actionType: "bookmark")
+                                        await homeVM.updateInterestScores(for: userId, categories: destination.categories, with: 3.0)
+                                    }
                                 }
                             }
                         }

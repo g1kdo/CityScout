@@ -9,7 +9,7 @@ import SwiftUI
 
 struct HomeContentView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @ObservedObject var homeVM: HomeViewModel
+    @ObservedObject var vm: HomeViewModel
     @ObservedObject var favoritesVM: FavoritesViewModel
     @Binding var selectedDestination: Destination?
     @Binding var showPopularPlacesView: Bool
@@ -20,28 +20,27 @@ struct HomeContentView: View {
                 headlineSection
                     .padding(.bottom, 25)
 
-                if homeVM.isLoading {
+                if vm.isLoading {
                     ProgressView("Loading Destinations...")
                         .frame(height: 300)
-                } else if let errorMessage = homeVM.errorMessage {
+                } else if let errorMessage = vm.errorMessage {
                     Text(errorMessage)
                         .foregroundColor(.red)
                 } else {
                     BestDestinationsCarousel(
-                        homeVM: homeVM,
+                        vm: vm,
                         favoritesVM: favoritesVM,
                         selectedDestination: $selectedDestination
                     )
                     .padding(.bottom, 35)
-                    .environmentObject(authVM)
+                    .environmentObject(authVM) // Pass the environment object down
                     
                     PersonalizedSectionsView(
-                        homeVM: homeVM,
+                        vm: vm,
                         favoritesVM: favoritesVM,
                         selectedDestination: $selectedDestination
                     )
-                    .environmentObject(authVM)
-                    .environmentObject(homeVM)
+                    .environmentObject(authVM) // Pass the environment object down
                 }
             }
         }
