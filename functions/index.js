@@ -5,6 +5,17 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
 
+const nodemailer = require("nodemailer"); // 🎯 NEW: Import Nodemailer
+
+// 🎯 Configure the mail transport using environment variables
+const mailTransport = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: functions.config().mail.email, // Read from 'mail.email'
+        pass: functions.config().mail.password, // Read from 'mail.password'
+    },
+});
+
 // A Cloud Function that triggers every time a new message is written to a chat's `messages` subcollection.
 exports.onNewMessage = functions.firestore
     .document("chats/{chatId}/messages/{messageId}")
@@ -256,5 +267,80 @@ exports.onUserDelete = functions.auth.user().onDelete(async (user) => {
     } catch (error) {
         console.error("Error handling user deletion:", error);
         return null;
+    }
+});
+
+// 🎯 NEW: Callable function to send booking confirmation email
+exports.sendBookingEmail = functions.https.onCall(async (data, context) => {
+    // 1. Authentication Check (Optional, but recommended for callable functions)
+    if (!context.auth) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "The function must be called while authenticated."
+        );
+    }
+
+    const { to, subject, data: emailData } = data;
+
+    if (!to || !subject || !emailData.destinationName) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "Missing required email parameters (to, subject, or destinationName)."
+        );
+    }
+    
+    // Construct the email body using HTML for a nicer format
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+                .header { background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                .details { margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-radius: 5px; }
+                h3 { color: #4CAF50; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h2>New Booking Notification!</h2>
+                </div>
+                <p>Hello **${emailData.partnerName}**, you have received a new booking for your property.</p>
+                <div class="details">
+                    <h3>Booking Details:</h3>
+                    <p><strong>Destination:</strong> ${emailData.destinationName}</p>
+                    <p><strong>Check-in:</strong> ${emailData.startDate}</p>
+                    <p><strong>Check-out:</strong> ${emailData.endDate}</p>
+                    <p><strong>Guests:</strong> ${emailData.numberOfPeople}</p>
+                    <p><strong>Total Cost:</strong> \$${emailData.totalCost.toFixed(2)}</p>
+                    <p>The customer has been notified and a chat has been initiated in the app for further communication.</p>
+                </div>
+                <p>Thank you for using CityScout!</p>
+            </div>
+        </body>
+        </html>
+    `;
+
+    const mailOptions = {
+        from: `CityScout <${functions.config().mail.email}>`, // Use your configured email
+        to: to,
+        subject: subject,
+        html: htmlContent, // Use the HTML content
+    };
+
+    try {
+        await mailTransport.sendMail(mailOptions);
+        console.log("Booking email successfully sent to:", to);
+        return { success: true };
+    } catch (error) {
+        console.error("Error sending booking email:", error);
+        // Throw an error that the client-side can catch
+        throw new functions.https.HttpsError(
+            "internal",
+            "Failed to send email notification.",
+            error.message
+        );
     }
 });
