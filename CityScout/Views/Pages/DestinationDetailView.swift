@@ -13,7 +13,7 @@ struct DestinationDetailView: View {
     let destination: Destination
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @StateObject private var bookingVM = BookingViewModel()
+    @StateObject private var bookingVM = BookingViewModel(messageVM: MessageViewModel())
     @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var locationManager = LocationManager()
     

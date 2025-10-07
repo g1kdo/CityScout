@@ -13,7 +13,7 @@ struct Partner: Codable, Identifiable {
     let name: String
     let profilePictureURL: URL?
     let partnerDisplayName: String?
-    let contactEmail: String
+    let partnerEmail: String
     
 }
 

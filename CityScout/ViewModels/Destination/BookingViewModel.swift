@@ -156,14 +156,14 @@ class BookingViewModel: ObservableObject {
             let bookingRef = try await db.collection("bookings").addDocument(data: bookingData)
                     
             // 2. Initiate Chat with Partner
-            let partnerEmail = partner?.contactEmail // Assuming 'partnerEmail' is available on the Destination model
-            let partnerName = partner?.partnerDisplayName // Assuming 'partnerDisplayName' is available
+            let partnerEmail = partner?.partnerEmail
+            let partnerName = partner?.partnerDisplayName
 
             let chat = await messageVM.startNewChat(with: partnerId)
                     
                     if let newChat = chat {
                         // Send an automatic initial message about the booking
-                        let initialMessageText = "A new booking for **\(destination.name)** has been confirmed from \(startDate.formatted()) to \(endDate.formatted()). Booking ID: \(bookingRef.documentID). Please reach out to the customer for coordination."
+                        let initialMessageText = "Hi there! I just booked *\(destination.name)* for my trip! I'm arriving on **\(startDate.formatted())** and checking out on **\(endDate.formatted())**. I'll be traveling with \(numberOfPeople) person(s) in total. I'm really looking forward to it and wanted to say hello! Could you tell me a little about the check-in process?"
                         
                         await messageVM.sendMessage(
                             chatId: newChat.id!,
@@ -175,14 +175,17 @@ class BookingViewModel: ObservableObject {
                     }
                     
                     // 3. Send Email Notification to Partner
-                    if let email = partnerEmail {
-                        await sendBookingEmail(
-                            recipientEmail: email,
-                            bookingData: bookingData,
-                            destinationName: destination.name,
-                            partnerName: partnerName ?? "Partner"
-                        )
-                    }
+                    if let email = partnerEmail, !email.isEmpty {
+                            await sendBookingEmail(
+                                recipientEmail: email,
+                                bookingData: bookingData,
+                                destinationName: destination.name,
+                                partnerName: partnerName ?? "Partner"
+                            )
+                        } else {
+                            // This block executes if partnerEmail is nil or empty.
+                            print("WARNING: Email notification skipped. Partner's contactEmail is missing or empty on the Partner object.")
+                        }
                     
                     // 4. Send Notification to User (Existing Logic)
                     let notificationData: [String: Any] = [
@@ -201,8 +204,21 @@ class BookingViewModel: ObservableObject {
                 isLoading = false
             }
             
-            // --- 🎯 NEW FUNCTION FOR EMAIL NOTIFICATION ---
-            private func sendBookingEmail(recipientEmail: String, bookingData: [String: Any], destinationName: String, partnerName: String) async {
+    private func sendBookingEmail(recipientEmail: String, bookingData: [String: Any], destinationName: String, partnerName: String) async {
+
+                // Get safe, numeric timestamps for reliable serialization
+                let startTimestamp = (bookingData["startDate"] as? Date)?.timeIntervalSince1970 ?? 0
+                let endTimestamp = (bookingData["endDate"] as? Date)?.timeIntervalSince1970 ?? 0
+        
+        print("Attempting to send email to: \(recipientEmail)")
+                
+                // Convert timestamps back to formatted strings for the email template data
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateStyle = .medium
+                dateFormatter.timeStyle = .short
+                
+                let startDateString = (bookingData["startDate"] as? Date)?.formatted() ?? "N/A"
+                let endDateString = (bookingData["endDate"] as? Date)?.formatted() ?? "N/A"
 
                 let emailPayload: [String: Any] = [
                     "to": recipientEmail,
@@ -211,16 +227,16 @@ class BookingViewModel: ObservableObject {
                     "data": [
                         "partnerName": partnerName,
                         "destinationName": destinationName,
-                        "startDate": (bookingData["startDate"] as? Date)?.formatted() ?? "N/A",
-                        "endDate": (bookingData["endDate"] as? Date)?.formatted() ?? "N/A",
+                        // Sending string dates for display in the email template
+                        "startDate": startDateString,
+                        "endDate": endDateString,
                         "numberOfPeople": bookingData["numberOfPeople"] as? Int ?? 1,
-                        "totalCost": totalCost // Use the calculated totalCost
+                        "totalCost": totalCost
                     ]
                 ]
                 
                 do {
                     // Call the Firebase Cloud Function
-                    // Note: This function call is synchronous on the client side but asynchronous on the server side.
                     let result = try await functions.httpsCallable("sendBookingEmail").call(emailPayload)
                     print("Email function result: \(result.data)")
                 } catch {
