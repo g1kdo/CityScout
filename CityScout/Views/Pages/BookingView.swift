@@ -119,10 +119,6 @@ private struct DateSelectionView: View {
     }
 }
 
-
-/**
- Inner component for Check-in and Check-out time pickers.
- */
 private struct TimeSelectionView: View {
     @ObservedObject var bookingVM: BookingViewModel // Assuming BookingViewModel is defined externally
     let checkInTimeRange: ClosedRange<Date>
@@ -191,7 +187,7 @@ private struct BookingConfirmationButton: View {
                         bookingVM.errorMessage = "User not logged in."
                         return
                     }
-                    await bookingVM.bookDestination(destination: destination, partner: partner, userId: userId)
+                    await bookingVM.bookDestination(destination: destination, userId: userId)
                 }
             }) {
                 if bookingVM.isLoading {

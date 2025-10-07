@@ -67,8 +67,23 @@ class BookingViewModel: ObservableObject {
             return false
         }
     }
+    
+    private func fetchPartnerData(partnerId: String) async -> (email: String?, name: String?) {
+        do {
+            let partnerDoc = try await db.collection("partners").document(partnerId).getDocument()
 
-    func bookDestination(destination: Destination, partner: Partner?, userId: String) async {
+            if partnerDoc.exists {
+                let email = partnerDoc.data()?["partnerEmail"] as? String 
+                let name = partnerDoc.data()?["name"] as? String 
+                return (email, name)
+            }
+        } catch {
+            print("Error fetching partner data for email: \(error.localizedDescription)")
+        }
+        return (nil, nil)
+    }
+
+    func bookDestination(destination: Destination, userId: String) async {
         isLoading = true
         errorMessage = nil
         bookingSuccess = false
@@ -154,10 +169,10 @@ class BookingViewModel: ObservableObject {
         do {
             // 1. Save the Booking
             let bookingRef = try await db.collection("bookings").addDocument(data: bookingData)
+            
+            let (fetchedPartnerEmail, fetchedPartnerName) = await fetchPartnerData(partnerId: partnerId)
                     
             // 2. Initiate Chat with Partner
-            let partnerEmail = partner?.partnerEmail
-            let partnerName = partner?.partnerDisplayName
 
             let chat = await messageVM.startNewChat(with: partnerId)
                     
@@ -175,12 +190,12 @@ class BookingViewModel: ObservableObject {
                     }
                     
                     // 3. Send Email Notification to Partner
-                    if let email = partnerEmail, !email.isEmpty {
+                    if let email = fetchedPartnerEmail, !email.isEmpty {
                             await sendBookingEmail(
                                 recipientEmail: email,
                                 bookingData: bookingData,
                                 destinationName: destination.name,
-                                partnerName: partnerName ?? "Partner"
+                                partnerName: fetchedPartnerName ?? "Partner"
                             )
                         } else {
                             // This block executes if partnerEmail is nil or empty.
