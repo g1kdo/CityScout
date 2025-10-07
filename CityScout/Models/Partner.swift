@@ -13,10 +13,7 @@ struct Partner: Codable, Identifiable {
     let name: String
     let profilePictureURL: URL?
     let partnerDisplayName: String?
+    let contactEmail: String
     
-    // Add any other partner-specific properties here
-    // For example:
-    // let businessName: String
-    // let contactEmail: String
 }
 

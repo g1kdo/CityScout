@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import FirebaseFirestore
+import FirebaseFunctions
 import Combine
 
 @MainActor
@@ -18,9 +19,15 @@ class BookingViewModel: ObservableObject {
     private var db = Firestore.firestore()
     private let usersCollection = "users"
     private let destinationsCollection = "destinations"
+    private let functions = Functions.functions()
     private var cancellables = Set<AnyCancellable>()
 
-    init() {}
+    private let messageVM: MessageViewModel
+        
+    // 🎯 Update initializer to accept MessageViewModel
+    init(messageVM: MessageViewModel) {
+            self.messageVM = messageVM
+        }
     
     func calculateTripCost(destination: Destination?) {
         guard let destination = destination, !selectedDates.isEmpty else {
@@ -61,16 +68,16 @@ class BookingViewModel: ObservableObject {
         }
     }
 
-    func bookDestination(destination: Destination, userId: String) async {
+    func bookDestination(destination: Destination, partner: Partner?, userId: String) async {
         isLoading = true
         errorMessage = nil
         bookingSuccess = false
 
-        guard let destinationId = destination.id else {
-            errorMessage = "Destination ID is missing."
-            isLoading = false
-            return
-        }
+        guard let destinationId = destination.id, let partnerId = destination.partnerId else {
+                    errorMessage = "Destination or Partner ID is missing."
+                    isLoading = false
+                    return
+            }
         
         let sortedDates = selectedDates.compactMap { Calendar.current.date(from: $0) }.sorted()
         guard let firstDate = sortedDates.first else {
@@ -145,19 +152,80 @@ class BookingViewModel: ObservableObject {
         ]
 
         do {
-            _ = try await db.collection("bookings").addDocument(data: bookingData)
-            let notificationData: [String: Any] = [
-                "title": "Booking Confirmed",
-                "message": "Your booking for \(destination.name) has been confirmed!",
-                "timestamp": FieldValue.serverTimestamp(), "isRead": false, "isArchived": false,
-                "destinationId": destination.id ?? ""
-            ]
-            let notificationRef = db.collection(usersCollection).document(userId).collection("notifications")
-            _ = try await notificationRef.addDocument(data: notificationData)
-            bookingSuccess = true
-        } catch {
-            errorMessage = "Failed to book destination: \(error.localizedDescription)"
+            // 1. Save the Booking
+            let bookingRef = try await db.collection("bookings").addDocument(data: bookingData)
+                    
+            // 2. Initiate Chat with Partner
+            let partnerEmail = partner?.contactEmail // Assuming 'partnerEmail' is available on the Destination model
+            let partnerName = partner?.partnerDisplayName // Assuming 'partnerDisplayName' is available
+
+            let chat = await messageVM.startNewChat(with: partnerId)
+                    
+                    if let newChat = chat {
+                        // Send an automatic initial message about the booking
+                        let initialMessageText = "A new booking for **\(destination.name)** has been confirmed from \(startDate.formatted()) to \(endDate.formatted()). Booking ID: \(bookingRef.documentID). Please reach out to the customer for coordination."
+                        
+                        await messageVM.sendMessage(
+                            chatId: newChat.id!,
+                            text: initialMessageText,
+                            recipientId: partnerId
+                        )
+                    } else {
+                        print("Warning: Failed to initiate chat with partner.")
+                    }
+                    
+                    // 3. Send Email Notification to Partner
+                    if let email = partnerEmail {
+                        await sendBookingEmail(
+                            recipientEmail: email,
+                            bookingData: bookingData,
+                            destinationName: destination.name,
+                            partnerName: partnerName ?? "Partner"
+                        )
+                    }
+                    
+                    // 4. Send Notification to User (Existing Logic)
+                    let notificationData: [String: Any] = [
+                        "title": "Booking Confirmed",
+                        "message": "Your booking for \(destination.name) has been confirmed!",
+                        "timestamp": FieldValue.serverTimestamp(), "isRead": false, "isArchived": false,
+                        "destinationId": destination.id ?? ""
+                    ]
+                    let notificationRef = db.collection(usersCollection).document(userId).collection("notifications")
+                    _ = try await notificationRef.addDocument(data: notificationData)
+                    
+                    bookingSuccess = true
+                } catch {
+                    errorMessage = "Failed to complete booking: \(error.localizedDescription)"
+                }
+                isLoading = false
+            }
+            
+            // --- 🎯 NEW FUNCTION FOR EMAIL NOTIFICATION ---
+            private func sendBookingEmail(recipientEmail: String, bookingData: [String: Any], destinationName: String, partnerName: String) async {
+
+                let emailPayload: [String: Any] = [
+                    "to": recipientEmail,
+                    "subject": "✅ New Booking Confirmation for \(destinationName)",
+                    "template": "booking_confirmation", // Or pass the full HTML body
+                    "data": [
+                        "partnerName": partnerName,
+                        "destinationName": destinationName,
+                        "startDate": (bookingData["startDate"] as? Date)?.formatted() ?? "N/A",
+                        "endDate": (bookingData["endDate"] as? Date)?.formatted() ?? "N/A",
+                        "numberOfPeople": bookingData["numberOfPeople"] as? Int ?? 1,
+                        "totalCost": totalCost // Use the calculated totalCost
+                    ]
+                ]
+                
+                do {
+                    // Call the Firebase Cloud Function
+                    // Note: This function call is synchronous on the client side but asynchronous on the server side.
+                    let result = try await functions.httpsCallable("sendBookingEmail").call(emailPayload)
+                    print("Email function result: \(result.data)")
+                } catch {
+                    // Log the error but don't fail the booking, as the core booking is saved.
+                    print("Warning: Failed to send booking email via Cloud Function: \(error.localizedDescription)")
+                }
+            }
         }
-        isLoading = false
-    }
-}

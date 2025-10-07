@@ -136,69 +136,124 @@ private struct ChatRow: View {
     let chat: Chat
     @EnvironmentObject var authVM: AuthenticationViewModel
 
+    // Helper to determine the user-friendly preview string
+    private var lastMessagePreview: String {
+        guard let lastMessage = chat.lastMessage else {
+            return "No messages yet."
+        }
+
+        // Check if the message was sent by the current user
+        let isSentByMe = lastMessage.senderId == authVM.signedInUser?.id
+        let prefix = isSentByMe ? "You: " : ""
+        
+        // 🎯 Logic for rich media message types
+        if lastMessage.imageUrl != nil {
+            return prefix + "Image 🖼️"
+        }
+        
+        if lastMessage.audioUrl != nil {
+            return prefix + "Voice Message 🎤"
+        }
+        
+        // Add more media types here (e.g., if lastMessage.videoURL != nil, return "Video 🎥")
+        
+        // Fallback to text, trimming it for a clean display
+        if let text = lastMessage.text, !text.isEmpty {
+            return prefix + text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        // Fallback if message exists but has no content (e.g., failed to send text)
+        return "Message sent."
+    }
+
     var body: some View {
-        // Adjust alignment to .center for better vertical alignment with the picture
-        HStack(alignment: .center, spacing: 15) { // ⬅️ Changed .top to .center
-            // Profile Picture (No change needed here)
+        HStack(alignment: .center, spacing: 15) {
+            // Profile Picture (No change)
             KFImage(chat.partnerProfilePictureURL)
                 .placeholder { Image(systemName: "person.circle.fill").resizable().foregroundColor(.secondary) }
                 .resizable()
                 .scaledToFill()
                 .frame(width: 50, height: 50)
                 .clipShape(Circle())
-           
+            
             // Name and Last Message
-            VStack(alignment: .leading, spacing: 4) { // ⬅️ Added spacing for the text
-                // Top Row: Name and Time/Unread Badge (Re-arranging for a common pattern)
+            VStack(alignment: .leading, spacing: 4) {
+                // Top Row: Name and Time
                 HStack {
                     Text(chat.partnerDisplayName ?? "Unknown User")
                         .font(.headline)
-                        .fontWeight(chat.hasUnreadMessages(for: authVM.signedInUser?.id) ? .bold : .regular) // Bold name if unread
+                        .fontWeight(chat.hasUnreadMessages(for: authVM.signedInUser?.id) ? .bold : .regular)
                         .lineLimit(1)
                     
                     Spacer()
                     
                     Text(formattedTime(from: chat.lastUpdated?.dateValue() ?? Date()))
-                        .font(.subheadline) // Slightly larger time font
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 
-                // Bottom Row: Latest Message and Unread Badge (Moving badge to the side)
+                // Bottom Row: Latest Message and Unread Badge
                 HStack {
-                    Text(chat.lastMessage?.text ?? "No messages yet.")
+                    // 🎯 USE THE NEW COMPUTED PROPERTY HERE
+                    Text(lastMessagePreview)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                        .lineLimit(1) // ⬅️ Changed limit to 1 for a cleaner look
+                        .lineLimit(1)
                     
                     Spacer()
                     
-                    // Unread Count Badge
+                    // Unread Count Badge (No change)
                     if let userId = authVM.signedInUser?.id, let unreadCount = chat.unreadCount?[userId], unreadCount > 0 {
                         Text("\(unreadCount)")
                             .font(.caption2).bold()
                             .foregroundColor(.white)
-                            .frame(minWidth: 20) // Ensure a minimum width for single-digit badges
+                            .frame(minWidth: 20)
                             .padding(.vertical, 4)
                             .padding(.horizontal, 6)
-                            .background(Capsule().fill(Color.blue)) // ⬅️ Using Blue and Capsule for a more modern look (common in Telegram/WhatsApp)
+                            .background(Capsule().fill(Color.blue))
                     }
                 }
             }
-            // Removed redundant padding and relying on the overall padding
         }
         .padding(.horizontal)
-        .padding(.vertical, 10) // ⬅️ Consistent padding
-        // Added helper for unread check
-        .listRowInsets(EdgeInsets()) // Ensure it fills the full width in a List/ScrollView
-        .background(Color(.systemBackground)) // Set a background color for consistency
+        .padding(.vertical, 10)
+        .listRowInsets(EdgeInsets())
+        .background(Color(.systemBackground))
     }
 
+
     private func formattedTime(from date: Date) -> String {
-        // You might want to extend this logic to show "Yesterday" or the date for older messages
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short // e.g., 5:30 PM
-        formatter.dateStyle = .none
-        return formatter.string(from: date)
+        let calendar = Calendar.current
+        
+        // 1. Check if the message is from Today
+        if calendar.isDateInToday(date) {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short // e.g., 5:30 PM
+            formatter.dateStyle = .none
+            return formatter.string(from: date)
+        }
+        
+        // 2. Check if the message is from Yesterday
+        else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        
+        // 3. Check if the message is from this week (last 7 days)
+        // We check if it's within the current calendar week but not today/yesterday.
+        else if let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()), date > weekAgo {
+            let formatter = DateFormatter()
+            // Use the weekday format (e.g., Monday, Tuesday)
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: date)
+        }
+        
+        // 4. Message is older than 7 days (show the full date)
+        else {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short // e.g., 10/7/25 or 7/10/25
+            formatter.timeStyle = .none
+            return formatter.string(from: date)
+        }
     }
 }
 
