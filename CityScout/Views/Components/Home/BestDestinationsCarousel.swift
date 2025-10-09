@@ -9,7 +9,7 @@ import SwiftUI
 
 struct BestDestinationsCarousel: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
-    @ObservedObject var homeVM: HomeViewModel
+    @ObservedObject var vm: HomeViewModel
     @ObservedObject var favoritesVM: FavoritesViewModel
     @Binding var selectedDestination: Destination?
     
@@ -22,7 +22,7 @@ struct BestDestinationsCarousel: View {
         }
         .navigationDestination(isPresented: $showPopularPlacesView) {
                             PopularPlacesView()
-                                .environmentObject(homeVM)
+                                .environmentObject(vm)
                                 .environmentObject(favoritesVM)
                         }
     }
@@ -45,16 +45,25 @@ struct BestDestinationsCarousel: View {
     private var carouselSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
-                ForEach(homeVM.destinations) { dest in
+                ForEach(vm.destinations) { dest in
                     HomeDestinationCard(
-                        destination: dest
-                    ) 
+                        destination: dest,
+                        isFavorite: favoritesVM.isFavorite(destination: .local(dest))
+                    ) {
+                        Task {
+                            await favoritesVM.toggleFavorite(destination: .local(dest))
+                            if let userId = authVM.signedInUser?.id {
+                                await vm.logUserAction(userId: userId, destinationId: dest.id, actionType: "bookmark")
+                                await vm.updateInterestScores(for: userId, categories: dest.categories, with: 3.0)
+                            }
+                        }
+                    }
                     .onTapGesture {
                         selectedDestination = dest
                         if let userId = authVM.signedInUser?.id {
                             Task {
-                                await homeVM.logUserAction(userId: userId, destinationId: dest.id, actionType: "card_click")
-                                await homeVM.updateInterestScores(for: userId, categories: dest.categories, with: 1.0)
+                                await vm.logUserAction(userId: userId, destinationId: dest.id, actionType: "card_click")
+                                await vm.updateInterestScores(for: userId, categories: dest.categories, with: 1.0)
                             }
                         }
                     }

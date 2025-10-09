@@ -14,7 +14,7 @@ import FirebaseMessaging
 class AppCheckDebugProviderFactory: NSObject, AppCheckProviderFactory {
     func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
         let debugProvider = AppCheckDebugProvider(app: app)
-        print("AppCheck Debug Token: \(String(describing: debugProvider?.localDebugToken()))")
+        print("AppCheck Debug Token: \(debugProvider?.localDebugToken())")
         return debugProvider
     }
 }
@@ -82,7 +82,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct CityScoutApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authVM = AuthenticationViewModel()
-    @StateObject private var homeVM = HomeViewModel()
 
     var body: some Scene {
         WindowGroup {

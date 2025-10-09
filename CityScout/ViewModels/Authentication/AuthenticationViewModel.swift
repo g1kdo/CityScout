@@ -151,7 +151,7 @@ class AuthenticationViewModel: ObservableObject {
         successMessage = ""
 
         do {
-            _ = try await Auth.auth().signIn(withEmail: email, password: password)
+            let result = try await Auth.auth().signIn(withEmail: email, password: password)
             // The authStateHandler will pick up result.user and update signedInUser
             successMessage = "Signed in successfully! Welcome back."
             showAlert = true

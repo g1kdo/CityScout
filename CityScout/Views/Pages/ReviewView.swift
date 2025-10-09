@@ -6,10 +6,15 @@ struct ReviewView: View {
     @StateObject private var viewModel = ReviewViewModel(homeViewModel: HomeViewModel())
     @State private var showAddReviewSheet = false
     @State private var reviewToEdit: ReviewViewModel.Review?
+    @State private var isShowingEditSheet = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // --- DEFINITIVE FIX IS HERE ---
+                // This new logic checks for the initial fetch state.
+                // It will show a ProgressView ONLY on the very first load,
+                // preventing the "flash" on subsequent views.
                 if viewModel.isPerformingInitialFetch {
                     ProgressView("Loading reviews...")
                         .frame(maxHeight: .infinity)
@@ -46,15 +51,16 @@ struct ReviewView: View {
                         ReviewListContent(
                             viewModel: viewModel,
                             authVM: authVM,
-                            reviewToEdit: $reviewToEdit
+                            reviewToEdit: $reviewToEdit,
+                            isShowingEditSheet: $isShowingEditSheet
                         )
                     }
                     .listStyle(.plain)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
+                // This part of your UI remains the same
                 Button {
-                    // Set the new state variable to true
                     showAddReviewSheet = true
                 } label: {
                     HStack {
@@ -72,14 +78,15 @@ struct ReviewView: View {
                 .padding(.bottom, 5)
             }
             .background(Color(.systemBackground)).ignoresSafeArea()
-            .fullScreenCover(isPresented: $showAddReviewSheet) { // Use `isPresented` for the "add" sheet
-                AddReviewSheet(viewModel: viewModel, reviewToEdit: nil) // Pass `nil` for `reviewToEdit`
+            .fullScreenCover(isPresented: $showAddReviewSheet) {
+                AddReviewSheet(viewModel: viewModel, reviewToEdit: reviewToEdit)
             }
-            .fullScreenCover(item: $reviewToEdit, onDismiss: { // Use `item` for the "edit" sheet
-                reviewToEdit = nil
-            }) { review in
-                AddReviewSheet(viewModel: viewModel, reviewToEdit: review)
+            .fullScreenCover(isPresented: $isShowingEditSheet) {
+                if let review = reviewToEdit {
+                    AddReviewSheet(viewModel: viewModel, reviewToEdit: review)
+                }
             }
+            
             .navigationTitle("Reviews")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -90,9 +97,11 @@ private struct ReviewListContent: View {
     @ObservedObject var viewModel: ReviewViewModel
     @ObservedObject var authVM: AuthenticationViewModel
     @Binding var reviewToEdit: ReviewViewModel.Review?
-
+    @Binding var isShowingEditSheet: Bool
+    
     var body: some View {
         ForEach(viewModel.sortedReviews) { review in
+            // Find the original review in the main 'reviews' array
             if let index = viewModel.reviews.firstIndex(where: { $0.id == review.id }) {
                 ReviewCardView(
                     viewModel: viewModel,
@@ -108,8 +117,8 @@ private struct ReviewListContent: View {
                 .swipeActions(edge: .leading) {
                     if review.authorId == authVM.signedInUser?.id {
                         Button {
-                            // This will trigger the sheet via the binding
                             reviewToEdit = review
+                            isShowingEditSheet = true
                         } label: {
                             Label("Edit", systemImage: "pencil")
                         }

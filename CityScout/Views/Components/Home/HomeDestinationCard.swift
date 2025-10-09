@@ -3,6 +3,8 @@ import Kingfisher
 
 struct HomeDestinationCard: View {
     let destination: Destination
+    var isFavorite: Bool
+    let onFavoriteTapped: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

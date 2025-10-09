@@ -4,7 +4,7 @@ struct FavoritePlacesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
 
-    @StateObject private var viewModel = FavoritesViewModel(homeViewModel: HomeViewModel())
+    @StateObject private var viewModel = FavoritesViewModel()
 
     var body: some View {
         NavigationStack {
@@ -32,7 +32,10 @@ struct FavoritePlacesView: View {
             .onChange(of: authVM.signedInUser?.id) { _, newId in
                 viewModel.subscribeToFavorites(for: newId)
             }
-            .background(Color(.systemBackground).ignoresSafeArea())
+            // --- FIX IS HERE ---
+            // Replaced Color.white with an adaptive system background color.
+            // This is the change that will make the view adapt to dark mode.
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
         }
     }
 
@@ -46,7 +49,7 @@ struct FavoritePlacesView: View {
             Spacer()
             Text("No favorite places yet. Bookmark your favorites!")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.secondary) // Use adaptive color
                 .multilineTextAlignment(.center)
                 .padding()
             Spacer()
