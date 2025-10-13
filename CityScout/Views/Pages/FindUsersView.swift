@@ -7,13 +7,14 @@
 
 import SwiftUI
 import Kingfisher
+import Combine
 
 struct FindUsersView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
-    // FIX: Use the main message view model, but initialize a local instance if no environment object is provided
     @StateObject private var viewModel = MessageViewModel()
     @EnvironmentObject var homeVM: HomeViewModel
+    @State private var cancellables = Set<AnyCancellable>()
 
     let onUserSelected: (SignedInUser) -> Void
     @State private var searchText: String = ""
@@ -97,6 +98,19 @@ struct FindUsersView: View {
                     // FIX: Call the new function to fetch recommended users
                     await viewModel.fetchRecommendedUsers()
                 }
+                homeVM.$transcribedText
+                            .dropFirst() // Don't use the initial value
+                            .filter { _ in self.homeVM.isListeningToSpeech == false } // Only act after listening stops
+                            .sink { newText in // No capture list needed for struct
+                                guard !newText.isEmpty else { return }
+                                
+                                self.searchText = newText
+                                self.homeVM.transcribedText = ""
+                            }
+                            .store(in: &cancellables)
+            }
+            .onDisappear {
+                cancellables.removeAll()
             }
         }
     }

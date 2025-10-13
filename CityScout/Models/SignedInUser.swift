@@ -1,4 +1,3 @@
-// Models/SignedInUser.swift
 import Foundation
 import FirebaseFirestore
 import FirebaseMessaging
@@ -19,6 +18,10 @@ struct SignedInUser: Identifiable, Codable, Equatable {
     var selectedInterests: [String]? = []
     var interestScores: [String: Int]? = [:]
     var hasSetInterests: Bool? = false
+    
+    //Status
+    var isOnline: Bool? = false
+    var lastSeen: Timestamp?
     
     // FIX: Added the `scheduledEvents` property to the model
     var scheduledEvents: [String]? // An array of event IDs for proximity-based matching

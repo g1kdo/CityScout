@@ -15,5 +15,9 @@ struct Partner: Codable, Identifiable {
     let partnerDisplayName: String?
     let partnerEmail: String
     
+    //Status
+    var isOnline: Bool? = false
+    var lastSeen: Timestamp?
+    
 }
 

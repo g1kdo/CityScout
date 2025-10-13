@@ -8,13 +8,14 @@ import FirebaseAppCheckInterop
 import GoogleMaps
 import GooglePlaces
 import FirebaseMessaging
+import FirebaseAuth
 
 // Define your AppCheckDebugProviderFactory
 #if targetEnvironment(simulator)
 class AppCheckDebugProviderFactory: NSObject, AppCheckProviderFactory {
     func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
         let debugProvider = AppCheckDebugProvider(app: app)
-        print("AppCheck Debug Token: \(debugProvider?.localDebugToken())")
+        print("AppCheck Debug Token: \(String(describing: debugProvider?.localDebugToken()))")
         return debugProvider
     }
 }
@@ -82,11 +83,33 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct CityScoutApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authVM = AuthenticationViewModel()
+    @StateObject private var homeVM = HomeViewModel()
+    
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(authVM)
         }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+                    // Only proceed if a user is currently logged in
+                    guard Auth.auth().currentUser != nil else { return }
+
+                    switch newPhase {
+                    case .active:
+                        // App came to the foreground
+                        Task {
+                            await authVM.setStatus(isOnline: true)
+                        }
+                    case .inactive, .background:
+                        // App is going away (background/multitasking view)
+                        Task {
+                            await authVM.setStatus(isOnline: false)
+                        }
+                    @unknown default:
+                        break
+                    }
+                }
     }
 }

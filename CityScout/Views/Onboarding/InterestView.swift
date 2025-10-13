@@ -36,9 +36,9 @@ struct InterestView: View {
             Color(
                 UIColor { traitCollection in
                     if traitCollection.userInterfaceStyle == .light {
-                        return UIColor(hex: "#F9F5F0") ?? .systemBackground
+                        return UIColor(hex: "#FFFFF9") ?? .systemBackground
                     } else {
-                        return UIColor(hex: "#282420") ?? .systemBackground
+                        return UIColor(hex: "#1A1A1A") ?? .systemBackground
                     }
                 }
             )

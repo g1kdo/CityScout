@@ -42,9 +42,13 @@ struct ChatView: View {
             if let chatId = chat.id {
                 viewModel.subscribeToMessages(chatId: chatId)
             }
+            if let partnerId = chat.partnerId {
+                            viewModel.subscribeToPartnerStatus(partnerId: partnerId)
+                        }
         }
         .onDisappear {
             viewModel.messagesListener?.remove()
+            viewModel.unsubscribeFromPartnerStatus()
         }
         .alert("Error", isPresented: $showingAlert, presenting: viewModel.errorMessage) { _ in
             Button("OK", role: .cancel) { }
@@ -88,13 +92,16 @@ struct ChatView: View {
                         .foregroundColor(.secondary)
                 } else if let partnerId = chat.partnerId, viewModel.typingStatus.contains(partnerId) {
                     Text("Typing...")
-                        .font(.caption)
-                        .foregroundColor(.green)
+                    .font(.caption)
+                    .foregroundColor(.green)
+                } else if let status = viewModel.partnerStatus {
+                   statusText(for: status) // <-- Call the new helper function
                 } else {
-                    Text("Online")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                                        // Fallback if status is not loaded yet
+                                        Text("Offline")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
             }
             
             Spacer()
@@ -130,6 +137,41 @@ struct ChatView: View {
                         await viewModel.reportUser(chatId: chatId, recipientId: recipientId, reason: reason)
                     }
                 }
+            }
+        }
+    }
+    
+    private func statusText(for status: UserStatus) -> some View {
+        if status.isOnline ?? false {
+            return Text("Online")
+                .font(.caption)
+                .foregroundColor(.green)
+        } else {
+            let lastSeenDate = status.lastSeen?.dateValue()
+            
+            // Check if the last seen was more than 7 days ago,
+            // which is often the limit for relative formatting.
+            if lastSeenDate! < Calendar.current.date(byAdding: .day, value: -7, to: Date())! {
+                // If it's too old, show the full date (e.g., "Sep 20, 2025 at 10:30 AM")
+                let formatter = DateFormatter()
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .short
+                let absoluteTime = formatter.string(from: lastSeenDate!)
+                
+                return Text("Last seen \(absoluteTime)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                // For recent times, use the RelativeDateTimeFormatter (e.g., "5 minutes ago", "yesterday")
+                let formatter = RelativeDateTimeFormatter()
+                formatter.unitsStyle = .abbreviated // "5 min ago" or .full for "5 minutes ago"
+                formatter.dateTimeStyle = .numeric // Ensure it works across date boundaries
+
+                let relativeTime = formatter.localizedString(for: lastSeenDate!, relativeTo: Date())
+                
+                return Text("Last seen \(relativeTime)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
     }

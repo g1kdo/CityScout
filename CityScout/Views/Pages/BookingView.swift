@@ -80,27 +80,81 @@ struct BookingView: View {
     }
 }
 
-/**
- Handles the scrolling title at the top of the booking view.
- */
+
 private struct BookingTitleView: View {
     let destinationName: String
     
+    // 1. Unique IDs for ScrollViewReader control
+    private let textStartID = 0
+    private let duplicatedTextID = 1
+    
+    @State private var isScrolling = false
+    
+    // 2. The combined string to ensure spacing between copies
+    private var fullMarqueeText: String {
+        // Use a wide separator of spaces to ensure a gap between loops
+        let separator = String(repeating: " ", count: 10)
+        return "Book Your Trip to \(destinationName)" + separator
+    }
+    
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Text("Book Your Trip to \(destinationName)")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                // Use an HStack to hold the duplicated content side-by-side
+                HStack(spacing: 0) {
+                    // --- First Copy (Target ID: 0) ---
+                    Text(fullMarqueeText)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .id(textStartID) // The start of the loop
+                    
+                    // --- Second Copy (Target ID: 1) ---
+                    Text(fullMarqueeText)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .id(duplicatedTextID) // The target for the initial scroll/jump
+                }
                 .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal) // Add horizontal padding for a clean look
+            }
+            .padding(.bottom, 10)
+            .onAppear {
+                startMarqueeAnimation(proxy: proxy)
+            }
         }
-        .padding(.bottom, 10)
+    }
+    
+    // 3. The Continuous Marquee Animation Logic
+    private func startMarqueeAnimation(proxy: ScrollViewProxy) {
+        guard destinationName.count > 15 else { return }
+
+        // Start the scrolling task
+        Task {
+            // Calculate the time it takes to scroll one text copy (e.g., 5 seconds per copy)
+            let scrollDuration: Double = Double(destinationName.count) * 0.3 // ~3.0-5.0 seconds total scroll
+
+            // The loop runs indefinitely
+            while true {
+                // 1. Scroll the content to the start of the duplicated text (ID 1)
+                // This scrolls the first copy entirely out of view.
+                withAnimation(.linear(duration: scrollDuration)) {
+                    proxy.scrollTo(duplicatedTextID, anchor: .leading)
+                }
+
+                // Wait for the animation to complete
+                try? await Task.sleep(for: .seconds(scrollDuration))
+
+                // 2. Instantly and silently jump back to the start position (ID 0)
+                // This must be done without animation to prevent a visual flicker.
+                proxy.scrollTo(textStartID, anchor: .leading)
+                
+                // The loop immediately starts the scroll from step 1 again.
+            }
+        }
     }
 }
 
-/**
- Handles the Date Selection (MultiDatePicker).
- */
+
 private struct DateSelectionView: View {
     @ObservedObject var bookingVM: BookingViewModel // Assuming BookingViewModel is defined externally
     
