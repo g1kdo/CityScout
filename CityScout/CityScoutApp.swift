@@ -84,6 +84,7 @@ struct CityScoutApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authVM = AuthenticationViewModel()
     @StateObject private var homeVM = HomeViewModel()
+    @StateObject private var messageVM = MessageViewModel()
     
     @Environment(\.scenePhase) private var scenePhase
 
@@ -91,6 +92,8 @@ struct CityScoutApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(authVM)
+                .environmentObject(homeVM)
+                .environmentObject(messageVM)
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
                     // Only proceed if a user is currently logged in

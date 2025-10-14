@@ -5,6 +5,8 @@ struct PopularFavoriteDestinationCard: View {
     let destination: Destination
     var isFavorite: Bool
     let onFavoriteTapped: () -> Void
+    
+    @EnvironmentObject var messageVM : MessageViewModel
 
     var body: some View {
         // The main VStack no longer has padding. Spacing is set to 0.
