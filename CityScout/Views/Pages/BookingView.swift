@@ -168,6 +168,7 @@ private struct DateSelectionView: View {
             MultiDatePicker("Select Dates", selection: $bookingVM.selectedDates, in: Date()...)
                 .datePickerStyle(.graphical)
                 .accentColor(Color(hex: "#24BAEC"))
+                .frame(maxWidth: .infinity) 
         }
         .padding(.bottom, 10)
     }

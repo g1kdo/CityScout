@@ -5,6 +5,10 @@ struct FavoritePlacesView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
 
     @StateObject private var viewModel = FavoritesViewModel(homeViewModel: HomeViewModel())
+    
+    let columns: [GridItem] = [
+            GridItem(.adaptive(minimum: 160))
+        ]
 
     var body: some View {
         NavigationStack {
@@ -52,7 +56,7 @@ struct FavoritePlacesView: View {
             Spacer()
         } else {
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], spacing: 20) {
+                LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(viewModel.favorites) { destination in
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(

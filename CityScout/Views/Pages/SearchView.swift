@@ -9,6 +9,10 @@ struct SearchView: View {
 
     // Programmatic navigation link
     @State private var isShowingGoogleDetails = false
+    
+    let columns: [GridItem] = [
+            GridItem(.adaptive(minimum: 160))
+        ]
 
     var body: some View {
         ZStack {
@@ -68,7 +72,7 @@ struct SearchView: View {
             Spacer()
         } else {
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], spacing: 20) {
+                LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(homeVM.searchResults, id: \.id) { anyDestination in
                         switch anyDestination {
                         case .local(let destination):

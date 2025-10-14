@@ -1,12 +1,15 @@
 //
-//  DestinationDetailView.swift
-//  CityScout
+//  DestinationDetailView.swift
+//  CityScout
 //
-//  Created by Umuco Auca on 20/09/2025.
+//  Created by Umuco Auca on 20/09/2025.
 //
 
 import SwiftUI
 import Kingfisher
+
+// Define a common constant for the small screen header height
+private let kHeaderHeightFactor: CGFloat = 0.5
 
 struct DestinationDetailView: View {
     // MARK: - Properties
@@ -17,7 +20,6 @@ struct DestinationDetailView: View {
     @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var locationManager = LocationManager()
     
-    // NEW: We will use the main MessageViewModel to start a chat
     @EnvironmentObject var messageVM: MessageViewModel
 
     @State private var showBookingSheet = false
@@ -25,19 +27,23 @@ struct DestinationDetailView: View {
     @State private var selectedImageIndex = 0
     @State private var showOnMapView = false
     
-    // NEW: State to trigger navigation to the ChatView
     @State private var isShowingFacilitatorChat: Bool = false
     @State private var facilitatorChat: Chat?
 
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
     // MARK: - Body
     var body: some View {
-        ZStack {
-            ZStack {
-                HeaderImageView(imageUrl: destination.imageUrl)
-                    .offset(y: -200)
-                
-                VStack {
-                    Spacer()
+        Group {
+            if horizontalSizeClass == .regular {
+                // MARK: - Large Screen Layout (e.g., iPad Landscape)
+                HStack(spacing: 0) {
+                                    // 1. Header Image (left side) - Ensure it fills the height
+                                    HeaderImageView(imageUrl: destination.imageUrl)
+                                        .frame(width: UIScreen.main.bounds.width * 0.5)
+                                        .clipped() // Ensure it respects the frame
+                    
+                    // 2. Details Card (right side)
                     DetailsCard(
                         destination: destination,
                         onBookNow: { showBookingSheet = true },
@@ -52,33 +58,93 @@ struct DestinationDetailView: View {
                     )
                     .environmentObject(messageVM)
                     .environmentObject(authVM)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemGroupedBackground))
+                }
+                .overlay(alignment: .topLeading) {
+                                    // Header buttons on top of the image
+                                    HeaderNavButtons(
+                                        isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
+                                        onDismiss: { dismiss() },
+                                        onToggleFavorite: {
+                                        Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
+                                        },
+                                        onViewOnMap: {
+                                            showOnMapView = true
+                                        }
+                                    )
+                                    // Confine buttons to the image area, and use the existing padding from HeaderNavButtons
+                                    .frame(width: UIScreen.main.bounds.width * 0.5, alignment: .top)
+                                    .padding(.top, 0) // Remove any extra padding if needed, rely on HeaderNavButtons internal padding
+                                }
+                                .ignoresSafeArea(.all, edges: .top)
+                if showGalleryOverlay {
+                    FullScreenGalleryView(
+                        imageUrls: destination.galleryImageUrls ?? [],
+                        isPresented: $showGalleryOverlay,
+                        selectedImageIndex: selectedImageIndex
+                    )
+                    .transition(.opacity.animation(.easeInOut))
                 }
                 
-                HeaderNavButtons(
-                    isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
-                    onDismiss: { dismiss() },
-                    onToggleFavorite: {
-                    Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
-                    },
-                    onViewOnMap: {
-                    showOnMapView = true
-                }
-                )
-            }
-          .blur(radius: showGalleryOverlay ? 20 : 0)
+            } else {
+                // MARK: - Small Screen Layout (iPhone/iPad Portrait)
+                ZStack {
+                    ZStack {
+                        // 1. Apply .top alignment to fix the image position
+                        HeaderImageView(imageUrl: destination.imageUrl)
+                            .offset(y: 0) // Keep offset at 0
+                            .ignoresSafeArea(.all, edges: .top) // Ensure it fills the notch area
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // <-- FIX IS HERE
+                        
+                        VStack {
+                            Spacer() // This pushes the DetailsCard to the bottom
+                            DetailsCard(
+                                destination: destination,
+                                onBookNow: { showBookingSheet = true },
+                                onImageTapped: { index in
+                                    self.selectedImageIndex = index
+                                    withAnimation(.easeInOut) {
+                                        self.showGalleryOverlay = true
+                                    }
+                                },
+                                isShowingFacilitatorChat: $isShowingFacilitatorChat,
+                                facilitatorChat: $facilitatorChat
+                            )
+                            .environmentObject(messageVM)
+                            .environmentObject(authVM)
+                        }
+                        
+                        // 2. Adjust HeaderNavButtons alignment and padding for the top
+                        HeaderNavButtons(
+                            isFavorite: favoritesVM.isFavorite(destination: .local(destination)),
+                            onDismiss: { dismiss() },
+                            onToggleFavorite: {
+                            Task { await favoritesVM.toggleFavorite(destination: .local(destination)) }
+                            },
+                            onViewOnMap: {
+                                showOnMapView = true
+                            }
+                        )
+                    }
+                    .blur(radius: showGalleryOverlay ? 20 : 0)
 
-            if showGalleryOverlay {
-                FullScreenGalleryView(
-                    imageUrls: destination.galleryImageUrls ?? [],
-                    isPresented: $showGalleryOverlay,
-                    selectedImageIndex: selectedImageIndex
-                )
-                .transition(.opacity.animation(.easeInOut))
+                    if showGalleryOverlay {
+                        FullScreenGalleryView(
+                            imageUrls: destination.galleryImageUrls ?? [],
+                            isPresented: $showGalleryOverlay,
+                            selectedImageIndex: selectedImageIndex
+                        )
+                        .transition(.opacity.animation(.easeInOut))
+                    }
+                }
+                .ignoresSafeArea()
+                .navigationBarHidden(true)
+                .background(Color(.systemGroupedBackground))
             }
         }
-        .ignoresSafeArea()
+        // MARK: - Common Modifiers
         .navigationBarHidden(true)
-        .background(Color(.systemGroupedBackground))
         .onAppear {
             favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
         }
@@ -91,7 +157,6 @@ struct DestinationDetailView: View {
             OnMapView(mapType: .destination(destination))
                 .environmentObject(locationManager)
         }
-        // NEW: Navigation to the facilitator chat
         .navigationDestination(isPresented: $isShowingFacilitatorChat) {
             if let chat = facilitatorChat {
                 ChatView(chat: chat)
@@ -102,112 +167,125 @@ struct DestinationDetailView: View {
     }
 }
 
-// MARK: - Details Card (New Structure)
+// MARK: - Details Card (Modified)
 private struct DetailsCard: View {
     let destination: Destination
     let onBookNow: () -> Void
     let onImageTapped: (Int) -> Void
     
     @State private var showFullDescription = false
-    // NEW: Environment object to access the message view model
+    
     @EnvironmentObject var messageVM: MessageViewModel
     @EnvironmentObject var authVM: AuthenticationViewModel
     @Binding var isShowingFacilitatorChat: Bool
     @Binding var facilitatorChat: Chat?
     
-    @State private var showTooltip = false // NEW: State for tooltip visibility
+    @State private var showTooltip = false
+    
+    // NEW: Environment variable for size class
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView(.vertical, showsIndicators: false) {
-                Spacer().frame(height: 300)
-                
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(destination.name).font(.title2).bold()
-                            HStack(spacing: 4) { // NEW: Combined location and new button
-                                Text(destination.location).font(.subheadline).foregroundColor(.secondary)
-                                if let facilitatorId = destination.partnerId, facilitatorId != authVM.signedInUser?.id {
-                                    Image(systemName: "headphones.circle.fill")
-                                        .font(.title2)
-                                        .foregroundColor(Color(hex: "#24BAEC"))
-                                        .onTapGesture {
-                                            Task {
-                                                self.facilitatorChat = await messageVM.startNewChat(with: facilitatorId)
-                                                self.isShowingFacilitatorChat = true
-                                            }
-                                        }
-                                        .onLongPressGesture(minimumDuration: 0.5) { // NEW: Add long-press gesture
-                                            withAnimation {
-                                                self.showTooltip = true
-                                            }
-                                        }
-                                        .popover(isPresented: $showTooltip, arrowEdge: .top) { // NEW: Popover for tooltip
-                                            Text("Message Partner")
-                                                .font(.caption)
-                                                .padding(8)
-                                                .foregroundColor(.primary)
-                                                .cornerRadius(8)
-                                                .presentationCompactAdaptation(.popover)
-                                        }
-                                }
-                            }
+        // Removed GeometryReader as it's not strictly necessary here and can be simplified
+        ScrollView(.vertical, showsIndicators: false) {
+            // Only add the spacer on the small screen layout to push content down below the header image
+            if horizontalSizeClass != .regular {
+                            // Add the height of the image (65%) minus the height of the curved card top (e.g., 40pts)
+                            Spacer().frame(height: UIScreen.main.bounds.height * kHeaderHeightFactor - 40)
                         }
-                        Spacer()
-                        HStack(spacing: -12) {
-                            if let avatars = destination.participantAvatars {
-                                ForEach(avatars.prefix(3), id: \.self) { imageUrl in
-                                    AvatarImageView(imageUrl: imageUrl)
-                                        .frame(width: 50, height: 50)
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
-                                }
-                                if avatars.count > 3 {
-                                    Text("+\(avatars.count - 3)")
-                                        .font(.caption)
-                                        .frame(width: 32, height: 32)
-                                        .background(Color.secondary.opacity(0.3))
-                                        .clipShape(Circle())
-                                }
+            
+            VStack(alignment: .leading, spacing: 20) {
+                // ... (Content remains the same)
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(destination.name).font(.title2).bold()
+                        HStack(spacing: 4) { // NEW: Combined location and new button
+                            Text(destination.location).font(.subheadline).foregroundColor(.secondary)
+                            if let facilitatorId = destination.partnerId, facilitatorId != authVM.signedInUser?.id {
+                                Image(systemName: "headphones.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(Color(hex: "#24BAEC"))
+                                    .onTapGesture {
+                                        Task {
+                                            self.facilitatorChat = await messageVM.startNewChat(with: facilitatorId)
+                                            self.isShowingFacilitatorChat = true
+                                        }
+                                    }
+                                    .onLongPressGesture(minimumDuration: 0.5) { // NEW: Add long-press gesture
+                                        withAnimation {
+                                            self.showTooltip = true
+                                        }
+                                    }
+                                    .popover(isPresented: $showTooltip, arrowEdge: .top) { // NEW: Popover for tooltip
+                                        Text("Message Partner")
+                                            .font(.caption)
+                                            .padding(8)
+                                            .foregroundColor(.primary)
+                                            .cornerRadius(8)
+                                            .presentationCompactAdaptation(.popover)
+                                    }
                             }
                         }
                     }
-                    
-
-                    InfoRow(destination: destination)
-
-                    if let imageUrls = destination.galleryImageUrls, !imageUrls.isEmpty {
-                        GalleryView(imageUrls: imageUrls, onImageTapped: onImageTapped)
+                    Spacer()
+                    HStack(spacing: -12) {
+                        if let avatars = destination.participantAvatars {
+                            ForEach(avatars.prefix(3), id: \.self) { imageUrl in
+                                AvatarImageView(imageUrl: imageUrl)
+                                    .frame(width: 50, height: 50)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
+                            }
+                            if avatars.count > 3 {
+                                Text("+\(avatars.count - 3)")
+                                    .font(.caption)
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.secondary.opacity(0.3))
+                                    .clipShape(Circle())
+                            }
+                        }
                     }
-
-                    AboutView(description: destination.description, showFullDescription: $showFullDescription)
-                    
-                    BookNowButton(action: onBookNow)
-                    
-                    Color.clear.frame(height: 50)
                 }
-                .padding(24)
-                .background(Color(.systemBackground))
-                .clipShape(RoundedCorners(radius: 40, corners: [.topLeft, .topRight]))
+                
+                InfoRow(destination: destination)
+
+                if let imageUrls = destination.galleryImageUrls, !imageUrls.isEmpty {
+                    GalleryView(imageUrls: imageUrls, onImageTapped: onImageTapped)
+                }
+
+                AboutView(description: destination.description, showFullDescription: $showFullDescription)
+                
+                BookNowButton(action: onBookNow)
+                
+                Color.clear.frame(height: 50)
             }
+            .padding(24)
+            .background(Color(.systemBackground))
+            // Only clip the top corners for the small screen layout
+            .clipShape(horizontalSizeClass != .regular ? RoundedCorners(radius: 40, corners: [.topLeft, .topRight]) : RoundedCorners(radius: 0, corners: []))
         }
     }
 }
 
 
-// MARK: - Header Image View
+// MARK: - Header Image View (Updated)
 private struct HeaderImageView: View {
     let imageUrl: String
+    
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var body: some View {
-        KFImage(URL(string: imageUrl))
-            .placeholder { Color.secondary.opacity(0.2) }
-            .resizable()
-            .scaledToFill()
-            .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height / 2)
-            .clipped()
-            .ignoresSafeArea()
+        GeometryReader { geometry in
+            KFImage(URL(string: imageUrl))
+                .placeholder { Color.secondary.opacity(0.2) }
+                .resizable()
+                .scaledToFill()
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
+                .ignoresSafeArea()
+        }
+        // Small screen: Set height to kHeaderHeightFactor (e.g., 65% of screen height)
+        .frame(height: horizontalSizeClass != .regular ? UIScreen.main.bounds.height * kHeaderHeightFactor : nil)
     }
 }
 
