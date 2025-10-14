@@ -5,7 +5,7 @@ import Kingfisher
 struct TopBarView: View {
     @EnvironmentObject var authVM: AuthenticationViewModel
     @StateObject private var notificationVM = NotificationViewModel()
-    
+    @StateObject private var messageVM = MessageViewModel()
     @Binding var isShowingMessagesView: Bool
     
     @State private var showingNotifications = false
@@ -51,9 +51,10 @@ struct TopBarView: View {
                 Button(action: {
                     isShowingMessagesView = true
                 }) {
-                    Image(systemName: "message")
-                        .font(.system(size: 20))
-                        .foregroundColor(.primary)
+//                    Image(systemName: "message")
+//                        .font(.system(size: 20))
+//                        .foregroundColor(.primary)
+                    MessageNotificationBell(unreadCount: messageVM.totalUnreadCount)
                 }
                 
                 // Notification Bell with Button and fullScreenCover
@@ -67,6 +68,7 @@ struct TopBarView: View {
         .padding(.horizontal, 20)
         .onAppear {
             notificationVM.fetchNotifications()
+            messageVM.subscribeToChats()
         }
         .fullScreenCover(isPresented: $showingNotifications) {
             // The view to present as a fullScreenCover

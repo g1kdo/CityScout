@@ -147,7 +147,6 @@ private struct DetailsCard: View {
                                             Text("Message Partner")
                                                 .font(.caption)
                                                 .padding(8)
-                                                .background(Color(.systemGray6))
                                                 .foregroundColor(.primary)
                                                 .cornerRadius(8)
                                                 .presentationCompactAdaptation(.popover)

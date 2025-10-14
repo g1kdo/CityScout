@@ -43,6 +43,10 @@ class MessageViewModel: ObservableObject {
     public var messagesListener: ListenerRegistration?
     private var chatsListener: ListenerRegistration?
     
+    @Published var totalUnreadCount: Int = 0
+    @Published var partnerStatus: UserStatus?
+    private var partnerStatusListener: ListenerRegistration?
+    
     init() {
         subscribeToChats()
     }
@@ -69,6 +73,15 @@ class MessageViewModel: ObservableObject {
                 guard let self = self else { return }
                 self.isLoading = false
                 
+                // --- NEW: Exit if the update is from a local write ---
+                // This stops the recursion after an update is applied by this client.
+                if querySnapshot?.metadata.hasPendingWrites == true {
+                    // The document change will still be processed below, but we won't trigger
+                    // another updateChatPartnerInfo call.
+                    // However, a simpler/safer approach is to let the loop run but skip the trigger.
+                    // We'll proceed with the loop but only trigger the update if the change is NOT local.
+                }
+                
                 if let error = error {
                     self.errorMessage = "Failed to fetch chats: \(error.localizedDescription)"
                     print("Error fetching chats: \(error.localizedDescription)")
@@ -77,61 +90,165 @@ class MessageViewModel: ObservableObject {
                 
                 guard let documents = querySnapshot?.documents else {
                     self.chats = []
+                    self.totalUnreadCount = 0
                     return
                 }
 
-                self.chats = documents.compactMap { doc -> Chat? in
-                    do {
-                        var chat = try doc.data(as: Chat.self)
-                        if let lastMessage = chat.lastMessage {
-                            let partnerId = (lastMessage.senderId == userId) ? lastMessage.receiverId : lastMessage.senderId
-                            if partnerId != chat.partnerId {
-                                print("Chat metadata is outdated. Updating partner info...")
-                                Task { await self.updateChatPartnerInfo(chatId: doc.documentID, partnerId: partnerId) }
+                // Determine if the snapshot contains an update that was NOT initiated locally
+                        let isUpdateRemote = querySnapshot?.metadata.isFromCache == false && querySnapshot?.metadata.hasPendingWrites == false
+
+                        self.chats = documents.compactMap { doc -> Chat? in
+                            do {
+                                var chat = try doc.data(as: Chat.self)
+                                let chatId = doc.documentID // Capture the chat ID
+                                
+//                                if let lastMessage = chat.lastMessage {
+//                                    // Check if the chat document is missing/incorrect metadata
+//                                    let partnerIdFromMessage = (lastMessage.senderId == userId) ? lastMessage.receiverId : lastMessage.senderId
+//                                    
+//                                    if partnerIdFromMessage != chat.partnerId {
+//                                        
+//                                        // ⭐️ The fix is to only trigger the update if the metadata change
+//                                        // didn't originate from a local write (i.e., another client made a change)
+//                                        if isUpdateRemote {
+//                                            print("Chat metadata is outdated. Updating partner info...")
+//                                            Task {
+//                                                // Use the captured chatId
+//                                                await self.updateChatPartnerInfo(chatId: chatId, partnerId: partnerIdFromMessage)
+//                                            }
+//                                        } else {
+//                                            // Print a different message for local updates to trace the loop
+//                                            print("Chat metadata update detected (Local). Skipping recursive trigger.")
+//                                        }
+//                                    }
+//                                }
+                                return chat
+                            } catch {
+                                print("Error decoding chat document: \(error.localizedDescription)")
+                                return nil
                             }
                         }
-                        return chat
-                    } catch {
-                        print("Error decoding chat document: \(error.localizedDescription)")
-                        return nil
+                        
+                        self.calculateTotalUnreadCount(for: userId)
                     }
                 }
+    
+    private func calculateTotalUnreadCount(for userId: String) {
+            let count = self.chats.reduce(0) { total, chat in
+                // Safely retrieve the unread count for the current user
+                let unread = chat.unreadCount?[userId] ?? 0
+                return total + unread
             }
+            self.totalUnreadCount = count
+        }
+    
+    // MARK: - User Status
+    func subscribeToPartnerStatus(partnerId: String) {
+        partnerStatusListener?.remove() // Remove any existing listener
+        
+        // Attempt to listen to the 'users' collection first
+        let userDocRef = db.collection("users").document(partnerId)
+        
+        // Use a helper to check and subscribe to the correct document
+        listenToPartnerDocument(for: partnerId, ref: userDocRef, isUserCollection: true)
     }
-    // NEW: Update the Chat document with correct partner information
 
-    private func updateChatPartnerInfo(chatId: String, partnerId: String) async {
-        do {
-            // --- Dual-Collection Lookup for Partner Info ---
-            var partnerDisplayName: String = "Unknown User"
-            var partnerProfilePictureURLString: String? = nil
+    private func listenToPartnerDocument(for partnerId: String, ref: DocumentReference, isUserCollection: Bool) {
+        
+        partnerStatusListener = ref.addSnapshotListener { [weak self] (documentSnapshot, error) in
+            guard let self = self else { return }
             
-            // 1. Try fetching from the "users" collection (Standard User)
-            let userDoc = try await db.collection("users").document(partnerId).getDocument()
+            if let error = error {
+                print("Error listening to partner status in \(isUserCollection ? "users" : "partners"): \(error.localizedDescription)")
+                // If the listener fails completely, stop trying
+                self.partnerStatus = nil
+                return
+            }
             
-            if userDoc.exists {
-                partnerDisplayName = userDoc.data()?["displayName"] as? String ?? "Unknown User (User)"
-                partnerProfilePictureURLString = userDoc.data()?["profilePictureURL"] as? String
-            } else {
-                // 2. If not a User, try fetching from the "partners" collection (Partner)
-                let partnerDoc = try await db.collection("partners").document(partnerId).getDocument()
-                
-                if partnerDoc.exists {
-                    // Use the field name you specified for partners
-                    partnerDisplayName = partnerDoc.data()?["partnerDisplayName"] as? String ?? "Unknown User (Partner)"
-                    partnerProfilePictureURLString = partnerDoc.data()?["profilePictureURL"] as? String
+            guard let document = documentSnapshot else {
+                self.partnerStatus = nil
+                return
+            }
+            
+            // 1. Check if the document exists
+            if !document.exists {
+                // If the document doesn't exist in 'users', try 'partners'
+                if isUserCollection {
+                    let partnerDocRef = self.db.collection("partners").document(partnerId)
+                    // Remove the old listener and start a new one for the 'partners' collection
+                    self.partnerStatusListener?.remove()
+                    self.listenToPartnerDocument(for: partnerId, ref: partnerDocRef, isUserCollection: false)
+                    return // Exit the current listener block
+                } else {
+                    // Document not found in 'users' OR 'partners'
+                    self.partnerStatus = nil
+                    return
                 }
             }
-            
-            // --- Update Chat Document ---
-            try await db.collection("chats").document(chatId).updateData([
-                "partnerId": partnerId,
-                "partnerDisplayName": partnerDisplayName as Any, // Use the resolved name
-                "partnerProfilePictureURL": partnerProfilePictureURLString as Any
-            ])
+
+            // 2. Document exists, attempt to decode the status
+            do {
+                // Firestore's decoding requires the fields to exist or be optional.
+                // Assuming 'isOnline' and 'lastSeen' are now fields on both user/partner documents.
+                let status = try document.data(as: UserStatus.self)
+                
+                // To be robust, ensure we actually got the data (it could still be nil even if the doc exists)
+                if status.isOnline != nil || status.lastSeen != nil {
+                     self.partnerStatus = status
+                } else {
+                    // Document exists but is missing the crucial status fields
+                    self.partnerStatus = nil
+                    print("Document for \(partnerId) is missing isOnline/lastSeen fields.")
+                }
+               
+            } catch {
+                // This catches the "missing data" or "decoding error" if the document is malformed
+                print("Error decoding partner status in \(isUserCollection ? "users" : "partners"): \(error.localizedDescription)")
+                self.partnerStatus = nil
+            }
+        }
+    }
+        
+        func unsubscribeFromPartnerStatus() {
+            partnerStatusListener?.remove()
+            partnerStatusListener = nil
+        }
+    
+    private func updateChatPartnerInfo(chatId: String, partnerId: String) async {
+        let chatRef = db.collection("chats").document(chatId)
+        
+        do {
+            try await db.runTransaction { (transaction, errorPointer) -> Void in
+                let chatDocument: DocumentSnapshot
+                
+                do {
+                    // 1. Read the current document state within the transaction
+                    chatDocument = try transaction.getDocument(chatRef)
+                } catch let fetchError as NSError {
+                    errorPointer?.pointee = fetchError
+                    return
+                }
+                
+                // 2. Perform the client-side check on the read document
+                guard let chatData = chatDocument.data(),
+                      let currentPartnerId = chatData["partnerId"] as? String else {
+                    return // Document is empty or missing partnerId, skip update
+                }
+                
+                // 3. ONLY proceed if the document's current partnerId is WRONG
+                // This is the race condition safeguard
+                if currentPartnerId != partnerId {
+                    // 4. Update the fields
+                    transaction.updateData([
+                        "partnerId": partnerId,
+                        // Optionally fetch and set other partner info here if needed
+                    ], forDocument: chatRef)
+                    
+                    print("Successfully updated chat metadata via transaction.")
+                }
+            }
         } catch {
-            print("Error updating chat partner info: \(error.localizedDescription)")
-            self.errorMessage = "Failed to update chat partner information."
+            print("Transaction failed with error: \(error.localizedDescription)")
         }
     }
     
@@ -657,4 +774,10 @@ private class AudioRecorder {
     var currentTime: TimeInterval {
         self.audioRecorder?.currentTime ?? 0
     }
+}
+
+struct UserStatus: Decodable, Identifiable {
+    @DocumentID var id: String?
+    var isOnline: Bool? = false
+    var lastSeen: Timestamp? = Timestamp(date: Date())
 }

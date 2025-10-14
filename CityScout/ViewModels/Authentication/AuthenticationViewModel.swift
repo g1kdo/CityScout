@@ -199,6 +199,39 @@ class AuthenticationViewModel: ObservableObject {
            self.isLoadingInitialData = false // Set to false after the operation is complete
        }
     
+    func setStatus(isOnline: Bool) async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+
+        let db = Firestore.firestore()
+        
+        // 1. Prepare the data to be written
+        let statusData: [String: Any] = [
+            "isOnline": isOnline,
+            "lastSeen": Timestamp(date: Date())
+        ]
+        
+        // 2. Determine the correct collection: Check /partners first
+        let partnerDocRef = db.collection("partners").document(userId)
+        
+        do {
+            let partnerDocument = try await partnerDocRef.getDocument()
+            
+            // 3. If the partner document exists, update the status there.
+            if partnerDocument.exists {
+                try await partnerDocRef.setData(statusData, merge: true)
+                print("Status updated in partners collection for \(userId)")
+            } else {
+                // 4. If the partner document does NOT exist, assume it's a standard user and update the /users collection.
+                let userDocRef = db.collection("users").document(userId)
+                try await userDocRef.setData(statusData, merge: true)
+                print("Status updated in users collection for \(userId)")
+            }
+            
+        } catch {
+            print("Error updating status for \(userId): \(error.localizedDescription)")
+        }
+    }
+    
     private func getAuthErrorMessage(error: Error) -> String {
         if let errorCode = AuthErrorCode(rawValue: (error as NSError).code) {
             switch errorCode {

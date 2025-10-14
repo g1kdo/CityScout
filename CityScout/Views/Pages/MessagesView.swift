@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Kingfisher
+import Combine
 
 struct MessagesView: View {
     @Environment(\.dismiss) var dismiss
@@ -18,6 +19,7 @@ struct MessagesView: View {
     @State private var isShowingChatView: Bool = false
     @State private var selectedChat: Chat?
     @State private var isFindingNewChatPartner: Bool = false
+    @State private var cancellables = Set<AnyCancellable>()
 
     var filteredChats: [Chat] {
         if searchText.isEmpty {
@@ -108,6 +110,19 @@ struct MessagesView: View {
         .navigationBarHidden(true)
         .onAppear {
             messageVM.subscribeToChats()
+            homeVM.$transcribedText
+                        .dropFirst() // Don't use the initial value
+                        .filter { _ in self.homeVM.isListeningToSpeech == false } // Only act after listening stops
+                        .sink { newText in // No capture list needed for struct
+                            guard !newText.isEmpty else { return }
+                            
+                            self.searchText = newText
+                            self.homeVM.transcribedText = ""
+                        }
+                        .store(in: &cancellables)
+        }
+        .onDisappear {
+            cancellables.removeAll()
         }
         .navigationDestination(isPresented: $isShowingChatView) {
             if let chat = selectedChat {

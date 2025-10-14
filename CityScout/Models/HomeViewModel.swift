@@ -10,6 +10,15 @@ class HomeViewModel: ObservableObject {
     @Published var destinations: [Destination] = []
     @Published var categorizedDestinations: [String: [Destination]] = [:]
     
+    @Published var userInterestScores: [String: Double] = [:]
+    @Published var transcribedText: String = ""
+    
+    // A complete list of all 10 interest categories
+    private let allInterests: [String] = [
+            "Adventure", "Beaches", "Mountains", "City Breaks", "Foodie",
+            "Cultural", "Historical", "Nature", "Relaxing", "Family"
+        ]
+    
     // MARK: - Search Properties
     @Published var searchText: String = ""
     @Published var searchResults: [AnyDestination] = []
@@ -38,13 +47,13 @@ class HomeViewModel: ObservableObject {
         setupSearchSubscriber()
         
         speechRecognizer.$transcriptionText
-                    .dropFirst() // Ignore the initial empty value
-                    .sink { [weak self] newText in
-                        guard let self = self else { return }
-                        // Update the searchText with the new transcription
-                        self.searchText = newText
-                    }
-                    .store(in: &cancellables)
+                .dropFirst() // Ignore the initial empty value
+                .sink { [weak self] newText in
+                    guard let self = self else { return }
+                    // 🆕 New: Update the transcribedText property
+                    self.transcribedText = newText
+                }
+                .store(in: &cancellables)
     }
 
     private func setupSearchSubscriber() {
@@ -91,46 +100,89 @@ class HomeViewModel: ObservableObject {
     }
     
     private func searchGooglePlaces(for query: String) async -> [AnyDestination] {
-            let filter = GMSAutocompleteFilter()
-            //placesRequest.types = ["establishment", "point_of_interest", "tourist_attraction"]
-            filter.type = .establishment
-            guard let token = currentSessionToken else { return [] }
+        let filter = GMSAutocompleteFilter()
+        filter.type = .establishment
+        guard let token = currentSessionToken else { return [] }
 
-            return await withCheckedContinuation { continuation in
-                placesClient.findAutocompletePredictions(fromQuery: query, filter: filter, sessionToken: token) { (predictions, error) in
-                    guard let predictions = predictions, error == nil else {
-                        print("Google Places autocomplete error: \(String(describing: error?.localizedDescription))")
-                        continuation.resume(returning: [])
-                        return
+        return await withCheckedContinuation { continuation in
+               placesClient.findAutocompletePredictions(fromQuery: query, filter: filter, sessionToken: token) { [weak self] (predictions, error) in
+                   guard let self = self, let predictions = predictions, error == nil else {
+                       print("Google Places autocomplete error: \(String(describing: error?.localizedDescription))")
+                       continuation.resume(returning: [])
+                       return
+                   }
+
+                // We will store the detailed results here
+                var destinations = [AnyDestination]()
+                let group = DispatchGroup()
+
+                for prediction in predictions {
+                    group.enter()
+                    // Make a separate call for each place to get details
+                    fetchDetailsByPlace(for: prediction.placeID, sessionToken: token) { place in
+                        if let place = place {
+                            
+                            let ratingAsDouble = place.rating != nil ? Double(place.rating) : nil
+                            
+                            // Handle unspecified (negative) price levels
+                            var priceLevelAsInt: Int? = nil
+                            if place.priceLevel.rawValue >= 0 {
+                                priceLevelAsInt = Int(place.priceLevel.rawValue)
+                            }
+                            
+                            let googleDest = GoogleDestination(
+                                placeID: place.placeID!,
+                                name: place.name ?? prediction.attributedPrimaryText.string,
+                                location: place.formattedAddress ?? prediction.attributedSecondaryText?.string ?? "",
+                                photoMetadata: place.photos?.first,
+                                websiteURL: place.website?.absoluteString,
+                                rating: ratingAsDouble,
+                                latitude: place.coordinate.latitude,
+                                longitude: place.coordinate.longitude,
+                                priceLevel: priceLevelAsInt,
+                                galleryImageUrls: nil // You can implement a separate function to fetch these
+                            )
+                            destinations.append(AnyDestination.google(googleDest, sessionToken: token))
+                        } else {
+                            // Fallback to the autocomplete data if details can't be fetched
+                            let googleDest = GoogleDestination(
+                                placeID: prediction.placeID,
+                                name: prediction.attributedPrimaryText.string,
+                                location: prediction.attributedSecondaryText?.string ?? "",
+                                photoMetadata: nil,
+                                websiteURL: nil,
+                                rating: nil,
+                                latitude: nil,
+                                longitude: nil,
+                                priceLevel: nil,
+                                galleryImageUrls: nil
+                            )
+                            destinations.append(AnyDestination.google(googleDest, sessionToken: token))
+                        }
+                        group.leave()
                     }
-                    
-                    if let error = error as NSError? {
-                       print("Autocomplete error: \(error.localizedDescription)")
-                       print("Error domain: \(error.domain), code: \(error.code), userInfo: \(error.userInfo)")
-                    }
+                }
 
-                    let results = predictions.map { prediction in
-                        let googleDest = GoogleDestination(
-                            placeID: prediction.placeID,
-                            name: prediction.attributedPrimaryText.string,
-                            location: prediction.attributedSecondaryText?.string ?? "",
-                            photoMetadata: prediction.self  as? GMSPlacePhotoMetadata,
-                            websiteURL: nil,
-                            rating: nil,
-                            latitude: nil,
-                            longitude: nil,
-                            priceLevel: nil,
-                            galleryImageUrls: nil
-                        )
-                        
-
-                        return AnyDestination.google(googleDest, sessionToken: token)
-                    }
-
-                    continuation.resume(returning: results)
+                group.notify(queue: .main) {
+                    continuation.resume(returning: destinations)
                 }
             }
         }
+    }
+
+    private func fetchDetailsByPlace(for placeID: String, sessionToken: GMSAutocompleteSessionToken, completion: @escaping (GMSPlace?) -> Void) {
+        let fields: GMSPlaceField = [.placeID, .name, .formattedAddress, .photos, .rating, .website, .coordinate, .priceLevel]
+        
+        // Use the same session token to link the autocomplete and details requests
+        placesClient.fetchPlace(fromPlaceID: placeID, placeFields: fields, sessionToken: sessionToken) { (place, error) in
+            if let error = error {
+                print("Place Details fetch error: \(error.localizedDescription)")
+                completion(nil)
+                return
+            }
+            completion(place)
+        }
+    }
 
 
 
@@ -269,57 +321,56 @@ class HomeViewModel: ObservableObject {
     }
     
     func fetchPersonalizedDestinations(for userId: String) async {
-        guard !isFetching else { return }
-        isFetching = true
-        
-        let db = Firestore.firestore()
-        let userRef = db.collection("users").document(userId)
-        
-        do {
-            let document = try await userRef.getDocument()
-            guard document.exists, let interestScores = document.data()?["interestScores"] as? [String: Double] else {
-                print("No interest scores found for user.")
-                isFetching = false
-                return
-            }
+            guard !isFetching else { return }
+            isFetching = true
             
-            let topInterests = interestScores.sorted { $0.value > $1.value }.map { $0.key }.prefix(3)
+            let db = Firestore.firestore()
+            let userRef = db.collection("users").document(userId)
             
-            var newCategorizedDestinations: [String: [Destination]] = [:]
-            
-            await withTaskGroup(of: (String, [Destination]).self) { group in
-                for interest in topInterests {
-                    group.addTask {
-                        do {
-                            let snapshot = try await db.collection("destinations")
-                                .whereField("categories", arrayContains: interest)
-                                .getDocuments()
-                            let destinations = snapshot.documents.compactMap { doc -> Destination? in
-                                try? doc.data(as: Destination.self)
+            do {
+                let document = try await userRef.getDocument()
+                let interestScores = document.data()?["interestScores"] as? [String: Double] ?? [:]
+                
+                await MainActor.run {
+                    self.userInterestScores = interestScores
+                }
+
+                var newCategorizedDestinations: [String: [Destination]] = [:]
+                
+                await withTaskGroup(of: (String, [Destination]).self) { group in
+                    // Now, we iterate over the complete list of all interests
+                    for interest in self.allInterests {
+                        group.addTask {
+                            do {
+                                let snapshot = try await db.collection("destinations")
+                                    .whereField("categories", arrayContains: interest)
+                                    .getDocuments()
+                                let destinations = snapshot.documents.compactMap { doc -> Destination? in
+                                    try? doc.data(as: Destination.self)
+                                }
+                                return (interest, destinations)
+                            } catch {
+                                print("Error fetching destinations for \(interest): \(error)")
+                                return (interest, [])
                             }
-                            return (interest, destinations)
-                        } catch {
-                            print("Error fetching destinations for \(interest): \(error)")
-                            return (interest, [])
                         }
+                    }
+                    
+                    for await (interest, destinations) in group {
+                        newCategorizedDestinations[interest] = destinations
                     }
                 }
                 
-                for await (interest, destinations) in group {
-                    newCategorizedDestinations[interest] = destinations
+                await MainActor.run {
+                    self.categorizedDestinations = newCategorizedDestinations
                 }
+                
+            } catch {
+                print("Error fetching user interests: \(error)")
             }
             
-            await MainActor.run {
-                self.categorizedDestinations = newCategorizedDestinations
-            }
-            
-        } catch {
-            print("Error fetching user interests: \(error)")
+            isFetching = false
         }
-        
-        isFetching = false
-    }
 
     deinit {
         destinationsListener?.remove()
