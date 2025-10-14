@@ -53,7 +53,7 @@ enum MapType {
         switch self {
         case .destination(let dest):
             return dest.imageUrl
-        case .googleDestination(let dest):
+        case .googleDestination(_):
             return nil
         }
     }
@@ -193,7 +193,7 @@ struct OnMapView: View {
                 fetchDestinationAndNearbyPlaces()
             }
         }
-        .onChange(of: locationManager.authorizationStatus) { newStatus in
+        .onChange(of: locationManager.authorizationStatus) { _, newStatus in
             if newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways {
                 self.showingPermissionAlert = false
                 fetchDestinationAndNearbyPlaces()
@@ -629,7 +629,7 @@ struct GoogleMapViewContainer: View {
 
 
 // Helper for comparing CLLocationCoordinate2D (No change)
-extension CLLocationCoordinate2D: Equatable {
+extension CLLocationCoordinate2D: @retroactive Equatable {
     public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
         return abs(lhs.latitude - rhs.latitude) < 1e-9 && abs(lhs.longitude - rhs.longitude) < 1e-9
     }

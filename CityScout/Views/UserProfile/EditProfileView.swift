@@ -151,7 +151,7 @@ struct EditProfileView: View {
                         .scaledToFit()
                         .frame(width: 35, height: 35)
                         .foregroundColor(Color.white)
-                        .background(Color.black) 
+                        .background(Color.black)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color(.systemGray5), lineWidth: 1)) // Subtle border
                 }
@@ -182,8 +182,8 @@ struct EditProfileView: View {
                         .font(.caption) // Smaller icon
                         .foregroundColor(Color(hex: "#FF7029"))
                     Text(locationManager.isLoadingLocation ? "Fetching Location..." : "Get Current Location")
-                        .font(.subheadline.bold())
-                        .foregroundColor(Color(hex: "#FF7029"))
+                        .font(.subheadline.bold())
+                        .foregroundColor(Color(hex: "#FF7029"))
                 }
                 .font(.caption) // Smaller font for the text
                 .foregroundColor(.gray) // Gray color to make it less noticeable
@@ -252,7 +252,7 @@ struct EditProfileView: View {
 
     private func saveProfile() async {
         // Pass the signedInUser from authVM to the updateProfile method
-        let success = await viewModel.updateProfile(signedInUserFromAuthVM: authVM.signedInUser)
+        _ = await viewModel.updateProfile(signedInUserFromAuthVM: authVM.signedInUser)
         showingSaveAlert = true
     }
 }

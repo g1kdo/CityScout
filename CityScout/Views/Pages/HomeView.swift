@@ -13,6 +13,7 @@ struct HomeView: View {
     @StateObject private var homeVM = HomeViewModel()
     @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var reviewVM = ReviewViewModel(homeViewModel: HomeViewModel())
+    @StateObject private var messageVM = MessageViewModel()
 
     @State private var navigateToProfile = false
     @State private var selectedTab: FooterTab = .home
@@ -93,6 +94,7 @@ struct HomeView: View {
             )) {
                 if let dest = selectedDestination {
                     DestinationDetailView(destination: dest)
+                        .environmentObject(messageVM)
                 }
             }
             .navigationDestination(isPresented: $showPopularPlacesView) {
@@ -104,6 +106,7 @@ struct HomeView: View {
                            MessagesView()
                                .environmentObject(authVM)
                                .environmentObject(homeVM)
+                               .environmentObject(messageVM)
                        }
         }
     }

@@ -157,7 +157,7 @@ struct SignInView: View {
         HStack(spacing: 20) {
             Button {
                 Task {
-                    if let firebaseUser = await googleAuthViewModel.signInWithGoogle() {
+                    if (await googleAuthViewModel.signInWithGoogle()) != nil {
                         print("Successfully signed in with Google")
 //                        viewModel.user = try await viewModel.createSignedInUser(from: firebaseUser)
                     } else {
@@ -173,7 +173,7 @@ struct SignInView: View {
             Button {
                 Task {
                     // Assuming facebookAuthViewModel.signInWithFacebook() also returns FirebaseAuth.User?
-                    if let firebaseUser = await facebookAuthViewModel.signInWithFacebook() {
+                    if (await facebookAuthViewModel.signInWithFacebook()) != nil {
                         print("Successfully signed in with Facebook")
 //                        viewModel.user = try await viewModel.createSignedInUser(from: firebaseUser)
                     } else {
@@ -193,7 +193,7 @@ struct SignInView: View {
                 // and then call viewModel.createSignedInUser(from: firebaseUser)
                 // and set viewModel.user.
                 Task {
-                               if let firebaseUser = await appleAuthViewModel.startSignInWithAppleFlow() {
+                    if (await appleAuthViewModel.startSignInWithAppleFlow()) != nil {
                                    print("Successfully signed in with Apple")
                                    // The authStateDidChangeListener in AuthenticationViewModel
                                    // will automatically pick up this firebaseUser and
