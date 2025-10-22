@@ -6,11 +6,9 @@ struct BookingView: View {
     @StateObject var bookingVM = BookingViewModel(messageVM: MessageViewModel())
     @Environment(\.dismiss) var dismiss
 
-    // The checkInTimeRange logic remains here as a computed property since it's core to the time validation.
     private var checkInTimeRange: ClosedRange<Date> {
         let calendar = Calendar.current
         
-        // Use the first available date for time restriction, if any.
         let firstSelectedDate = bookingVM.selectedDates
             .compactMap { calendar.date(from: $0) }
             .min() ?? Date()
@@ -156,26 +154,31 @@ private struct BookingTitleView: View {
 
 
 private struct DateSelectionView: View {
-    @ObservedObject var bookingVM: BookingViewModel // Assuming BookingViewModel is defined externally
-    
+    @ObservedObject var bookingVM: BookingViewModel
+
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Select Dates")
                 .font(.headline)
                 .padding(.horizontal)
-            
-            // Assuming MultiDatePicker is defined elsewhere or imported
+
             MultiDatePicker("Select Dates", selection: $bookingVM.selectedDates, in: Date()...)
                 .datePickerStyle(.graphical)
                 .accentColor(Color(hex: "#24BAEC"))
-                .frame(maxWidth: .infinity) 
+                .frame(maxWidth: .infinity)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            
         }
+        .frame(maxWidth: .infinity, alignment: .leading) // Stretch container
+        .padding(.horizontal)
         .padding(.bottom, 10)
     }
 }
 
+
 private struct TimeSelectionView: View {
-    @ObservedObject var bookingVM: BookingViewModel // Assuming BookingViewModel is defined externally
+    @ObservedObject var bookingVM: BookingViewModel
     let checkInTimeRange: ClosedRange<Date>
     
     var body: some View {
@@ -203,7 +206,7 @@ private struct TimeSelectionView: View {
 }
 
 private struct PeopleStepperView: View {
-    @ObservedObject var bookingVM: BookingViewModel // Assuming BookingViewModel is defined externally
+    @ObservedObject var bookingVM: BookingViewModel
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -218,7 +221,6 @@ private struct PeopleStepperView: View {
 }
 
 private struct BookingConfirmationButton: View {
-    // Assuming ViewModels and Destination are defined externally
     @EnvironmentObject var authVM: AuthenticationViewModel
     @ObservedObject var bookingVM: BookingViewModel
     let destination: Destination
@@ -237,7 +239,7 @@ private struct BookingConfirmationButton: View {
             // Confirm Button
             Button(action: {
                 Task {
-                    // Assuming AuthenticationViewModel.User has a 'uid'
+                    
                     guard let userId = authVM.user?.uid else {
                         bookingVM.errorMessage = "User not logged in."
                         return
