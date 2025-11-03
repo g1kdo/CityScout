@@ -99,7 +99,7 @@ class AccountViewModel: ObservableObject {
         isDeactivationLoading = true
         errorMessage = nil
         
-        guard let user = Auth.auth().currentUser else {
+        guard Auth.auth().currentUser != nil else {
             errorMessage = "No authenticated user to deactivate."
             isDeactivationLoading = false
             return

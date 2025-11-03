@@ -11,7 +11,6 @@ class HomeViewModel: ObservableObject {
     @Published var categorizedDestinations: [String: [Destination]] = [:]
     
     @Published var userInterestScores: [String: Double] = [:]
-    @Published var transcribedText: String = ""
     
     // A complete list of all 10 interest categories
     private let allInterests: [String] = [
@@ -33,6 +32,7 @@ class HomeViewModel: ObservableObject {
     
     private let speechRecognizer = SpeechRecognizer()
     @Published var isListeningToSpeech = false
+    @Published var transcribedText: String = ""
 
     // Firestore instance
     private let db = Firestore.firestore()
@@ -47,13 +47,14 @@ class HomeViewModel: ObservableObject {
         setupSearchSubscriber()
         
         speechRecognizer.$transcriptionText
-                .dropFirst() // Ignore the initial empty value
-                .sink { [weak self] newText in
-                    guard let self = self else { return }
-                    // 🆕 New: Update the transcribedText property
-                    self.transcribedText = newText
-                }
-                .store(in: &cancellables)
+                        .dropFirst() // Ignore the initial empty value
+                        .sink { [weak self] newText in
+                            guard let self = self else { return }
+
+                            self.transcribedText = newText
+                            self.searchText = newText
+                        }
+                        .store(in: &cancellables)
     }
 
     private func setupSearchSubscriber() {

@@ -42,7 +42,7 @@ struct AddReviewSheet: View {
                         TextField("e.g., Lake Kivu", text: $selectedDestinationName)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .disabled(isEditMode) // Disable if in edit mode
-                            .onChange(of: selectedDestinationName) { newValue in
+                            .onChange(of: selectedDestinationName) { _, newValue in
                                 if !isEditMode { // Only fetch suggestions if not in edit mode
                                     viewModel.fetchDestinationSuggestions(query: newValue)
                                     showDestinationSuggestions = !newValue.isEmpty

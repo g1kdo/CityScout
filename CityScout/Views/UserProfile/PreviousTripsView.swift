@@ -66,24 +66,27 @@ struct PreviousTripsView: View {
 struct DestinationGridCard: View {
     let destination: Destination
     var body: some View {
-        // --- FIX IS HERE ---
-        // We now correctly use `destination.imageUrl` to match your Destination model.
-        KFImage(URL(string: destination.imageUrl))
-            .resizable()
-            .scaledToFill()
-            .aspectRatio(1, contentMode: .fill)
-            .frame(minWidth: 0, maxWidth: .infinity)
-            .clipped()
-            .cornerRadius(12)
-            .overlay(
-                ZStack(alignment: .bottomLeading) {
-                    LinearGradient(gradient: Gradient(colors: [.clear, .black.opacity(0.6)]), startPoint: .top, endPoint: .bottom)
-                        .cornerRadius(12)
-                    Text(destination.name)
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(8)
-                }
-            )
+        GeometryReader { geo in
+            // Use GeometryReader to get the available width
+            ZStack(alignment: .bottomLeading) {
+                // The image view
+                KFImage(URL(string: destination.imageUrl))
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.width) // Set a fixed square frame based on the width
+                    .clipped()
+                    .cornerRadius(12)
+                
+                // The overlay
+                LinearGradient(gradient: Gradient(colors: [.clear, .black.opacity(0.6)]), startPoint: .top, endPoint: .bottom)
+                    .cornerRadius(12)
+                
+                Text(destination.name)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding(8)
+            }
+        }
+        .aspectRatio(1, contentMode: .fit) // This ensures the entire card maintains a 1:1 ratio
     }
 }

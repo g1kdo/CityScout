@@ -10,10 +10,13 @@
 import SwiftUI
 
 struct PopularPlacesView: View {
-    @EnvironmentObject var authVM: AuthenticationViewModel
     @EnvironmentObject var homeVM: HomeViewModel
     @EnvironmentObject var favoritesVM: FavoritesViewModel
     @Environment(\.dismiss) var dismiss
+    
+    let columns: [GridItem] = [
+            GridItem(.adaptive(minimum: 160))
+        ]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,7 +26,7 @@ struct PopularPlacesView: View {
             
 
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], spacing: 20)  {
+                LazyVGrid(columns: columns, spacing: 20)  {
                     ForEach(homeVM.destinations) { destination in
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(
@@ -32,10 +35,6 @@ struct PopularPlacesView: View {
                             ) {
                                 Task {
                                     await favoritesVM.toggleFavorite(destination: .local(destination))
-                                    if let userId = authVM.signedInUser?.id {
-                                        await homeVM.logUserAction(userId: userId, destinationId: destination.id, actionType: "bookmark")
-                                        await homeVM.updateInterestScores(for: userId, categories: destination.categories, with: 3.0)
-                                    }
                                 }
                             }
                         }
@@ -50,4 +49,3 @@ struct PopularPlacesView: View {
         .navigationBarHidden(true)
     }
 }
-

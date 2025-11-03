@@ -4,7 +4,11 @@ struct FavoritePlacesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
 
-    @StateObject private var viewModel = FavoritesViewModel()
+    @StateObject private var viewModel = FavoritesViewModel(homeViewModel: HomeViewModel())
+    
+    let columns: [GridItem] = [
+            GridItem(.adaptive(minimum: 160))
+        ]
 
     var body: some View {
         NavigationStack {
@@ -32,10 +36,7 @@ struct FavoritePlacesView: View {
             .onChange(of: authVM.signedInUser?.id) { _, newId in
                 viewModel.subscribeToFavorites(for: newId)
             }
-            // --- FIX IS HERE ---
-            // Replaced Color.white with an adaptive system background color.
-            // This is the change that will make the view adapt to dark mode.
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .background(Color(.systemBackground).ignoresSafeArea())
         }
     }
 
@@ -49,13 +50,13 @@ struct FavoritePlacesView: View {
             Spacer()
             Text("No favorite places yet. Bookmark your favorites!")
                 .font(.headline)
-                .foregroundColor(.secondary) // Use adaptive color
+                .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding()
             Spacer()
         } else {
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], spacing: 20) {
+                LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(viewModel.favorites) { destination in
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(

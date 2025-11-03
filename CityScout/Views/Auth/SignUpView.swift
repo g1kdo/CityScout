@@ -122,10 +122,10 @@ struct SignUpView: View {
                         // Assuming SignUpViewModel also sets firebaseUser.displayName/email correctly
                         // And you'll need to extract first and last name from fullName if not already handled
                         let fullNameParts = viewModel.fullName.split(separator: " ").map(String.init)
-                        let firstName = fullNameParts.first
-                        let lastName = fullNameParts.count > 1 ? fullNameParts.last : nil
+                        _ = fullNameParts.first
+                        _ = fullNameParts.count > 1 ? fullNameParts.last : nil
 
-                        var user = SignedInUser(
+                        _ = SignedInUser(
                             id: firebaseUser.uid,
                             displayName: firebaseUser.displayName,
                             email: firebaseUser.email ?? ""
@@ -181,7 +181,7 @@ struct SignUpView: View {
         HStack(spacing: 20) {
             Button {
                 Task {
-                    if let firebaseUser = await googleAuthViewModel.signInWithGoogle() {
+                    if (await googleAuthViewModel.signInWithGoogle()) != nil {
                         print("Successfully signed up/in with Google")
                        // authVM.user = try await authVM.createSignedInUser(from: firebaseUser)
                     } else {
@@ -199,7 +199,7 @@ struct SignUpView: View {
             Button {
                 Task {
                     // Assuming facebookAuthViewModel.signInWithFacebook() also returns FirebaseAuth.User?
-                    if let firebaseUser = await facebookAuthViewModel.signInWithFacebook() {
+                    if (await facebookAuthViewModel.signInWithFacebook()) != nil {
                         print("Successfully signed in with Facebook")
 //                        viewModel.user = try await viewModel.createSignedInUser(from: firebaseUser)
                     } else {
@@ -215,7 +215,7 @@ struct SignUpView: View {
 
             Button {
                 Task {
-                               if let firebaseUser = await appleAuthViewModel.startSignInWithAppleFlow() {
+                    if (await appleAuthViewModel.startSignInWithAppleFlow()) != nil {
                                    print("Successfully signed up/in with Apple")
                                    // REMOVE THIS LINE:
                                    // authVM.user = try await authVM.createSignedInUser(from: firebaseUser)

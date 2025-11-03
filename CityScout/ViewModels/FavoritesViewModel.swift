@@ -5,7 +5,6 @@
 //  Created by Umuco Auca on 30/07/2025.
 //
 
-
 import SwiftUI
 import FirebaseFirestore
 
@@ -18,8 +17,13 @@ class FavoritesViewModel: ObservableObject {
     private var userId: String?
     private var userFavoritesListener: ListenerRegistration?
     
-    /// Sets up a real-time listener for the user's favorites.
-    /// Call this when the user's authentication state changes.
+    // THE FIX: Add a reference to HomeViewModel
+    private let homeViewModel: HomeViewModel
+
+    init(homeViewModel: HomeViewModel) {
+        self.homeViewModel = homeViewModel
+    }
+    
     func subscribeToFavorites(for userId: String?) {
         // Only set up a listener if the user ID has changed.
         guard self.userId != userId else { return }
@@ -125,11 +129,23 @@ class FavoritesViewModel: ObservableObject {
 
         let userRef = Firestore.firestore().collection("users").document(userId)
         
+        let isCurrentlyFavorite = self.isFavorite(destination: .local(destination))
+        
         do {
-            if self.isFavorite(destination: .local(destination)) {
+            if isCurrentlyFavorite {
                 try await userRef.updateData(["favorites": FieldValue.arrayRemove([destinationId])])
+                // THE FIX: Decrease interest score and log user action
+                Task {
+                    await homeViewModel.updateInterestScores(for: userId, categories: destination.categories, with: -1.0)
+                    await homeViewModel.logUserAction(userId: userId, destinationId: destinationId, actionType: "unfavorite")
+                }
             } else {
                 try await userRef.updateData(["favorites": FieldValue.arrayUnion([destinationId])])
+                // THE FIX: Increase interest score and log user action
+                Task {
+                    await homeViewModel.updateInterestScores(for: userId, categories: destination.categories, with: 1.0)
+                    await homeViewModel.logUserAction(userId: userId, destinationId: destinationId, actionType: "favorite")
+                }
             }
         } catch {
             self.errorMessage = "Failed to toggle favorite: \(error.localizedDescription)"
@@ -137,8 +153,6 @@ class FavoritesViewModel: ObservableObject {
         }
     }
     
-    /// This is a placeholder method. You will need to implement the logic for Google Places favorites.
-    /// A common approach is to save them in a separate `googleFavorites` array in the user document.
     private func toggleGoogleFavorite(destination: GoogleDestination) async {
         // Implementation for Google Places favorites goes here.
         // Since your `favorites` array only holds `Destination` objects, you'll need to decide
