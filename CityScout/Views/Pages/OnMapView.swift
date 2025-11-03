@@ -238,7 +238,7 @@ struct OnMapView: View {
     
     private func fetchFilteredNearbyPlaces(for destinationLocation: CLLocation) {
         let apiKey = Secrets.googleMapsAPIKey
-        let placeTypes = "hospital|restaurant|park|tourist_attraction"
+        let placeTypes = "restaurant|park|tourist_attraction"
         
         let urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=\(destinationLocation.coordinate.latitude),\(destinationLocation.coordinate.longitude)&radius=5000&type=\(placeTypes)&rankby=prominence&key=\(apiKey)"
         

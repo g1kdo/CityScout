@@ -6,7 +6,7 @@ import Combine
 
 @MainActor
 class BookingViewModel: ObservableObject {
-    @Published var selectedDates: Set<DateComponents> = []
+    @Published var selectedDates: Set<Date> = []
     @Published var checkInTime: Date = Calendar.current.date(bySettingHour: 14, minute: 0, second: 0, of: Date()) ?? Date()
     @Published var checkOutTime: Date = Calendar.current.date(bySettingHour: 11, minute: 0, second: 0, of: Date()) ?? Date()
     @Published var numberOfPeople: Int = 1
@@ -35,7 +35,7 @@ class BookingViewModel: ObservableObject {
             return
         }
 
-        let sortedDates = selectedDates.compactMap { Calendar.current.date(from: $0) }.sorted()
+        let sortedDates = selectedDates.sorted()
         guard let firstDate = sortedDates.first, let lastDate = sortedDates.last else {
             totalCost = 0.0
             return
@@ -94,7 +94,7 @@ class BookingViewModel: ObservableObject {
                     return
             }
         
-        let sortedDates = selectedDates.compactMap { Calendar.current.date(from: $0) }.sorted()
+        let sortedDates = selectedDates.sorted()
         guard let firstDate = sortedDates.first else {
             errorMessage = "Please select a valid date range."
             isLoading = false

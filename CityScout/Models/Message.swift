@@ -52,42 +52,50 @@ struct Message: Identifiable, Codable, Equatable {
     }
 }
 
+// Helper structure to hold the name and photo URL for a single user
+struct ChatParticipant: Codable, Identifiable {
+    @DocumentID var id: String?
+    var displayName: String
+    var profilePictureURL: URL?
+    
+    // Conforming to Codable requires defining an initializer from Decoder
+    // if you use optional properties that may not exist in Firestore.
+    // For simplicity, we assume standard decoding here.
+}
+
 struct Chat: Identifiable, Codable {
-    // The unique ID for the conversation, often a combination of two user IDs.
     @DocumentID var id: String?
     
-    // The other user in the chat.
-    var partnerId: String? // FIX: Make optional to handle potential decoding issues.
+    // Map storing metadata for BOTH participants, keyed by their user ID.
+    var userMetadata: [String: ChatParticipant]?
     
-    // The last message sent in the conversation.
-    var lastMessage: Message? // FIX: Make optional for consistency.
-    
-    // The display name of the conversation partner.
-    var partnerDisplayName: String? // FIX: Make optional for consistency.
-    
-    // The URL of the partner's profile picture.
-    var partnerProfilePictureURL: URL? // FIX: Make optional for consistency.
-    
-    // A list of participants in the chat.
+    var lastMessage: Message?
     var participants: [String] = []
-    
     var lastUpdated: Timestamp?
-    
-    // FIX: A map of unread messages for each user. This matches Firestore's structure.
     var unreadCount: [String: Int]?
-    
-    // NEW: A map to track which user muted the chat.
     var mutedBy: [String: Bool]?
     
-    enum CodingKeys: String, CodingKey {
-        case id
-        case participants
-        case lastUpdated
-        case lastMessage
-        case partnerId
-        case partnerDisplayName
-        case partnerProfilePictureURL
-        case unreadCount
-        case mutedBy
+    // Removed: partnerId, partnerDisplayName, partnerProfilePictureURL
+    
+    // MARK: - Helper Functions
+    
+    func getPartnerId(currentUserId: String) -> String? {
+        return participants.first(where: { $0 != currentUserId })
+    }
+    
+    func getPartnerDisplayName(currentUserId: String) -> String {
+        guard let partnerId = getPartnerId(currentUserId: currentUserId),
+              let partnerData = userMetadata?[partnerId] else {
+            return "Unknown User"
+        }
+        return partnerData.displayName
+    }
+    
+    func getPartnerProfilePictureURL(currentUserId: String) -> URL? {
+        guard let partnerId = getPartnerId(currentUserId: currentUserId),
+              let partnerData = userMetadata?[partnerId] else {
+            return nil
+        }
+        return partnerData.profilePictureURL
     }
 }

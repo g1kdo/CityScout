@@ -14,17 +14,25 @@ struct PopularPlacesView: View {
     @EnvironmentObject var favoritesVM: FavoritesViewModel
     @Environment(\.dismiss) var dismiss
     
-    let columns: [GridItem] = [
-            GridItem(.adaptive(minimum: 160))
+    // 1. Add the horizontalSizeClass environment variable
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
+    // 2. Convert 'columns' to a computed property to check the size class
+    private var columns: [GridItem] {
+        // Use a larger minimum width for iPad (regular) and a smaller one for iPhone (compact)
+        let minWidth: CGFloat = (horizontalSizeClass == .regular) ? 240 : 160
+        return [
+            GridItem(.adaptive(minimum: minWidth))
         ]
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HeaderView(title: "Popular Places")
-                .padding(.bottom, 20)
+                // 3. Increased padding for more space
+                .padding(.bottom, 30)
 
             
-
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVGrid(columns: columns, spacing: 20)  {
                     ForEach(homeVM.destinations) { destination in

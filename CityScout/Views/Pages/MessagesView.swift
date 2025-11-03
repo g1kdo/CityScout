@@ -22,11 +22,13 @@ struct MessagesView: View {
     @State private var cancellables = Set<AnyCancellable>()
 
     var filteredChats: [Chat] {
+        
+        let currentUserId = authVM.signedInUser?.id ?? ""
         if searchText.isEmpty {
             return messageVM.chats
         } else {
             return messageVM.chats.filter { chat in
-                (chat.partnerDisplayName ?? "").localizedCaseInsensitiveContains(searchText) ||
+                (chat.getPartnerDisplayName(currentUserId: currentUserId)).localizedCaseInsensitiveContains(searchText) ||
                 (chat.lastMessage?.text ?? "").localizedCaseInsensitiveContains(searchText)
             }
         }
@@ -184,7 +186,8 @@ private struct ChatRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 15) {
             // Profile Picture (No change)
-            KFImage(chat.partnerProfilePictureURL)
+            let currentUserId = authVM.signedInUser?.id ?? ""
+            KFImage(chat.getPartnerProfilePictureURL(currentUserId: currentUserId ?? ""))
                 .placeholder { Image(systemName: "person.circle.fill").resizable().foregroundColor(.secondary) }
                 .resizable()
                 .scaledToFill()
@@ -195,7 +198,7 @@ private struct ChatRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 // Top Row: Name and Time
                 HStack {
-                    Text(chat.partnerDisplayName ?? "Unknown User")
+                    Text(chat.getPartnerDisplayName(currentUserId: currentUserId) ?? "Unknown User")
                         .font(.headline)
                         .fontWeight(chat.hasUnreadMessages(for: authVM.signedInUser?.id) ? .bold : .regular)
                         .lineLimit(1)
