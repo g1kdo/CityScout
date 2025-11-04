@@ -565,19 +565,33 @@ class MessageViewModel: ObservableObject {
             self.errorMessage = "User not logged in."
             return nil
         }
-        
+            
         let chatRef = db.collection("chats")
         
-        // --- Existing Chat Check (Keep your existing check logic here) ---
-        // ...
-        // If chat exists, return it early to avoid creation
-        // ...
+        // --- Existing Chat Check ---
+                let existingChatQuery = chatRef.whereField("participants", isEqualTo: [userId, recipientId])
+                let existingChatQueryReversed = chatRef.whereField("participants", isEqualTo: [recipientId, userId])
 
-        // --- Fetch Metadata for Both Users ---
-        // ⭐️ This is the crucial change ⭐️
+                do {
+                    let snapshot = try await existingChatQuery.getDocuments()
+                    if let existingChatDoc = snapshot.documents.first {
+                        print("Chat already exists with ID: \(existingChatDoc.documentID)")
+                        return try? existingChatDoc.data(as: Chat.self)
+                    } else {
+                        let snapshotReversed = try await existingChatQueryReversed.getDocuments()
+                        if let existingChatDoc = snapshotReversed.documents.first {
+                            print("Chat already exists with ID: \(existingChatDoc.documentID)")
+                            return try? existingChatDoc.data(as: Chat.self)
+                        }
+                    }
+                } catch {
+                    self.errorMessage = "Error checking for existing chat: \(error.localizedDescription)"
+                    return nil
+                }
+
         let senderParticipant = await fetchChatParticipant(id: userId)
         let recipientParticipant = await fetchChatParticipant(id: recipientId)
-        
+            
         guard let safeSender = senderParticipant,
               let safeRecipient = recipientParticipant else {
             self.errorMessage = "Failed to fetch necessary user/partner data."
@@ -593,23 +607,21 @@ class MessageViewModel: ObservableObject {
                 receiverId: recipientId,
                 text: initialMessageText,
                 timestamp: Timestamp(date: Date()),
-                imageUrl: nil,
-                audioUrl: nil,
-                messageType: .text,
-                isRead: false
+                imageUrl: nil, audioUrl: nil,
+                messageType: .text, isRead: false
             )
-            
+                
             let initialData: [String: Any] = [
-                "participants": [userId, recipientId],
+                // *** FIX: Use the sorted 'participants' array here as well ***
+                "participants": [userId, recipientId].sorted(),
                 "lastUpdated": Timestamp(date: Date()),
                 "lastMessage": try Firestore.Encoder().encode(initialMessage),
-                
-                // Store a map of participant data, keyed by ID
+                    
                 "userMetadata": [
                     userId: try Firestore.Encoder().encode(safeSender),
                     recipientId: try Firestore.Encoder().encode(safeRecipient)
                 ],
-                
+                    
                 "unreadCount": [
                     userId: 0,
                     recipientId: 1
@@ -619,14 +631,14 @@ class MessageViewModel: ObservableObject {
                     recipientId: false
                 ]
             ]
-            
+                
             try await newChatRef.setData(initialData)
             print("New chat created with ID: \(newChatRef.documentID)")
-            
+                
             // Fetch the created chat and return it
             let newChatDoc = try await newChatRef.getDocument()
             return try? newChatDoc.data(as: Chat.self)
-            
+                
         } catch {
             print("Error creating new chat: \(error.localizedDescription)")
             self.errorMessage = "Error creating new chat."
@@ -792,5 +804,42 @@ struct UserStatus: Decodable, Identifiable {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return "Last seen \(formatter.localizedString(for: lastSeenDate, relativeTo: now))"
+    }
+}
+
+
+// MARK: - App Status Management
+extension MessageViewModel {
+    
+    func setUserOnline() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        let userRef = db.collection("users").document(userId) // Assuming 'users' is the source of truth
+        
+        userRef.updateData([
+            "isOnline": true,
+            "lastSeen": FieldValue.serverTimestamp()
+        ]) { error in
+            if let error = error {
+                print("Error setting user online status: \(error.localizedDescription)")
+            } else {
+                print("User \(userId) status set to ONLINE.")
+            }
+        }
+    }
+    
+    func setUserOffline() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        let userRef = db.collection("users").document(userId) // Assuming 'users' is the source of truth
+        
+        userRef.updateData([
+            "isOnline": false,
+            "lastSeen": FieldValue.serverTimestamp() // Crucial: Update lastSeen immediately when going offline
+        ]) { error in
+            if let error = error {
+                print("Error setting user offline status: \(error.localizedDescription)")
+            } else {
+                print("User \(userId) status set to OFFLINE, lastSeen updated.")
+            }
+        }
     }
 }

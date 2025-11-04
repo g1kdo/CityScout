@@ -154,54 +154,49 @@ struct ChatView: View {
     
     private func statusText(for status: UserStatus) -> some View {
         let lastSeenDate = status.lastSeen?.dateValue()
-        
-        // --- 1. Define Active/Online Threshold ---
-        // User is considered 'active' if they are marked online OR if the lastSeen timestamp is very recent (e.g., within the last 5 minutes).
-        let recentActivityThreshold: TimeInterval = 5 * 60 // 5 minutes
-        let isRecentlyActive = lastSeenDate != nil && Date().timeIntervalSince(lastSeenDate!) < recentActivityThreshold
-
-        // --- 2. Safe Guard against Missing Data ---
+            
+        // 1. If explicitly marked as online, show "Online".
+        if status.isOnline == true {
+            return Text("Online")
+                .font(.caption)
+                .foregroundColor(.green)
+        }
+            
+        // 2. If not online, use the lastSeen timestamp.
         guard let safeLastSeenDate = lastSeenDate else {
+            // Fallback: If no lastSeen timestamp exists (e.g., brand new user or first load),
+            // we must default to a definitive offline state.
             return Text("Offline")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
 
-        // --- 3. Display Status based on Freshness ---
-        if status.isOnline == true || isRecentlyActive {
-            // If the status is explicitly true, or the timestamp is very fresh, show Online/Active.
-            return Text("Online")
-                .font(.caption)
-                .foregroundColor(.green)
-        } else {
-            // The user is not marked 'isOnline' and their timestamp is old. Display 'Last seen...'.
-            let timeSinceLastSeen = Date().timeIntervalSince(safeLastSeenDate)
-            let sevenDays: TimeInterval = 7 * 24 * 60 * 60
+        // 3. Calculate and format the "Last seen" time.
+        let timeSinceLastSeen = Date().timeIntervalSince(safeLastSeenDate)
+        let sevenDays: TimeInterval = 7 * 24 * 60 * 60
 
-            if timeSinceLastSeen > sevenDays {
-                // If it's too old (> 7 days), show the full date (e.g., "Sep 20, 2025 at 10:30 AM")
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .short
-                let absoluteTime = formatter.string(from: safeLastSeenDate)
+        if timeSinceLastSeen > sevenDays {
+            // If it's too old (> 7 days), show the full date (e.g., "Sep 20, 2025 at 10:30 AM")
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            let absoluteTime = formatter.string(from: safeLastSeenDate)
                 
-                return Text("Last seen \(absoluteTime)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                // For recent times, use the RelativeDateTimeFormatter (e.g., "5 min ago")
-                let formatter = RelativeDateTimeFormatter()
-                formatter.unitsStyle = .abbreviated
-                // Note: The formatter automatically handles past tense ("ago").
-                let relativeTime = formatter.localizedString(for: safeLastSeenDate, relativeTo: Date())
+            return Text("Last seen \(absoluteTime)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        } else {
+            // For recent times, use the RelativeDateTimeFormatter (e.g., "5 min ago" or "Yesterday")
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .abbreviated
+            // Note: The formatter handles "ago" implicitly in many languages, but we add it for clarity here if needed.
+            let relativeTime = formatter.localizedString(for: safeLastSeenDate, relativeTo: Date())
                 
-                return Text("Last seen \(relativeTime)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            return Text("Last seen \(relativeTime)")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
-
 
     private var messageListView: some View {
         ScrollViewReader { proxy in
@@ -416,18 +411,33 @@ private struct MessageRow: View {
             .clipShape(Circle())
     }
     
-    // Assuming you have 'messageContent' defined elsewhere that relies on 'message' and 'isFromCurrentUser'
+    @ViewBuilder
     private var messageContent: some View {
         VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
-            // ... Your message text, image, etc., goes here ...
-            Text(message.text ?? "File/Image")
-                .padding(10)
-                .background(isFromCurrentUser ? Color.blue : Color(.systemGray5))
-                .foregroundColor(isFromCurrentUser ? .white : .primary)
-                .cornerRadius(12)
+            switch message.messageType {
+            case .text:
+                if let text = message.text {
+                    Text(text)
+                        .padding(12)
+                        .background(isFromCurrentUser ? Color(hex: "#24BAEC") : Color(.systemGray6))
+                        .foregroundColor(isFromCurrentUser ? .white : .primary)
+                        .cornerRadius(15, corners: isFromCurrentUser ? [.topLeft, .topRight, .bottomLeft] : [.topLeft, .topRight, .bottomRight])
+                }
+            case .image:
+                if let imageUrl = message.imageUrl {
+                    KFImage(URL(string: imageUrl))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 250)
+                        .cornerRadius(15)
+                }
+            case .voice:
+                if let audioUrl = message.audioUrl {
+                    VoiceNotePlayerView(audioUrl: audioUrl, isFromCurrentUser: isFromCurrentUser)
+                }
+            }
             
-            // Time stamp (optional)
-            Text(message.timestamp.dateValue(), style: .time)
+            Text(formattedTime(from: message.timestamp.dateValue()))
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
