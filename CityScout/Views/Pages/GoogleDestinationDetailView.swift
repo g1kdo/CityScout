@@ -1,8 +1,8 @@
 //
-//  GoogleDestinationDetailView.swift
-//  CityScout
+//  GoogleDestinationDetailView.swift
+//  CityScout
 //
-//  Created by Umuco Auca on 03/09/2025.
+//  Created by Umuco Auca on 03/09/2025.
 //
 
 import SwiftUI
@@ -20,73 +20,33 @@ struct GoogleDestinationDetailView: View {
     @StateObject private var favoritesVM = FavoritesViewModel(homeViewModel: HomeViewModel())
     @StateObject private var locationManager = LocationManager()
     
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass // <-- NEW
-
+    // REMOVED: horizontalSizeClass is no longer needed
+    
     @State private var showGalleryOverlay = false
     @State private var selectedImageIndex = 0
     @State private var showOnMapView = false
 
     // MARK: - Body
     var body: some View {
-        Group {
-            if horizontalSizeClass == .regular {
-                // MARK: - Large Screen Layout (iPad Landscape)
-                HStack(spacing: 0) {
-                    // 1. Header Image (left side)
-                    GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
-                        .frame(width: UIScreen.main.bounds.width * 0.5)
-                        .clipped()
+        // UPDATED: Removed Group and if/else logic to use ONE layout
+        ZStack {
+            ZStack {
+                // Layer 1: The non-scrollable header image
+                // Assuming GooglePlacesImageView is defined in its own file and sets its height using kHeaderHeightFactor
+                GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
+                    .offset(y: 0)
+                    .ignoresSafeArea(.all, edges: .top)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // Align to top
 
-                    // 2. Details Card (right side)
-                    ScrollView(.vertical, showsIndicators: false) { // Wrap details in a ScrollView
-                        GoogleDetailsCard(
-                            googleDestination: googleDestination,
-                            onImageTapped: { index in
-                                self.selectedImageIndex = index
-                                withAnimation(.easeInOut) {
-                                    self.showGalleryOverlay = true
-                                }
-                            }
-                        )
-                        .frame(maxWidth: .infinity)
-                        .background(Color(.systemGroupedBackground))
-                    }
-                }
-                .overlay(alignment: .topLeading) {
-                    // Header buttons on top of the image (left half)
-                    GoogleHeaderNavButtons(
-                        onDismiss: { dismiss() },
-                        onViewOnMap: { showOnMapView = true }
-                    )
-                    .frame(width: UIScreen.main.bounds.width * 0.5, alignment: .top)
-                    .padding(.top, 0)
-                }
-                .ignoresSafeArea(.all, edges: .top)
-                
-                if showGalleryOverlay {
-                                FullScreenGalleryView(
-                                    photoMetadata: googleDestination.galleryImageUrls!,
-                                    isPresented: $showGalleryOverlay,
-                                    selectedImageIndex: selectedImageIndex
-                                )
-                                .transition(.opacity.animation(.easeInOut))
-                            }
-            } else {
-                // MARK: - Small Screen Layout (iPhone/iPad Portrait) - ZStack Structure
-                ZStack {
-                    ZStack {
-                        // Layer 1: The non-scrollable header image
-                        GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
-                            // Remove fixed frame here, let the GooglePlacesImageView handle the height
-                            .offset(y: 0) // Remove manual offset
-                            .ignoresSafeArea(.all, edges: .top)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // <-- FIX: Align to top
-
-                        // Layer 2: The scrollable card view
-                        ScrollView(.vertical, showsIndicators: false) {
+                // Layer 2: The scrollable card view
+                // *** FIX 2 START: Add GeometryReader ***
+                GeometryReader { geometry in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        // This VStack wraps the spacer and the content
+                        VStack(spacing: 0) {
                             // This spacer pushes the card content down to start below the header image
                             Spacer()
-                                .frame(height: UIScreen.main.bounds.height * kHeaderHeightFactor - 40) // <-- FIX: Use factor and account for rounded corner
+                                .frame(height: UIScreen.main.bounds.height * kHeaderHeightFactor - 40) // Use factor and account for rounded corner
                             
                             // The details card itself
                             GoogleDetailsCard(
@@ -98,37 +58,39 @@ struct GoogleDestinationDetailView: View {
                                     }
                                 }
                             )
-                            // This is crucial: it gives the card a solid background as it scrolls over the image.
+                            // *** FIX 2: Apply background and minHeight to the card ***
+                            .frame(maxWidth: .infinity) // Ensure it fills width
+                            // Set minHeight to stretch background to bottom
+                            .frame(minHeight: geometry.size.height - (UIScreen.main.bounds.height * kHeaderHeightFactor - 40))
                             .background(Color(.systemBackground))
                             .clipShape(RoundedCorners(radius: 40, corners: [.topLeft, .topRight]))
                         }
-                        .ignoresSafeArea()
-                        // .offset(y: -30) // Remove scroll view offset if image is aligned top
-                        
-                        // Layer 3: The header buttons, always on top
-                        GoogleHeaderNavButtons(
-                            onDismiss: { dismiss() },
-                            onViewOnMap: { showOnMapView = true }
-                        )
                     }
-                    .blur(radius: showGalleryOverlay ? 20 : 0)
+                    .ignoresSafeArea()
+                } // *** FIX 2 END: End GeometryReader ***
+                                
+                // Layer 3: The header buttons, always on top
+                GoogleHeaderNavButtons(
+                    onDismiss: { dismiss() },
+                    onViewOnMap: { showOnMapView = true }
+                )
+            }
+            .blur(radius: showGalleryOverlay ? 20 : 0)
 
-                    // The gallery overlay
-                    if showGalleryOverlay {
-                        FullScreenGalleryView(
-                            photoMetadata: googleDestination.galleryImageUrls!,
-                            isPresented: $showGalleryOverlay,
-                            selectedImageIndex: selectedImageIndex
-                        )
-                        .transition(.opacity.animation(.easeInOut))
-                    }
-                }
-                .ignoresSafeArea()
-                .background(Color(.systemGroupedBackground))
+            // The gallery overlay
+            if showGalleryOverlay {
+                FullScreenGalleryView(
+                    photoMetadata: googleDestination.galleryImageUrls!,
+                    isPresented: $showGalleryOverlay,
+                    selectedImageIndex: selectedImageIndex
+                )
+                .transition(.opacity.animation(.easeInOut))
             }
         }
+        .ignoresSafeArea()
+        .background(Color(.systemGroupedBackground))
         // MARK: - Common Modifiers
-        .navigationBarHidden(true) // <-- FIX: Hide navigation bar for all layouts
+        .navigationBarHidden(true) // Hide navigation bar for all layouts
         .onAppear {
             favoritesVM.subscribeToFavorites(for: authVM.user?.uid)
         }
@@ -180,6 +142,9 @@ private struct GoogleDetailsCard: View {
                     .background(Color(hex: "#24BAEC"))
                     .cornerRadius(16)
             }
+            
+            // Add padding at the bottom
+            Color.clear.frame(height: 50)
         }
         .padding(24)
     }
@@ -247,21 +212,18 @@ private struct GoogleHeaderNavButtons: View {
     let onDismiss: () -> Void
     let onViewOnMap: () -> Void
     
-    // Note: Use environment object to make the button look correct on iPad.
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass
-
+    // REMOVED: horizontalSizeClass check
+    
     var body: some View {
         VStack {
             HStack {
                 HeaderButton(iconName: "chevron.left", action: onDismiss)
                     .foregroundColor(.white)
-                
+            
                 Spacer()
                 
-                // Only show "Details" title on small screen when there is no native navigation bar title
-                if horizontalSizeClass != .regular {
-                    Text("Details").font(.headline).foregroundColor(.white)
-                }
+                // UPDATED: Always show "Details" text
+                Text("Details").font(.headline).foregroundColor(.white)
                 
                 Spacer()
                 

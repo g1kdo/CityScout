@@ -1,10 +1,3 @@
-//
-//  OnBoard2View.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 30/04/2025.
-//
-
 import SwiftUI
 
 struct OnBoard2View: View {
@@ -12,11 +5,24 @@ struct OnBoard2View: View {
     @State private var isOnBoarding3Active = false
     @State private var isSignInActive = false
     
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    private var titleFont: Font {
+        let size: CGFloat = (horizontalSizeClass == .regular) ? 34 : 26
+        return .system(size: size)
+    }
+    
+    private var bodyFont: Font {
+        let size: CGFloat = (horizontalSizeClass == .regular) ? 20 : 16
+        return .system(size: size)
+    }
+    private var lineWidth: CGFloat {
+            return (horizontalSizeClass == .regular) ? 100 : 60 // 90 for iPad, 60 for iPhone
+        }
     var body: some View {
-        NavigationStack { // Ensure navigation is properly contained
+        NavigationStack {
             ZStack(alignment: .topTrailing) {
                 
-                // 1. DYNAMIC BACKGROUND: Use systemBackground for the main view
                 Color(uiColor: .systemBackground)
                     .ignoresSafeArea()
 
@@ -27,19 +33,18 @@ struct OnBoard2View: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(height: UIScreen.main.bounds.height * 0.55)
                             .frame(maxWidth: .infinity)
-                            // Assuming RoundedCorner and the extension are available
                             .cornerRadius(40, corners: [.bottomLeft, .bottomRight])
                             .clipped()
                             .ignoresSafeArea(edges: .top)
 
-                        // Skip Button (needs to be visible against the image)
+                        // Skip Button
                         Button(action: {
                             print("Skip Tapped")
                             navigateToSignIn()
                         }) {
                             Text("Skip")
                                 .font(.system(size: 16))
-                                .foregroundColor(.white) // Keep white for contrast with image
+                                .foregroundColor(.white)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                         }
@@ -47,43 +52,46 @@ struct OnBoard2View: View {
                         .padding(.trailing, 20)
                     }
 
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 10) {
-                            VStack(spacing: 4) {
-                                Text("It's a big world out there go")
-                                    .font(.system(size: 26, weight: .heavy))
-                                    // 2. DYNAMIC TEXT: Use .primary for main text
-                                    .foregroundColor(.primary)
-                                    .multilineTextAlignment(.center)
-
-                                Text("explore")
-                                    .font(.system(size: 26, weight: .bold))
-                                    .foregroundColor(Color(hex: "#FF7029")) // Brand color remains the same
-                                    .multilineTextAlignment(.center)
-
-                                Image("Line")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 60, height: 10)
-                            }
-                            .padding(.horizontal, 30.0)
-
-                            Text("To get the best of your adventure you just need to leave and go where you like. We are waiting for you")
-                                .font(.system(size: 16))
-                                // 3. DYNAMIC SECONDARY TEXT: Use .secondary for descriptive text
-                                .foregroundColor(.secondary)
+                    VStack(spacing: 10) {
+                        VStack(spacing: 4) {
+                            Text("It's a big world out there go")
+                                .font(titleFont)
+                                .fontWeight(.heavy)
+                                .foregroundColor(.primary)
                                 .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                            
-                            OnboardingPageIndicator(pageCount: 3, currentIndex: 1) // Assuming this uses dynamic colors internally
+                                .minimumScaleFactor(0.7) // <-- ADD THIS
 
-                                .padding(.top, 10)
-                                .padding(.bottom, 16)
-                                
-                            PrimaryButton(title: "Next", action: navigateToOnBoard3) // Assuming this uses dynamic colors internally
-                                .padding(.horizontal, 20)
-                                .padding(.bottom, 30)
+                            Text("explore")
+                                .font(titleFont)
+                                .fontWeight(.bold)
+                                .foregroundColor(Color(hex: "#FF7029"))
+                                .multilineTextAlignment(.center)
+                                .minimumScaleFactor(0.7) // <-- ADD THIS
+
+                            Image("Line")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: lineWidth, height: 10)
                         }
+                        .padding(.horizontal, 30.0)
+                        .padding(.top, 30)
+
+                        Text("To get the best of your adventure you just need to leave and go where you like. We are waiting for you")
+                            .font(bodyFont)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                            .minimumScaleFactor(0.7) // <-- ADD THIS
+                        
+                        Spacer()
+                            
+                        OnboardingPageIndicator(pageCount: 3, currentIndex: 1)
+                            .padding(.top, 10)
+                            .padding(.bottom, 16)
+                            
+                        PrimaryButton(title: "Next", action: navigateToOnBoard3)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 30)
                     }
                 }
             }
@@ -96,7 +104,7 @@ struct OnBoard2View: View {
             }
         }
     }
-
+    
     private func navigateToOnBoard3() {
         isOnBoarding3Active = true
     }
@@ -105,9 +113,3 @@ struct OnBoard2View: View {
         isSignInActive = true
     }
 }
-
-
-#Preview {
-        OnBoard2View()
-}
-
