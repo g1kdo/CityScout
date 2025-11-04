@@ -11,27 +11,39 @@ struct OnBoard3View: View {
     
     @State private var isSignInActive = false
     
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    private var titleFont: Font {
+        let size: CGFloat = (horizontalSizeClass == .regular) ? 34 : 26
+        return .system(size: size)
+    }
+    
+    private var bodyFont: Font {
+        let size: CGFloat = (horizontalSizeClass == .regular) ? 20 : 16
+        return .system(size: size)
+    }
+    private var lineWidth: CGFloat {
+            return (horizontalSizeClass == .regular) ? 100 : 60 // 90 for iPad, 60 for iPhone
+        }
     var body: some View {
         NavigationStack {
             ZStack(alignment: .topTrailing) {
                 
-                // 1. DYNAMIC BACKGROUND: Use systemBackground for the main view
                 Color(uiColor: .systemBackground)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     ZStack(alignment: .topTrailing) {
+                        // ... Image and Skip Button code ...
                         Image("OnBoard3")
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(height: UIScreen.main.bounds.height * 0.55)
                             .frame(maxWidth: .infinity)
-                            // Assuming RoundedCorner and the extension are available
                             .cornerRadius(30, corners: [.bottomLeft, .bottomRight])
                             .clipped()
                             .ignoresSafeArea(edges: .top)
 
-                        // Skip Button (Needs to be visible against the image, so keep white)
                         Button(action: {
                             print("Skip Tapped")
                             navigateToSignIn()
@@ -46,43 +58,46 @@ struct OnBoard3View: View {
                         .padding(.trailing, 20)
                     }
 
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 10) {
-                            VStack(spacing: 4) {
-                                Text("People don't take trips, trips take")
-                                    .font(.system(size: 26, weight: .heavy))
-                                    // 2. DYNAMIC TEXT: Use .primary for main text
-                                    .foregroundColor(.primary)
-                                    .multilineTextAlignment(.center)
-
-                                Text("people")
-                                    .font(.system(size: 26, weight: .bold))
-                                    .foregroundColor(Color(hex: "#FF7029")) // Brand color remains the same
-                                    .multilineTextAlignment(.center)
-
-                                Image("Line")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 60, height: 10)
-                            }
-                            .padding(.horizontal, 30.0)
-
-                            Text("To get the best of your adventure you just need to leave and go where you like. We are waiting for you")
-                                .font(.system(size: 16))
-                                // 3. DYNAMIC SECONDARY TEXT: Use .secondary for descriptive text
-                                .foregroundColor(.secondary)
+                    VStack(spacing: 10) {
+                        VStack(spacing: 4) {
+                            Text("People don't take trips, trips take")
+                                .font(titleFont)
+                                .fontWeight(.heavy)
+                                .foregroundColor(.primary)
                                 .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                            
-                            OnboardingPageIndicator(pageCount: 3, currentIndex: 2)
-                                .padding(.top, 10)
-                                .padding(.bottom, 16)
-                                
-                            // The final button navigates to sign in
-                            PrimaryButton(title: "Get Started", action: navigateToSignIn)
-                                .padding(.horizontal, 20)
-                                .padding(.bottom, 30)
+                                .minimumScaleFactor(0.7) // <-- ADD THIS
+
+                            Text("people")
+                                .font(titleFont)
+                                .fontWeight(.bold)
+                                .foregroundColor(Color(hex: "#FF7029"))
+                                .multilineTextAlignment(.center)
+                                .minimumScaleFactor(0.7) // <-- ADD THIS
+
+                            Image("Line")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: lineWidth, height: 10)
                         }
+                        .padding(.horizontal, 30.0)
+                        .padding(.top, 30)
+
+                        Text("To get the best of your adventure you just need to leave and go where you like. We are waiting for you")
+                            .font(bodyFont)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                            .minimumScaleFactor(0.7) // <-- ADD THIS
+
+                        Spacer()
+                            
+                        OnboardingPageIndicator(pageCount: 3, currentIndex: 2)
+                            .padding(.top, 10)
+                            .padding(.bottom, 16)
+                            
+                        PrimaryButton(title: "Get Started", action: navigateToSignIn)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 30)
                     }
                 }
             }
@@ -96,8 +111,4 @@ struct OnBoard3View: View {
     private func navigateToSignIn() {
         isSignInActive = true
     }
-}
-
-#Preview {
-        OnBoard3View()
 }

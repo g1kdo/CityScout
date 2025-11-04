@@ -1,10 +1,3 @@
-//
-//  GoogleDestinationCard.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 03/09/2025.
-//
-
 import SwiftUI
 import Kingfisher
 import GooglePlaces
@@ -13,16 +6,23 @@ struct GoogleDestinationCard: View {
     let googleDestination: GoogleDestination
     @Environment(\.openURL) var openURL
     
+    // 1. ADD environment variable for screen size adaptation
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
     @State private var isFavorite: Bool = false
     
     let onCardTapped: () -> Void
 
     var body: some View {
+        // 2. Calculate adaptive image height
+        let imageHeight: CGFloat = (horizontalSizeClass == .regular) ? 180 : 100
+
         Button(action: onCardTapped) {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topTrailing) {
                     GooglePlacesImageView(photoMetadata: googleDestination.photoMetadata)
-                        .frame(height: 100)
+                        // 3. APPLY adaptive height
+                        .frame(height: imageHeight)
                         .clipped()
                 }
                 .cornerRadius(10)
@@ -59,7 +59,8 @@ struct GoogleDestinationCard: View {
                             Image(systemName: "star.fill")
                                 .font(.caption)
                                 .foregroundColor(.yellow)
-                            Text(String(format: "%.1f", "N/A"))
+                            // Corrected to display N/A properly if rating is missing
+                            Text("N/A")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -89,9 +90,9 @@ struct GoogleDestinationCard: View {
                                 .font(.footnote)
                                 .fontWeight(.bold)
                                 .foregroundColor(Color(hex: "#FF7029"))
-                                Text("N/A")
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
+                            Text("N/A")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }

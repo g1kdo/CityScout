@@ -51,6 +51,7 @@ struct FindUsersView: View {
                 }
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
+                .padding(.top, 10)
                 
 
                 MessageSearchBarView(searchText: $searchText, placeholder: "Search recommended users")

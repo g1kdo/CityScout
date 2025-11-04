@@ -61,6 +61,7 @@ struct MessagesView: View {
                     }
                 }
                 .padding(.horizontal)
+                .padding(.top, 10)
 
                 MessageSearchBarView(searchText: $searchText, placeholder: "Search for chats & messages")
             }

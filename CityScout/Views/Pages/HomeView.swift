@@ -28,6 +28,7 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                     TopBarView(isShowingMessagesView: $isShowingMessagesView)
                         .environmentObject(authVM)
+                        .padding(.top, 10)
                         .padding(.bottom, 25)
 
                     // This is where the content for the selected tab goes.
