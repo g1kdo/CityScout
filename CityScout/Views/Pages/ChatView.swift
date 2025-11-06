@@ -25,6 +25,17 @@ struct ChatView: View {
     
     // Use a dedicated state variable for the PhotosPicker item
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    
+    // ⭐️ NEW: Safe wrapper for the current user's ID
+        private var currentUserId: String? {
+            authVM.signedInUser?.id
+        }
+        
+        // ⭐️ NEW: Safely calculate the partner's ID using the helper method
+        private var partnerId: String? {
+            guard let userId = currentUserId else { return nil }
+            return chat.getPartnerId(currentUserId: userId)
+        }
 
     private var isMuted: Bool {
         guard let userId = authVM.signedInUser?.id, let muted = chat.mutedBy?[userId] else { return false }
@@ -42,7 +53,7 @@ struct ChatView: View {
             if let chatId = chat.id {
                 viewModel.subscribeToMessages(chatId: chatId)
             }
-            if let partnerId = chat.partnerId {
+            if let partnerId = self.partnerId {
                             viewModel.subscribeToPartnerStatus(partnerId: partnerId)
                         }
         }
@@ -82,7 +93,7 @@ struct ChatView: View {
 //                .clipShape(Circle())
             
             VStack(alignment: .leading) {
-                Text(chat.partnerDisplayName ?? "Unknown User")
+                Text(chat.getPartnerDisplayName(currentUserId: currentUserId ?? "") ?? "Unknown User")
                     .font(.headline)
                     .lineLimit(1)
                 
@@ -90,7 +101,7 @@ struct ChatView: View {
                     Text("Conversation Muted")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                } else if let partnerId = chat.partnerId, viewModel.typingStatus.contains(partnerId) {
+                } else if let partnerId = self.partnerId, viewModel.typingStatus.contains(partnerId) {
                     Text("Typing...")
                     .font(.caption)
                     .foregroundColor(.green)
@@ -133,7 +144,7 @@ struct ChatView: View {
         .sheet(isPresented: $isShowingReportSheet) {
             ReportUserSheet(reportReason: $reportReason) { reason in
                 Task {
-                    if let chatId = chat.id, let recipientId = chat.partnerId {
+                    if let chatId = chat.id, let recipientId = self.partnerId {
                         await viewModel.reportUser(chatId: chatId, recipientId: recipientId, reason: reason)
                     }
                 }
@@ -142,96 +153,71 @@ struct ChatView: View {
     }
     
     private func statusText(for status: UserStatus) -> some View {
-        if status.isOnline ?? false {
+        let lastSeenDate = status.lastSeen?.dateValue()
+            
+        // 1. If explicitly marked as online, show "Online".
+        if status.isOnline == true {
             return Text("Online")
                 .font(.caption)
                 .foregroundColor(.green)
-        } else {
-            let lastSeenDate = status.lastSeen?.dateValue()
+        }
             
-            // Check if the last seen was more than 7 days ago,
-            // which is often the limit for relative formatting.
-            if lastSeenDate! < Calendar.current.date(byAdding: .day, value: -7, to: Date())! {
-                // If it's too old, show the full date (e.g., "Sep 20, 2025 at 10:30 AM")
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .short
-                let absoluteTime = formatter.string(from: lastSeenDate!)
-                
-                return Text("Last seen \(absoluteTime)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                // For recent times, use the RelativeDateTimeFormatter (e.g., "5 minutes ago", "yesterday")
-                let formatter = RelativeDateTimeFormatter()
-                formatter.unitsStyle = .abbreviated // "5 min ago" or .full for "5 minutes ago"
-                formatter.dateTimeStyle = .numeric // Ensure it works across date boundaries
+        // 2. If not online, use the lastSeen timestamp.
+        guard let safeLastSeenDate = lastSeenDate else {
+            // Fallback: If no lastSeen timestamp exists (e.g., brand new user or first load),
+            // we must default to a definitive offline state.
+            return Text("Offline")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
 
-                let relativeTime = formatter.localizedString(for: lastSeenDate!, relativeTo: Date())
+        // 3. Calculate and format the "Last seen" time.
+        let timeSinceLastSeen = Date().timeIntervalSince(safeLastSeenDate)
+        let sevenDays: TimeInterval = 7 * 24 * 60 * 60
+
+        if timeSinceLastSeen > sevenDays {
+            // If it's too old (> 7 days), show the full date (e.g., "Sep 20, 2025 at 10:30 AM")
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            let absoluteTime = formatter.string(from: safeLastSeenDate)
                 
-                return Text("Last seen \(relativeTime)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            return Text("Last seen \(absoluteTime)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        } else {
+            // For recent times, use the RelativeDateTimeFormatter (e.g., "5 min ago" or "Yesterday")
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .abbreviated
+            // Note: The formatter handles "ago" implicitly in many languages, but we add it for clarity here if needed.
+            let relativeTime = formatter.localizedString(for: safeLastSeenDate, relativeTo: Date())
+                
+            return Text("Last seen \(relativeTime)")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
-    
+
     private var messageListView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 10) {
-                    if viewModel.canLoadMoreMessages {
-                                        ProgressView()
-                                            .onAppear {
-                                                if let chatId = chat.id {
-                                                    viewModel.loadMoreMessages(chatId: chatId)
-                                                }
-                                            }
-                                    }
-                                    
-                                    // --- MODIFIED FOREACH LOOP ---
-                                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                                        let previousMessage = index > 0 ? viewModel.messages[index - 1] : nil
-                                        let messageDate = message.timestamp.dateValue()
-                                        
-                                        // 1. Check if the date has changed since the last message
-                                        if shouldShowDateHeader(currentMessageDate: messageDate, previousMessageDate: previousMessage?.timestamp.dateValue()) {
-                                            DateHeaderView(date: messageDate)
-                                                .padding(.vertical, 10)
-                                                .id("date-\(message.id ?? UUID().uuidString)") // Give the header an ID for potential scrolling
-                                        }
-                                        
-                                        // 2. The Message Row
-                                        MessageRow(
-                                            message: message,
-                                            isFromCurrentUser: message.senderId == authVM.signedInUser?.id,
-                                            partnerDisplayName: chat.partnerDisplayName,
-                                            partnerProfilePictureURL: chat.partnerProfilePictureURL,
-                                            onLongPress: {
-                                                if let currentUserId = authVM.signedInUser?.id, message.senderId == currentUserId {
-                                                    Task {
-                                                        if let chatId = chat.id {
-                                                            await viewModel.deleteMessage(chatId: chatId, messageId: message.id!)
-                                                        }
-                                                    }
-                                                    HapticManager.shared.play(feedback: .medium)
-                                                }
-                                            }
-                                        )
-                                        .id(message.id) // The message row ID
-                                    }
-                                }
-                                .padding()
-                            }
-                            .onChange(of: viewModel.messages) { _, newMessages in
-                                if let lastMessageId = newMessages.last?.id {
-                                    withAnimation {
-                                        proxy.scrollTo(lastMessageId, anchor: .bottom)
-                                    }
-                                }
-                            }
-                        }
+                // ⭐️ FIX: Use the extracted content view here
+                MessageListContent(
+                    viewModel: viewModel,
+                    chat: chat,
+                    currentUserId: self.currentUserId, // Use the computed property from ChatView
+                    shouldShowDateHeader: shouldShowDateHeader // Pass the helper function
+                )
+            }
+            .onChange(of: viewModel.messages) { _, newMessages in
+                if let lastMessageId = newMessages.last?.id {
+                    withAnimation {
+                        proxy.scrollTo(lastMessageId, anchor: .bottom)
                     }
+                }
+            }
+        }
+    }
 
 
                     private func shouldShowDateHeader(currentMessageDate: Date, previousMessageDate: Date?) -> Bool {
@@ -247,7 +233,7 @@ struct ChatView: View {
             messageText: $messageText,
             onSend: {
                 if !messageText.isEmpty {
-                    if let chatId = chat.id, let recipientId = chat.partnerId {
+                    if let chatId = chat.id, let recipientId = self.partnerId {
                         Task {
                             await viewModel.sendMessage(chatId: chatId, text: messageText, recipientId: recipientId)
                             HapticManager.shared.play(feedback: .light)
@@ -258,7 +244,7 @@ struct ChatView: View {
             },
             selectedPhotoItem: $selectedPhotoItem,
             onImageSelected: { image in
-                if let chatId = chat.id, let recipientId = chat.partnerId {
+                if let chatId = chat.id, let recipientId = self.partnerId {
                     Task {
                         await viewModel.uploadImageAndSendMessage(chatId: chatId, image: image, recipientId: recipientId)
                         HapticManager.shared.play(feedback: .light)
@@ -272,7 +258,7 @@ struct ChatView: View {
             },
             onStopRecording: {
                 if let audioUrl = viewModel.stopRecording() {
-                    if let chatId = chat.id, let recipientId = chat.partnerId {
+                    if let chatId = chat.id, let recipientId = self.partnerId {
                         Task {
                             await viewModel.uploadVoiceNoteAndSendMessage(chatId: chatId, audioUrl: audioUrl, recipientId: recipientId)
                             HapticManager.shared.play(feedback: .light)
@@ -284,13 +270,111 @@ struct ChatView: View {
     }
 }
 
+// MARK: - Extracted Row Content
+private struct MessageListRow: View {
+    @ObservedObject var viewModel: MessageViewModel
+    let message: Message
+    let index: Int
+    let chat: Chat
+    let currentUserId: String?
+    let shouldShowDateHeader: (Date, Date?) -> Bool
+
+    // We must compute the variables here instead of the ForEach closure
+    private var previousMessage: Message? {
+        index > 0 ? viewModel.messages[index - 1] : nil
+    }
+    
+    private var messageDate: Date {
+        message.timestamp.dateValue()
+    }
+    
+    private var isCurrent: Bool {
+        message.senderId == self.currentUserId
+    }
+
+    var body: some View {
+        VStack(spacing: 0) { // Use VStack to combine the optional header and the row
+            // 1. Check if the date has changed since the last message
+            if shouldShowDateHeader(messageDate, previousMessage?.timestamp.dateValue()) {
+                DateHeaderView(date: messageDate)
+                    .padding(.vertical, 10)
+                    .id("date-\(message.id ?? UUID().uuidString)")
+            }
+                
+            // 2. The Message Row
+            MessageRow(
+                message: message,
+                isFromCurrentUser: isCurrent,
+                chat: chat,
+                currentUserId: self.currentUserId,
+                onLongPress: {
+                    if isCurrent {
+                        Task {
+                            if let chatId = chat.id, let messageId = message.id {
+                                await viewModel.deleteMessage(chatId: chatId, messageId: messageId)
+                            }
+                        }
+                        HapticManager.shared.play(feedback: .medium)
+                    }
+                }
+            )
+            .id(message.id) // The message row ID
+        }
+    }
+}
+
+// MARK: - Message List Content View (Simplified)
+private struct MessageListContent: View {
+    @ObservedObject var viewModel: MessageViewModel
+    let chat: Chat
+    let currentUserId: String?
+    let shouldShowDateHeader: (Date, Date?) -> Bool
+
+    var body: some View {
+        LazyVStack(spacing: 10) {
+            if viewModel.canLoadMoreMessages {
+                // Ensure the ProgressView is explicitly typed if you still had that error
+                ProgressView("Loading...")
+                    .progressViewStyle(.circular)
+                    .onAppear {
+                        if let chatId = chat.id {
+                            viewModel.loadMoreMessages(chatId: chatId)
+                        }
+                    }
+            }
+                            
+            // ⭐️ FIX: Use the extracted MessageListRow
+            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                MessageListRow(
+                    viewModel: viewModel,
+                    message: message,
+                    index: index,
+                    chat: chat,
+                    currentUserId: self.currentUserId,
+                    shouldShowDateHeader: shouldShowDateHeader
+                )
+            }
+        }
+        .padding()
+    }
+}
+
 // A view for a single message.
 private struct MessageRow: View {
     let message: Message
     let isFromCurrentUser: Bool
-    let partnerDisplayName: String?
-    let partnerProfilePictureURL: URL?
+    let chat: Chat
+    let currentUserId: String? // Corrected property
     let onLongPress: () -> Void
+
+    // Computed properties to replace the old direct properties
+    private var partnerAvatarURL: URL? {
+        chat.getPartnerProfilePictureURL(currentUserId: currentUserId ?? "")
+    }
+
+    private var partnerDisplayName: String? {
+        chat.getPartnerDisplayName(currentUserId: currentUserId ?? "")
+    }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
@@ -309,12 +393,21 @@ private struct MessageRow: View {
         }
     }
     
+    // MARK: - Subviews
+    
+    // ⭐️ FIX: The partnerAvatar must now use the computed 'partnerAvatarURL'
     private var partnerAvatar: some View {
-        KFImage(partnerProfilePictureURL)
-            .placeholder { Image(systemName: "person.circle.fill").resizable().foregroundColor(.secondary) }
+        // Assuming you use Kingfisher or a similar library for AsyncImage loading
+        KFImage(partnerAvatarURL)
+            .placeholder {
+                Image(systemName: "person.circle.fill")
+                    .resizable()
+                    .frame(width: 30, height: 30)
+                    .foregroundColor(.gray)
+            }
             .resizable()
             .scaledToFill()
-            .frame(width: 35, height: 35)
+            .frame(width: 30, height: 30)
             .clipShape(Circle())
     }
     

@@ -114,5 +114,25 @@ struct CityScoutApp: App {
                         break
                     }
                 }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+                    switch newPhase {
+                    case .active:
+                        // App is in the foreground, user is active
+                        messageVM.setUserOnline()
+                        
+                    case .inactive:
+                        // App is about to move to background (e.g., system alert)
+                        // You might choose to do nothing here, or update lastSeen.
+                        // For robustness, we update to online in .active and offline in .background.
+                        break
+                        
+                    case .background:
+                        // App is in the background or terminated
+                        messageVM.setUserOffline()
+                        
+                    @unknown default:
+                        break
+                    }
+                }
     }
 }

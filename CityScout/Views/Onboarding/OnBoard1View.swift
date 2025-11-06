@@ -106,7 +106,7 @@ struct OnBoard1View: View {
                             .padding(.top, 10)
                             .padding(.bottom, 16)
                             
-                        PrimaryButton(title: "Get Started", action: navigateToOnBoard2)
+                        PrimaryButton(title: "Next", action: navigateToOnBoard2)
                             .padding(.horizontal, 20)
                             .padding(.bottom, 30)
                     }

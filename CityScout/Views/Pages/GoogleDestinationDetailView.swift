@@ -395,3 +395,4 @@ private struct AboutView: View {
                 }
             }
         }
+

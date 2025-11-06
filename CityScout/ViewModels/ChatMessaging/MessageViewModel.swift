@@ -56,82 +56,94 @@ class MessageViewModel: ObservableObject {
         chatsListener?.remove()
     }
     
-    // MARK: - Chat Management
+    private func fetchChatParticipant(id: String) async -> ChatParticipant? {
+        // 1. Try fetching from the "users" collection (Standard User)
+        do {
+            let userDoc = try await db.collection("users").document(id).getDocument()
+            if userDoc.exists,
+               let displayName = userDoc.data()?["displayName"] as? String {
+                
+                let urlString = userDoc.data()?["profilePictureURL"] as? String
+                let profileURL = urlString.flatMap(URL.init(string:))
+                
+                // Note: We create a ChatParticipant here, using the user's ID as its ID
+                return ChatParticipant(id: id, displayName: displayName, profilePictureURL: profileURL)
+            }
+        } catch {
+            print("Error fetching user data: \(error.localizedDescription)")
+        }
+
+        // 2. Try fetching from the "partners" collection if 'users' failed
+        do {
+            let partnerDoc = try await db.collection("partners").document(id).getDocument()
+            if partnerDoc.exists,
+               let displayName = partnerDoc.data()?["partnerDisplayName"] as? String {
+                
+                let urlString = partnerDoc.data()?["profilePictureURL"] as? String
+                let profileURL = urlString.flatMap(URL.init(string:))
+                
+                return ChatParticipant(id: id, displayName: displayName, profilePictureURL: profileURL)
+            }
+        } catch {
+            print("Error fetching partner data: \(error.localizedDescription)")
+        }
+
+        // Fallback if neither document exists
+        return ChatParticipant(id: id, displayName: "Unknown User", profilePictureURL: nil)
+    }
     
+    func getPartnerDisplayStatus() -> String {
+        guard let status = partnerStatus else {
+            return "Offline"
+        }
+        // Now uses the new computed property on the UserStatus struct
+        return status.displayStatus
+    }
+    
+    // MARK: - Chat Management
+
     func subscribeToChats() {
         guard let userId = Auth.auth().currentUser?.uid else { return }
-        
+            
         isLoading = true
         errorMessage = nil
-        
+            
         chatsListener?.remove()
-        
+            
         chatsListener = db.collection("chats")
             .whereField("participants", arrayContains: userId)
             .order(by: "lastUpdated", descending: true)
             .addSnapshotListener { [weak self] (querySnapshot, error) in
                 guard let self = self else { return }
                 self.isLoading = false
-                
-                // --- NEW: Exit if the update is from a local write ---
-                // This stops the recursion after an update is applied by this client.
-                if querySnapshot?.metadata.hasPendingWrites == true {
-                    // The document change will still be processed below, but we won't trigger
-                    // another updateChatPartnerInfo call.
-                    // However, a simpler/safer approach is to let the loop run but skip the trigger.
-                    // We'll proceed with the loop but only trigger the update if the change is NOT local.
-                }
-                
+                    
                 if let error = error {
                     self.errorMessage = "Failed to fetch chats: \(error.localizedDescription)"
-                    print("Error fetching chats: \(error.localizedDescription)")
                     return
                 }
-                
+                    
                 guard let documents = querySnapshot?.documents else {
                     self.chats = []
                     self.totalUnreadCount = 0
                     return
                 }
 
-                // Determine if the snapshot contains an update that was NOT initiated locally
-                        let isUpdateRemote = querySnapshot?.metadata.isFromCache == false && querySnapshot?.metadata.hasPendingWrites == false
-
-                        self.chats = documents.compactMap { doc -> Chat? in
-                            do {
-                                var chat = try doc.data(as: Chat.self)
-                                let chatId = doc.documentID // Capture the chat ID
-                                
-//                                if let lastMessage = chat.lastMessage {
-//                                    // Check if the chat document is missing/incorrect metadata
-//                                    let partnerIdFromMessage = (lastMessage.senderId == userId) ? lastMessage.receiverId : lastMessage.senderId
-//                                    
-//                                    if partnerIdFromMessage != chat.partnerId {
-//                                        
-//                                        // ⭐️ The fix is to only trigger the update if the metadata change
-//                                        // didn't originate from a local write (i.e., another client made a change)
-//                                        if isUpdateRemote {
-//                                            print("Chat metadata is outdated. Updating partner info...")
-//                                            Task {
-//                                                // Use the captured chatId
-//                                                await self.updateChatPartnerInfo(chatId: chatId, partnerId: partnerIdFromMessage)
-//                                            }
-//                                        } else {
-//                                            // Print a different message for local updates to trace the loop
-//                                            print("Chat metadata update detected (Local). Skipping recursive trigger.")
-//                                        }
-//                                    }
-//                                }
-                                return chat
-                            } catch {
-                                print("Error decoding chat document: \(error.localizedDescription)")
-                                return nil
-                            }
-                        }
-                        
-                        self.calculateTotalUnreadCount(for: userId)
+                // The decoding logic here automatically maps the new 'userMetadata' field
+                // into the Chat struct, and the Chat struct's helper functions
+                // (e.g., getPartnerDisplayName) will now correctly use the other person's data.
+                self.chats = documents.compactMap { doc -> Chat? in
+                    do {
+                        var chat = try doc.data(as: Chat.self)
+                        return chat
+                    } catch {
+                        print("Error decoding chat document: \(error.localizedDescription)")
+                        return nil
                     }
                 }
+                
+                self.calculateTotalUnreadCount(for: userId)
+            }
+    }
     
     private func calculateTotalUnreadCount(for userId: String) {
             let count = self.chats.reduce(0) { total, chat in
@@ -553,79 +565,63 @@ class MessageViewModel: ObservableObject {
             self.errorMessage = "User not logged in."
             return nil
         }
-        
+            
         let chatRef = db.collection("chats")
         
         // --- Existing Chat Check ---
-        let existingChatQuery = chatRef.whereField("participants", isEqualTo: [userId, recipientId])
-        let existingChatQueryReversed = chatRef.whereField("participants", isEqualTo: [recipientId, userId])
+                let existingChatQuery = chatRef.whereField("participants", isEqualTo: [userId, recipientId])
+                let existingChatQueryReversed = chatRef.whereField("participants", isEqualTo: [recipientId, userId])
 
-        do {
-            let snapshot = try await existingChatQuery.getDocuments()
-            if let existingChatDoc = snapshot.documents.first {
-                print("Chat already exists with ID: \(existingChatDoc.documentID)")
-                return try? existingChatDoc.data(as: Chat.self)
-            } else {
-                let snapshotReversed = try await existingChatQueryReversed.getDocuments()
-                if let existingChatDoc = snapshotReversed.documents.first {
-                    print("Chat already exists with ID: \(existingChatDoc.documentID)")
-                    return try? existingChatDoc.data(as: Chat.self)
+                do {
+                    let snapshot = try await existingChatQuery.getDocuments()
+                    if let existingChatDoc = snapshot.documents.first {
+                        print("Chat already exists with ID: \(existingChatDoc.documentID)")
+                        return try? existingChatDoc.data(as: Chat.self)
+                    } else {
+                        let snapshotReversed = try await existingChatQueryReversed.getDocuments()
+                        if let existingChatDoc = snapshotReversed.documents.first {
+                            print("Chat already exists with ID: \(existingChatDoc.documentID)")
+                            return try? existingChatDoc.data(as: Chat.self)
+                        }
+                    }
+                } catch {
+                    self.errorMessage = "Error checking for existing chat: \(error.localizedDescription)"
+                    return nil
                 }
-            }
-        } catch {
-            self.errorMessage = "Error checking for existing chat: \(error.localizedDescription)"
+
+        let senderParticipant = await fetchChatParticipant(id: userId)
+        let recipientParticipant = await fetchChatParticipant(id: recipientId)
+            
+        guard let safeSender = senderParticipant,
+              let safeRecipient = recipientParticipant else {
+            self.errorMessage = "Failed to fetch necessary user/partner data."
             return nil
         }
-        
-        // --- Dual-Collection Lookup for Recipient Info ---
-        var partnerDisplayName: String = "Unknown User"
-        var partnerProfilePictureURLString: String? = nil
-        
-        do {
-            // 1. Try fetching from the "users" collection (Standard User)
-            let userDoc = try await db.collection("users").document(recipientId).getDocument()
-            
-            if userDoc.exists {
-                partnerDisplayName = userDoc.data()?["displayName"] as? String ?? "Unknown User (User)"
-                partnerProfilePictureURLString = userDoc.data()?["profilePictureURL"] as? String
-            } else {
-                // 2. If not a User, try fetching from the "partners" collection (Partner)
-                let partnerDoc = try await db.collection("partners").document(recipientId).getDocument()
-                
-                if partnerDoc.exists {
-                    // Use the field name you specified for partners
-                    partnerDisplayName = partnerDoc.data()?["partnerDisplayName"] as? String ?? "Unknown User (Partner)"
-                    partnerProfilePictureURLString = partnerDoc.data()?["profilePictureURL"] as? String
-                }
-            }
-        } catch {
-            print("Error fetching user/partner data for new chat: \(error.localizedDescription)")
-        }
-        
+
         // --- Chat Creation ---
         do {
             let newChatRef = chatRef.document()
-                
-            // Create the initial message
             let initialMessageText = "Say hello!"
             let initialMessage = Message(
                 senderId: userId,
                 receiverId: recipientId,
                 text: initialMessageText,
                 timestamp: Timestamp(date: Date()),
-                imageUrl: nil,
-                audioUrl: nil,
-                messageType: .text,
-                isRead: false
+                imageUrl: nil, audioUrl: nil,
+                messageType: .text, isRead: false
             )
                 
             let initialData: [String: Any] = [
-                "participants": [userId, recipientId],
+                // *** FIX: Use the sorted 'participants' array here as well ***
+                "participants": [userId, recipientId].sorted(),
                 "lastUpdated": Timestamp(date: Date()),
                 "lastMessage": try Firestore.Encoder().encode(initialMessage),
-                "partnerId": recipientId,
-                "partnerDisplayName": partnerDisplayName as Any, // Use the resolved name
-                "partnerProfilePictureURL": partnerProfilePictureURLString as Any,
+                    
+                "userMetadata": [
+                    userId: try Firestore.Encoder().encode(safeSender),
+                    recipientId: try Firestore.Encoder().encode(safeRecipient)
+                ],
+                    
                 "unreadCount": [
                     userId: 0,
                     recipientId: 1
@@ -637,8 +633,9 @@ class MessageViewModel: ObservableObject {
             ]
                 
             try await newChatRef.setData(initialData)
-            print("New chat created with ID: \(newChatRef.documentID) with partner name: \(partnerDisplayName)")
+            print("New chat created with ID: \(newChatRef.documentID)")
                 
+            // Fetch the created chat and return it
             let newChatDoc = try await newChatRef.getDocument()
             return try? newChatDoc.data(as: Chat.self)
                 
@@ -780,4 +777,69 @@ struct UserStatus: Decodable, Identifiable {
     @DocumentID var id: String?
     var isOnline: Bool? = false
     var lastSeen: Timestamp? = Timestamp(date: Date())
+    
+    // Define the threshold for being considered 'recently active' (e.g., last 5 minutes)
+    private static let onlineThreshold: TimeInterval = 5 * 60 // 5 minutes in seconds
+    
+    // Computed property to determine the *display* status
+    var displayStatus: String {
+        guard let lastSeenDate = lastSeen?.dateValue() else {
+            return "Offline"
+        }
+        
+        let now = Date()
+        let timeSinceLastSeen = now.timeIntervalSince(lastSeenDate)
+        
+        // 1. Prioritize the `isOnline` flag if it's true (user is actively using the app)
+        if isOnline == true {
+            return "Online"
+        }
+        
+        // 2. Fall back to the timestamp if the user was recently active
+        if timeSinceLastSeen < UserStatus.onlineThreshold {
+            return "Active recently" // Shows "online" behaviour even if the flag is false
+        }
+        
+        // 3. If too much time has passed, format the last seen time
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return "Last seen \(formatter.localizedString(for: lastSeenDate, relativeTo: now))"
+    }
+}
+
+
+// MARK: - App Status Management
+extension MessageViewModel {
+    
+    func setUserOnline() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        let userRef = db.collection("users").document(userId) // Assuming 'users' is the source of truth
+        
+        userRef.updateData([
+            "isOnline": true,
+            "lastSeen": FieldValue.serverTimestamp()
+        ]) { error in
+            if let error = error {
+                print("Error setting user online status: \(error.localizedDescription)")
+            } else {
+                print("User \(userId) status set to ONLINE.")
+            }
+        }
+    }
+    
+    func setUserOffline() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        let userRef = db.collection("users").document(userId) // Assuming 'users' is the source of truth
+        
+        userRef.updateData([
+            "isOnline": false,
+            "lastSeen": FieldValue.serverTimestamp() // Crucial: Update lastSeen immediately when going offline
+        ]) { error in
+            if let error = error {
+                print("Error setting user offline status: \(error.localizedDescription)")
+            } else {
+                print("User \(userId) status set to OFFLINE, lastSeen updated.")
+            }
+        }
+    }
 }

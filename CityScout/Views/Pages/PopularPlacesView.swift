@@ -1,4 +1,3 @@
-// PopularPlacesView.swift
 import SwiftUI
 
 struct PopularPlacesView: View {
@@ -20,6 +19,7 @@ struct PopularPlacesView: View {
         VStack(spacing: 0) {
             HeaderView(title: "Popular Places")
                 .padding(.bottom, 20)
+                .padding(.top, 10)
 
             // 3. REMOVED GeometryReader, VStack, and Spacer
             // The ScrollView will now correctly fill the remaining space.

@@ -4,11 +4,17 @@ struct FavoritePlacesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authVM: AuthenticationViewModel
 
+    // 1. ADD environment variable for screen size
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
     @StateObject private var viewModel = FavoritesViewModel(homeViewModel: HomeViewModel())
     
-    let columns: [GridItem] = [
-            GridItem(.adaptive(minimum: 160))
-        ]
+    // 2. Make columns adaptive and use private computed property
+    private var columns: [GridItem] {
+        let minWidth: CGFloat = (horizontalSizeClass == .regular) ? 260 : 160
+        // Define adaptive column layout, setting horizontal spacing here
+        return [GridItem(.adaptive(minimum: minWidth), spacing: 20)]
+    }
 
     var body: some View {
         NavigationStack {
@@ -38,6 +44,8 @@ struct FavoritePlacesView: View {
             }
             .background(Color(.systemBackground).ignoresSafeArea())
         }
+        .padding(.top, 10)
+        .padding(.bottom, 20)
     }
 
     @ViewBuilder
@@ -55,8 +63,9 @@ struct FavoritePlacesView: View {
                 .padding()
             Spacer()
         } else {
+            // 3. Place LazyVGrid directly inside the ScrollView using adaptive columns
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: columns, spacing: 20) {
+                LazyVGrid(columns: columns, spacing: 20) { // Add vertical spacing for rows
                     ForEach(viewModel.favorites) { destination in
                         NavigationLink(destination: DestinationDetailView(destination: destination)) {
                             PopularFavoriteDestinationCard(
@@ -71,7 +80,8 @@ struct FavoritePlacesView: View {
                         .buttonStyle(PlainButtonStyle())
                     }
                 }
-                .padding()
+                .padding(.horizontal) // Apply horizontal padding to the grid
+                .padding(.bottom, 20) // Padding at the end of all content
             }
         }
     }

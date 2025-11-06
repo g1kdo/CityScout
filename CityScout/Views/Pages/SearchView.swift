@@ -4,15 +4,21 @@ struct SearchView: View {
     @EnvironmentObject var homeVM: HomeViewModel
     @EnvironmentObject var favoritesVM: FavoritesViewModel
 
+    // 1. ADD environment variable for screen size
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
     // State to hold the fully-loaded GoogleDestination
     @State private var selectedGoogleDestination: GoogleDestination? = nil
 
     // Programmatic navigation link
     @State private var isShowingGoogleDetails = false
     
-    let columns: [GridItem] = [
-            GridItem(.adaptive(minimum: 160))
-        ]
+    // 2. Make columns adaptive and use private computed property
+    private var columns: [GridItem] {
+        let minWidth: CGFloat = (horizontalSizeClass == .regular) ? 260 : 160
+        // Define adaptive column layout, setting horizontal spacing here
+        return [GridItem(.adaptive(minimum: minWidth), spacing: 20)]
+    }
 
     var body: some View {
         ZStack {
@@ -72,6 +78,7 @@ struct SearchView: View {
             Spacer()
         } else {
             ScrollView(.vertical, showsIndicators: false) {
+                // Using the adaptive 'columns' property
                 LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(homeVM.searchResults, id: \.id) { anyDestination in
                         switch anyDestination {

@@ -10,7 +10,6 @@ struct BookingView: View {
         let calendar = Calendar.current
         
         let firstSelectedDate = bookingVM.selectedDates
-            .compactMap { calendar.date(from: $0) }
             .min() ?? Date()
 
         if calendar.isDateInToday(firstSelectedDate) {
@@ -155,6 +154,7 @@ private struct BookingTitleView: View {
 
 private struct DateSelectionView: View {
     @ObservedObject var bookingVM: BookingViewModel
+    @State private var currentMonth: Date = Date()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -162,15 +162,24 @@ private struct DateSelectionView: View {
                 .font(.headline)
                 .padding(.horizontal)
 
-            MultiDatePicker("Select Dates", selection: $bookingVM.selectedDates, in: Date()...)
-                .datePickerStyle(.graphical)
+            VStack(spacing: 0) {
+                // Calendar Header for navigation
+                CalendarHeader(selectedDate: $currentMonth)
+                    .padding(.horizontal)
+                    .padding(.top, 10)
+                
+                // Custom Multi-Date Picker (No events parameter)
+                CustomMultiDatePickerView(
+                    selectedDates: $bookingVM.selectedDates,
+                    currentMonth: $currentMonth
+                )
                 .accentColor(Color(hex: "#24BAEC"))
-                .frame(maxWidth: .infinity)
-                .background(Color(.systemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            
+            }
+            .frame(maxWidth: .infinity)
+            .background(Color(.systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
-        .frame(maxWidth: .infinity, alignment: .leading) // Stretch container
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
         .padding(.bottom, 10)
     }

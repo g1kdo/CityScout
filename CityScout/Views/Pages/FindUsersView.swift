@@ -51,13 +51,10 @@ struct FindUsersView: View {
                 }
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
+                .padding(.top, 10)
                 
 
-                SearchBarView(searchText: $searchText, placeholder: "Search recommended users", isMicrophoneActive: homeVM.isListeningToSpeech) {
-                    // Action on search tapped
-                } onMicrophoneTapped: {
-                    homeVM.handleMicrophoneTapped()
-                }
+                MessageSearchBarView(searchText: $searchText, placeholder: "Search recommended users")
                 
                 ScrollView {
                     LazyVStack {
