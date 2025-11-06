@@ -210,25 +210,33 @@ class AuthenticationViewModel: ObservableObject {
             "lastSeen": Timestamp(date: Date())
         ]
         
-        // 2. Determine the correct collection: Check /partners first
-        let partnerDocRef = db.collection("partners").document(userId)
-        
+        // --- 2. Check for Partner Document using a QUERY (Required Fix) ---
         do {
-            let partnerDocument = try await partnerDocRef.getDocument()
+            let partnerQuerySnapshot = try await db.collection("partners")
+                .whereField("id", isEqualTo: userId) // <-- Check internal 'id' field
+                .limit(to: 1)
+                .getDocuments()
             
-            // 3. If the partner document exists, update the status there.
-            if partnerDocument.exists {
+            if let partnerDocument = partnerQuerySnapshot.documents.first {
+                // Document found: Update the actual partner document ID
+                let partnerDocRef = db.collection("partners").document(partnerDocument.documentID)
                 try await partnerDocRef.setData(statusData, merge: true)
                 print("Status updated in partners collection for \(userId)")
-            } else {
-                // 4. If the partner document does NOT exist, assume it's a standard user and update the /users collection.
-                let userDocRef = db.collection("users").document(userId)
-                try await userDocRef.setData(statusData, merge: true)
-                print("Status updated in users collection for \(userId)")
+                return // Successfully updated partner status
             }
             
         } catch {
-            print("Error updating status for \(userId): \(error.localizedDescription)")
+            print("Error querying partners collection for status update: \(error.localizedDescription)")
+            // Continue to check /users collection below if query failed for some reason
+        }
+        
+        // --- 3. Default to standard User Document ---
+        let userDocRef = db.collection("users").document(userId)
+        do {
+            try await userDocRef.setData(statusData, merge: true)
+            print("Status updated in users collection for \(userId)")
+        } catch {
+            print("Error updating status in users collection for \(userId): \(error.localizedDescription)")
         }
     }
     
