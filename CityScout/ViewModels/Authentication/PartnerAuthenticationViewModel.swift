@@ -2,19 +2,27 @@ import Foundation
 import FirebaseAuth
 import SwiftUI
 import FirebaseFirestore
-import FirebaseMessaging
+import FirebaseStorage
+import PhotosUI
+import UIKit
 import CryptoKit
 
 // Alias the provided Partner structure
 typealias CityScoutPartner = Partner
+// Assuming KeychainService is available and implemented as discussed
 
 @MainActor
 class PartnerAuthenticationViewModel: ObservableObject {
     // Input Fields for "Sign In" / Activation
     @Published var email = ""
-    @Published var fullName = "" // User input
-    @Published var phoneNumber = "" // User input
-    @Published var location = "" // User input
+    @Published var partnerDisplayName = ""
+    @Published var phoneNumber = ""
+    @Published var location = ""
+    @Published var profilePictureURL: URL?
+
+    // Image Handling
+    @Published var selectedPhotoItem: PhotosPickerItem? // For PhotosUI binding
+    @Published var profileImage: UIImage? // The loaded UIImage representation
     
     // State Management
     @Published var errorMessage = ""
@@ -24,18 +32,18 @@ class PartnerAuthenticationViewModel: ObservableObject {
     @Published var isAuthenticated = false
 
     @Published var isLoadingInitialData = true
-    @Published var user: User? // Firebase User object
-    @Published var signedInPartner: CityScoutPartner? // Your custom partner object
+    @Published var user: User?
+    @Published var signedInPartner: CityScoutPartner?
 
     private var authStateHandler: AuthStateDidChangeListenerHandle?
     private let db = Firestore.firestore()
+    private let storage = Storage.storage()
     private let partnerCollection = "partners" // Dedicated collection for partners
 
     init() {
         registerAuthStateHandler()
+        // Start the process by checking the current user/session
         Task { await checkCurrentUser() }
-        
-        // Removed FCM token logic for brevity and focus, but keep it if needed.
     }
 
     deinit {
@@ -44,6 +52,8 @@ class PartnerAuthenticationViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Auth State Listener
+    
     private func registerAuthStateHandler() {
         if authStateHandler == nil {
             authStateHandler = Auth.auth().addStateDidChangeListener { [weak self] _, firebaseUser in
@@ -63,10 +73,13 @@ class PartnerAuthenticationViewModel: ObservableObject {
                             self.signedInPartner = nil
                             // Force sign out if they successfully authenticated but aren't a partner
                             try? Auth.auth().signOut()
+                            // Also clear Keychain if Firebase Auth state is good but Firestore role is bad
+                            KeychainService.clearPartnerCredentials() 
                         }
                         self.isLoadingInitialData = false
                     }
                 } else {
+                    // Firebase User is NIL (signed out or session expired)
                     self.signedInPartner = nil
                     self.isAuthenticated = false
                     self.isLoadingInitialData = false
@@ -89,18 +102,60 @@ class PartnerAuthenticationViewModel: ObservableObject {
 
     // MARK: - Core Activation / Sign In Logic
     
-    /// This function serves as the "Sign In" button action.
-    /// It checks for a persistent session first, otherwise it triggers the activation flow.
-    func completeProfileAndActivate() async {
-        guard !email.isEmpty, !fullName.isEmpty, !phoneNumber.isEmpty, !location.isEmpty else {
-            errorMessage = "Please fill in all fields (Email, Full Name, Phone, and Location) to activate your account."
-            showAlert = true
-            return
+    // MARK: - Image Handling
+
+
+    func loadImage(from item: PhotosPickerItem) {
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let uiImage = UIImage(data: data) else {
+                    throw NSError(domain: "PartnerAuthVM", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data."])
+                }
+                await MainActor.run {
+                    self.profileImage = uiImage
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to load image: \(error.localizedDescription)"
+                    self.showAlert = true
+                }
+            }
+        }
+    }
+    
+
+    private func uploadProfilePicture(userId: String, image: UIImage) async throws -> URL? {
+        // Convert UIImage to JPEG Data
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            throw NSError(domain: "PartnerAuthVM", code: 501, userInfo: [NSLocalizedDescriptionKey: "Could not convert image to JPEG data."])
         }
 
-        // If a user is already authenticated (persistent session), no action needed
-        guard user == nil else {
-            successMessage = "You are already signed in."
+        // Define storage path: partner_profiles/{userId}/profile.jpg
+        let storageRef = storage.reference().child("partner_profiles/\(userId)/profile.jpg")
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+
+        do {
+            // Upload the data
+            let _ = try await storageRef.putDataAsync(imageData, metadata: metadata)
+            
+            // Get the download URL
+            let downloadURL = try await storageRef.downloadURL()
+            return downloadURL
+        } catch {
+            print("PartnerAuthVM: Error uploading profile picture: \(error.localizedDescription)")
+            // Re-throw the error to be handled upstream
+            throw error
+        }
+    }
+
+    // MARK: - Core Activation / Sign In Logic
+    
+    func completeProfileAndActivate() async {
+
+        guard !email.isEmpty, !partnerDisplayName.isEmpty, !phoneNumber.isEmpty, !location.isEmpty else {
+            errorMessage = "Please fill in all required fields."
             showAlert = true
             return
         }
@@ -110,9 +165,10 @@ class PartnerAuthenticationViewModel: ObservableObject {
         
         // --- 1. Query Firestore to find the pre-created partner document by email ---
         let querySnapshot: QuerySnapshot
+
         do {
-            querySnapshot = try await db.collection(partnerCollection)
-                .whereField("partnerEmail", isEqualTo: email)
+             querySnapshot = try await db.collection(partnerCollection)
+                .whereField("partnerEmail", isEqualTo: email.lowercased()) // Ensure email is lowercased for searching
                 .getDocuments()
         } catch {
             errorMessage = "Failed to check partner database: \(error.localizedDescription)"
@@ -130,56 +186,53 @@ class PartnerAuthenticationViewModel: ObservableObject {
         
         // --- 2. Check if the Partner is already activated (has a UID) ---
         if let currentUID = partnerDoc.data()["id"] as? String, currentUID.isEmpty == false {
-            // This case means the Auth user exists, but the session somehow expired or was cleared.
-            // Since the user is not providing a password, we must rely on a persistent session
-            // or a secondary secure flow (like email link or a recovery/key system) to re-authenticate.
-            // For now, we simply inform them.
-            errorMessage = "This account is already activated. Please restart the app or ensure your email/password credentials aren't needed to use the persistent session."
-            showAlert = true
+            errorMessage = "This account is already activated. Attempting silent re-sign-in..."
+            await attemptSilentResignIn() 
             isAuthenticating = false
             return
         }
 
         // --- 3. First-Time Activation Process ---
         do {
-            // A. Generate Cryptographically Strong Session Key (used as Firebase Auth Password)
+            // A. Generate Cryptographically Strong Session Key
             let sessionKey = KeyGeneratorAndHasher.generateSecretKey()
-            guard let (salt, hash) = KeyGeneratorAndHasher.hashSecretKey(sessionKey) else {
-                throw NSError(domain: "PartnerAuthVM", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to generate secure session key."])
-            }
             
             // B. Create the Firebase Auth User using the secure key as the password
             let authResult = try await Auth.auth().createUser(withEmail: email, password: sessionKey)
             let userId = authResult.user.uid
             
-            // C. Update Firestore Document with All Missing Data
-            let updateData: [String: Any] = [
-                "id": userId, // Set the Firestore document ID to the Firebase UID
-                "fullName": fullName,
+            // C. **NEW:** Handle Profile Picture Upload if available
+            var finalPhotoURL: URL? = nil
+            if let image = self.profileImage {
+                do {
+                    finalPhotoURL = try await self.uploadProfilePicture(userId: userId, image: image)
+                } catch {
+                    // Log the error but don't halt the critical activation process
+                    print("WARNING: Profile picture upload failed, continuing with other data: \(error.localizedDescription)")
+                }
+            }
+
+            // D. Update Firestore Document with All Missing Data
+            let partnerData: [String: Any] = [
+                "id": userId, // Link the Firestore document to the Auth UID
+                "partnerDisplayName": partnerDisplayName,
                 "phoneNumber": phoneNumber,
                 "location": location,
-                "sessionKeyHash": hash,
-                "sessionKeySalt": salt,
-                "partnerEmail": email, // Ensure email is correctly merged
+                "profilePictureURL": finalPhotoURL?.absoluteString ?? "" // Save the new URL
             ]
             
-            // Update the document using its existing reference
-            try await partnerDoc.reference.setData(updateData, merge: true)
+            // Use the document ID found in step 1 to update the existing document
+            try await db.collection(partnerCollection).document(partnerDoc.documentID).updateData(partnerData)
             
-            // D. **Crucial:** Save the PLAIN-TEXT 'sessionKey' securely on the device (e.g., iOS Keychain)
-            // In a real app, this key would be used to generate/refresh persistent session tokens.
-            print("--- ACTIVATION SUCCESSFUL ---")
-            print("The session key: \(sessionKey) should be securely stored in the iOS KEYCHAIN for persistent login.")
-            print("--- --------------------- ---")
-            
-            // E. Final Sign In (already done by createUser, but ensures state is handled)
-            // The authStateHandler will now pick up the user and load the updated partner data.
+            // E. **Crucial:** Save the PLAIN-TEXT 'sessionKey' securely on the device
+            KeychainService.savePartnerSessionKey(sessionKey)
+            KeychainService.savePartnerEmail(email)
+            print("Activation successful. Key and email stored in Keychain.")
             
             successMessage = "Account activated and profile completed successfully! You are now signed in."
             showAlert = true
             
         } catch {
-            // If createUser or setData fails, show the error
             errorMessage = "Activation failed: \(getAuthErrorMessage(error: error))"
             showAlert = true
         }
@@ -187,12 +240,54 @@ class PartnerAuthenticationViewModel: ObservableObject {
         isAuthenticating = false
     }
     
+    // MARK: - Silent Re-Sign-In Logic
+    
+    /// Attempts to re-authenticate the user silently using the stored session key from the Keychain.
+    private func attemptSilentResignIn() async {
+        // Only run if we are definitely NOT signed in
+        guard Auth.auth().currentUser == nil else {
+            return 
+        }
+
+        // 1. Retrieve the secure credentials
+        let storedSessionKey = KeychainService.retrievePartnerSessionKey()
+        let storedEmail = KeychainService.retrievePartnerEmail()
+        
+        guard let sessionKey = storedSessionKey, let email = storedEmail else {
+            print("PartnerAuthVM: Silent re-sign-in skipped. No credentials found in Keychain.")
+            return
+        }
+
+        self.isAuthenticating = true
+        self.isLoadingInitialData = true
+        
+        do {
+            // 2. Perform a silent re-sign-in using the stored key as the password
+            let _ = try await Auth.auth().signIn(withEmail: email, password: sessionKey)
+            
+            // Success: The authStateHandler takes over to load partner data.
+            print("PartnerAuthVM: Successful silent re-sign-in via stored session key.")
+            
+        } catch {
+            // 3. Failed re-sign-in (e.g., key/hash mismatch, Firebase user deleted)
+            print("PartnerAuthVM: Silent re-sign-in failed. \(error.localizedDescription). Clearing credentials.")
+            KeychainService.clearPartnerCredentials() // Clear the bad credentials
+        }
+        
+        self.isAuthenticating = false
+        // Note: isLoadingInitialData will be set to false by the authStateHandler
+    }
+
     // MARK: - Standard Auth Functions
     
     func signOut() {
         do {
+            // 1. Invalidate Firebase session
             try Auth.auth().signOut()
-            // In a real app, clear the securely stored sessionKey from the Keychain here
+            
+            // 2. Clear the secure credentials from the Keychain
+            // KeychainService.clearPartnerCredentials()
+            
             successMessage = "You have been signed out."
             showAlert = true
         } catch {
@@ -203,24 +298,32 @@ class PartnerAuthenticationViewModel: ObservableObject {
 
     // Helper to check for existing user on app launch
     func checkCurrentUser() async {
+        // 1. Check for persistent session first (automatic Firebase feature)
         guard let fbUser = Auth.auth().currentUser else {
-            self.isLoadingInitialData = false
-            self.signedInPartner = nil
-            self.isAuthenticated = false
+            // 2. If no persistent session, attempt to re-authenticate using the stored key
+            await attemptSilentResignIn()
+            
+            // 3. Final check to ensure state is clear if silent sign-in failed
+            if Auth.auth().currentUser == nil {
+                self.isLoadingInitialData = false
+                self.signedInPartner = nil
+                self.isAuthenticated = false
+            }
             return
         }
 
+        // This path is taken if Firebase successfully restored the session
         self.isLoadingInitialData = true
         do {
             self.signedInPartner = try await fetchPartnerData(for: fbUser.uid)
             self.isAuthenticated = true
             print("PartnerAuthVM: Existing partner loaded via persistent session.")
         } catch {
-            print("PartnerAuthVM: Failed to load partner data for existing user: \(error.localizedDescription). Forcing sign out.")
+            print("PartnerAuthVM: Failed to load partner data for existing user: \(error.localizedDescription). Forcing sign out and clearing key.")
             self.signedInPartner = nil
             self.isAuthenticated = false
-            // Clear bad session
             try? Auth.auth().signOut()
+            KeychainService.clearPartnerCredentials() // Clear key if the user is somehow corrupted
         }
         self.isLoadingInitialData = false
     }
@@ -229,8 +332,7 @@ class PartnerAuthenticationViewModel: ObservableObject {
         if let errorCode = AuthErrorCode(rawValue: (error as NSError).code) {
             switch errorCode {
             case .emailAlreadyInUse:
-                // This means the Auth account exists, but the Firestore check failed to identify it as activated.
-                return "The email is already registered in our system. You must rely on the persistent session mechanism to sign in."
+                return "The email is already registered in our system. Attempting silent re-sign-in..."
             case .invalidEmail:
                 return "The email address is not valid."
             default:

@@ -32,9 +32,10 @@ struct Partner: Codable, Identifiable {
     let partnerEmail: String
     
     // Fields collected during the first "Sign In" / Activation
-    var fullName: String? // New field
-    var phoneNumber: String? // New field
-    var location: String? // New field
+    var partnerDisplayName: String?
+    var phoneNumber: String?
+    var location: String? 
+    var profilePictureURL: URL?
     
     // Secure Credential Fields (Set only upon activation)
     var sessionKeyHash: String? // Hashed auto-generated key
@@ -42,8 +43,6 @@ struct Partner: Codable, Identifiable {
     
     // Status
     let name: String
-    let profilePictureURL: URL?
-    let partnerDisplayName: String?
 
     var isOnline: Bool? = false
     var lastSeen: Timestamp?
