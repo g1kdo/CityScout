@@ -341,4 +341,25 @@ class PartnerAuthenticationViewModel: ObservableObject {
         }
         return "An unknown error occurred."
     }
+    
+    // MARK: - Data Refresh
+        
+        /// Refreshes the signed-in partner's data from Firestore.
+        func refreshPartnerData() async {
+            guard let firebaseUser = Auth.auth().currentUser else {
+                print("PartnerAuthVM: No Firebase user to refresh data for.")
+                return
+            }
+            
+            isAuthenticating = true // Show loading
+            do {
+                // Re-fetch the partner data from the "partners" collection
+                self.signedInPartner = try await fetchPartnerData(for: firebaseUser.uid)
+                print("PartnerAuthVM: SignedInPartner data refreshed from Firestore.")
+            } catch {
+                print("PartnerAuthVM: Error refreshing partner data: \(error.localizedDescription)")
+                // You could set self.errorMessage here if needed
+            }
+            isAuthenticating = false // Hide loading
+        }
 }
