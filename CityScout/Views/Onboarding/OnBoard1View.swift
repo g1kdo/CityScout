@@ -1,10 +1,3 @@
-//
-//  OnBoard1View.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 30/04/2025.
-//
-
 import SwiftUI
 
 // This extension provides the .cornerRadius(_:corners:) modifier

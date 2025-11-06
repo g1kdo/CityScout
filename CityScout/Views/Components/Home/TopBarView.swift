@@ -62,6 +62,7 @@ struct TopBarView: View {
                     showingNotifications.toggle()
                 }) {
                     NotificationBell(unreadCount: notificationVM.unreadCount)
+                        .foregroundColor(.primary)
                 }
             }
         }

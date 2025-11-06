@@ -1,10 +1,3 @@
-//
-//  OnBoard3View.swift
-//  CityScout
-//
-//  Created by Umuco Auca on 30/04/2025.
-//
-
 import SwiftUI
 
 struct OnBoard3View: View {
