@@ -60,7 +60,7 @@ struct PartnerSignUpView: View {
         VStack(spacing: 10) {
             ZStack(alignment: .bottomTrailing) { 
                 // Display the selected image or the default placeholder
-                if let image = partnerAuthVM.profilePictureURL {
+                if let image = partnerAuthVM.profileImage {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -141,22 +141,27 @@ struct PartnerSignUpView: View {
     private var termsSection: some View {
         HStack(alignment: .top) {
             Button { isAgreed.toggle() } label: {
-                Image(systemName: isAgreed ? "checkmark.square.fill" : "square")
+                Image(systemName: isAgreed
+                    ? "checkmark.square.fill"
+                    : "square")
                     .font(.title3)
-                    .foregroundColor(isAgreed ? Color(hex: "#24BAEC") : .secondary)
+                    .foregroundColor(
+                        isAgreed
+                            ? Color(hex: "#24BAEC")
+                            : .secondary
+                    )
             }
 
-            // Using the colors from your original SignUpView
-            (Text("I agree with the ") +
-             Text("Terms of Service")
-                 .foregroundColor(Color(hex: "#FF7029"))
-                 .onTapGesture { openURL("https://your.app/terms") } +
-             Text(" and ") +
-             Text("Privacy Policy")
-                 .foregroundColor(Color(hex: "#FF7029"))
-                 .onTapGesture { openURL("https://your.app/privacy") })
-                .font(.footnote)
+            Text("I agree with the ")
+            Text("Terms of Service")
+                .foregroundColor(Color(hex: "#FF7029"))
+                .onTapGesture { openURL("https://your.app/terms") }
+            Text(" and ")
+            Text("Privacy Policy")
+                .foregroundColor(Color(hex: "#FF7029"))
+                .onTapGesture { openURL("https://your.app/privacy") }
         }
+        .font(.footnote)
     }
 
     private var activationButton: some View {

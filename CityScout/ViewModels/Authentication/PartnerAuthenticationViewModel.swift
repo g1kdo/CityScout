@@ -88,13 +88,14 @@ class PartnerAuthenticationViewModel: ObservableObject {
         }
     }
     
-    /// Fetches partner data from the /partners collection
     private func fetchPartnerData(for userId: String) async throws -> CityScoutPartner {
-        let docRef = db.collection(partnerCollection).document(userId)
-        let document = try await docRef.getDocument()
-        
-        guard document.exists else {
-            throw NSError(domain: "PartnerAuthVM", code: 404, userInfo: [NSLocalizedDescriptionKey: "Partner document not found in Firestore."])
+        // This is the correct implementation using the 'id' field lookup.
+        let querySnapshot = try await db.collection(partnerCollection)
+            .whereField("id", isEqualTo: userId) // <-- CORRECTED: Looks up by Auth UID in the 'id' field.
+            .getDocuments()
+
+        guard let document = querySnapshot.documents.first else {
+            throw NSError(domain: "PartnerAuthVM", code: 404, userInfo: [NSLocalizedDescriptionKey: "Partner document not found using Auth UID lookup."])
         }
         
         return try document.data(as: CityScoutPartner.self)
@@ -341,4 +342,23 @@ class PartnerAuthenticationViewModel: ObservableObject {
         }
         return "An unknown error occurred."
     }
+    
+    func refreshPartnerData() async {
+        guard let firebaseUser = Auth.auth().currentUser else {
+            print("PartnerAuthVM: No Firebase user to refresh data for.")
+            return
+        }
+        
+        isAuthenticating = true // Show loading
+        do {
+            // Re-fetch the partner data from the "partners" collection
+            self.signedInPartner = try await fetchPartnerData(for: firebaseUser.uid)
+            print("PartnerAuthVM: SignedInPartner data refreshed from Firestore.")
+        } catch {
+            print("PartnerAuthVM: Error refreshing partner data: \(error.localizedDescription)")
+            // You could set self.errorMessage here if needed
+        }
+        isAuthenticating = false // Hide loading
+    }
+
 }

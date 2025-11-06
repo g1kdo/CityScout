@@ -9,11 +9,13 @@ struct SignInView: View {
     @StateObject private var googleAuthViewModel = GoogleAuthViewModel()
     @StateObject private var appleAuthViewModel = AppleAuthViewModel()
     @StateObject private var facebookAuthViewModel = FacebookAuthViewModel()
+    @StateObject private var partnerVM = PartnerAuthenticationViewModel()
 
     // No longer need shouldNavigateHome, we'll observe viewModel.user
     // @State private var shouldNavigateHome = false
     @State private var isSignUpActive = false
     @State private var isForgotPasswordActive = false
+    @State private var isPartner = false
 
     var body: some View {
         ScrollView {
@@ -66,6 +68,10 @@ struct SignInView: View {
             ForgotPasswordView()
                 .environmentObject(viewModel)
         }
+        .navigationDestination(isPresented: $isPartner) {
+            PartnerSignUpView()
+                .environmentObject(partnerVM)
+        }
         .onAppear {
             // Check if a user is already signed in when the view appears
             Task {
@@ -106,12 +112,18 @@ struct SignInView: View {
 
     private var forgotPasswordSection: some View {
         HStack {
+            Button("I am a partner") {
+                isPartner = true
+            }
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(Color(hex: "#FF7029"))
             Spacer()
             Button("Forgot Password?") {
                 isForgotPasswordActive = true
             }
-            .font(.caption)
+            .font(.system(size: 13, weight: .bold))
             .foregroundColor(Color(hex: "#FF7029"))
+
         }
     }
 

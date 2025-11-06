@@ -25,7 +25,7 @@
 import Foundation
 import FirebaseFirestore
 
-struct Partner: Codable, Identifiable {
+struct Partner: Codable, Identifiable, Equatable {
     @DocumentID var id: String? // Will hold the Firebase Auth UID after activation
     
     // Core Pre-created Fields (Required for initial lookup)

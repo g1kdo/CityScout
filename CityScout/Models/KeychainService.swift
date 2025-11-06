@@ -43,7 +43,7 @@ class KeychainService {
         
         // Print useful debug info if needed
         if status != errSecSuccess {
-            print("Keychain Save Error: \(SecCopyErrorMessageString(status, nil) ?? "Unknown Error")")
+            print("Keychain Save Error: \(SecCopyErrorMessageString(status, nil) ?? "Unknown Error" as CFString)")
         }
         
         return status
