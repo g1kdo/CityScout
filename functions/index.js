@@ -1,5 +1,10 @@
-const functions = require("firebase-functions");
+const {onRequest} = require("firebase-functions/v2/https");
+const {onDocumentWritten} = require("firebase-functions/v2/firestore");
+const {setGlobalOptions} = require("firebase-functions/v2");
+const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const functions = require("firebase-functions");
+const crypto = require("crypto");
 
 // Initialize the Firebase Admin SDK with your project's default credentials
 admin.initializeApp();
@@ -343,4 +348,90 @@ exports.sendBookingEmail = functions.https.onCall(async (data, context) => {
             error.message
         );
     }
+});
+
+exports.activatePartnerAccount = functions.https.onCall(async (data, context) => {
+  // 1. Get data from the client
+  const email = data.email.toLowerCase();
+  const displayName = data.partnerDisplayName;
+  const phone = data.phoneNumber;
+  const location = data.location;
+  // This can be an empty string if no picture was uploaded
+  const profilePictureURL = data.profilePictureURL || "";
+
+  if (!email || !displayName || !phone || !location) {
+    throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required partner data.",
+    );
+  }
+
+  const db = admin.firestore();
+  const auth = admin.auth();
+  const partnerCollection = "partners";
+
+  try {
+    // 2. Query Firestore (with admin rights)
+    const querySnapshot = await db.collection(partnerCollection)
+        .where("partnerEmail", "==", email)
+        .get();
+
+    if (querySnapshot.empty) {
+      throw new functions.https.HttpsError(
+          "not-found",
+          "Partner account not found with this email. Please contact support.",
+      );
+    }
+
+    const partnerDoc = querySnapshot.docs[0];
+    const partnerData = partnerDoc.data();
+
+    // 3. Validate that the partner is not already activated
+    if (partnerData.id && partnerData.id !== "") {
+      throw new functions.https.HttpsError(
+          "already-exists",
+          "This partner account is already activated.",
+      );
+    }
+
+    // 4. Generate a secure random password (sessionKey)
+    // This creates a 32-byte (256-bit) random key and returns it as a hex string.
+    const sessionKey = crypto.randomBytes(32).toString("hex");
+
+    // 5. Create a new Firebase Auth user
+    const userRecord = await auth.createUser({
+      email: email,
+      password: sessionKey,
+      displayName: displayName,
+    });
+
+    const newUserId = userRecord.uid;
+
+    // 6. Update the partner doc in Firestore
+    const dataToUpdate = {
+      "id": newUserId, // This is the crucial link
+      "partnerDisplayName": displayName,
+      "phoneNumber": phone,
+      "location": location,
+      "profilePictureURL": profilePictureURL,
+    };
+
+    await db.collection(partnerCollection).doc(partnerDoc.id).update(dataToUpdate);
+
+    logger.info(`Successfully activated partner: ${email}, UID: ${newUserId}`);
+
+    // 7. Return the plain-text sessionKey to the client
+    return {sessionKey: sessionKey};
+  } catch (error) {
+    logger.error(`Activation failed for ${email}:`, error);
+    // Re-throw as an HttpsError so the client gets a clean error
+    if (error.code) {
+      // This was already a Firebase or HttpsError
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+        "internal",
+        "An unknown error occurred during activation.",
+    );
+  }
 });

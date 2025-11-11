@@ -55,13 +55,15 @@ class PartnerProfileViewModel: ObservableObject {
         self.location = partner.location ?? ""
         self.phoneNumber = partner.phoneNumber ?? ""
 
-        if let photoURL = partner.profilePictureURL {
-            self.currentProfileImageURL = photoURL
-            loadImageFromURL(photoURL)
-        } else {
-            self.profileImage = nil
-            self.currentProfileImageURL = nil
-        }
+        if let photoURLString = partner.profilePictureURL, let url = URL(string: photoURLString) {
+              // The partner has a valid profile picture URL string
+              self.currentProfileImageURL = url
+              loadImageFromURL(url) // Now this call is valid
+          } else {
+              // The partner's URL is nil or an empty string ""
+              self.profileImage = nil
+              self.currentProfileImageURL = nil
+          }
     }
 
     /// Updates the partner's profile in the "partners" Firestore collection

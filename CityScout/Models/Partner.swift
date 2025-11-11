@@ -35,7 +35,7 @@ struct Partner: Codable, Identifiable, Equatable {
     var partnerDisplayName: String?
     var phoneNumber: String?
     var location: String? 
-    var profilePictureURL: URL?
+    var profilePictureURL: String?
     
     // Secure Credential Fields (Set only upon activation)
     var sessionKeyHash: String? // Hashed auto-generated key

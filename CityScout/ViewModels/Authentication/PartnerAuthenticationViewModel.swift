@@ -6,6 +6,7 @@ import FirebaseStorage
 import PhotosUI
 import UIKit
 import CryptoKit
+import FirebaseFunctions
 
 // Alias the provided Partner structure
 typealias CityScoutPartner = Partner
@@ -23,6 +24,8 @@ class PartnerAuthenticationViewModel: ObservableObject {
     // Image Handling
     @Published var selectedPhotoItem: PhotosPickerItem? // For PhotosUI binding
     @Published var profileImage: UIImage? // The loaded UIImage representation
+    
+    private lazy var functions = Functions.functions()
     
     // State Management
     @Published var errorMessage = ""
@@ -126,31 +129,25 @@ class PartnerAuthenticationViewModel: ObservableObject {
     }
     
 
-    private func uploadProfilePicture(userId: String, image: UIImage) async throws -> URL? {
-        // Convert UIImage to JPEG Data
+    private func uploadProfilePicture(emailPath: String, image: UIImage) async throws -> URL? {
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             throw NSError(domain: "PartnerAuthVM", code: 501, userInfo: [NSLocalizedDescriptionKey: "Could not convert image to JPEG data."])
         }
 
-        // Define storage path: partner_profiles/{userId}/profile.jpg
-        let storageRef = storage.reference().child("partner_profiles/\(userId)/profile.jpg")
+        // Define storage path: partner_profiles/{safe_email_path}/profile.jpg
+        let storageRef = storage.reference().child("partner_profiles/\(emailPath)/profile.jpg")
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
 
         do {
-            // Upload the data
             let _ = try await storageRef.putDataAsync(imageData, metadata: metadata)
-            
-            // Get the download URL
             let downloadURL = try await storageRef.downloadURL()
             return downloadURL
         } catch {
             print("PartnerAuthVM: Error uploading profile picture: \(error.localizedDescription)")
-            // Re-throw the error to be handled upstream
             throw error
         }
     }
-
     // MARK: - Core Activation / Sign In Logic
     
     func completeProfileAndActivate() async {
@@ -164,77 +161,71 @@ class PartnerAuthenticationViewModel: ObservableObject {
         isAuthenticating = true
         errorMessage = ""
         
-        // --- 1. Query Firestore to find the pre-created partner document by email ---
-        let querySnapshot: QuerySnapshot
-
         do {
-             querySnapshot = try await db.collection(partnerCollection)
-                .whereField("partnerEmail", isEqualTo: email.lowercased()) // Ensure email is lowercased for searching
-                .getDocuments()
-        } catch {
-            errorMessage = "Failed to check partner database: \(error.localizedDescription)"
-            showAlert = true
-            isAuthenticating = false
-            return
-        }
-        
-        guard let partnerDoc = querySnapshot.documents.first else {
-            errorMessage = "Partner account not found with this email. Please contact support to be added."
-            showAlert = true
-            isAuthenticating = false
-            return
-        }
-        
-        // --- 2. Check if the Partner is already activated (has a UID) ---
-        if let currentUID = partnerDoc.data()["id"] as? String, currentUID.isEmpty == false {
-            errorMessage = "This account is already activated. Attempting silent re-sign-in..."
-            await attemptSilentResignIn() 
-            isAuthenticating = false
-            return
-        }
-
-        // --- 3. First-Time Activation Process ---
-        do {
-            // A. Generate Cryptographically Strong Session Key
-            let sessionKey = KeyGeneratorAndHasher.generateSecretKey()
-            
-            // B. Create the Firebase Auth User using the secure key as the password
-            let authResult = try await Auth.auth().createUser(withEmail: email, password: sessionKey)
-            let userId = authResult.user.uid
-            
-            // C. **NEW:** Handle Profile Picture Upload if available
-            var finalPhotoURL: URL? = nil
+            // --- 1. Handle Profile Picture Upload FIRST ---
+            // We must upload the image and get the URL *before* we call the function.
+            var finalPhotoURL: String = ""
             if let image = self.profileImage {
                 do {
-                    finalPhotoURL = try await self.uploadProfilePicture(userId: userId, image: image)
+                    // We need the UID for the path, but we don't have it.
+                    // Let's change the path to be email-based or a random ID.
+                    // A random ID is safer as it doesn't expose email structure.
+                    // **Let's modify uploadProfilePicture to not require a UID.**
+                    
+                    // --- Let's pause and update uploadProfilePicture ---
+                    // See the updated function below. We'll pass the email.
+                    
+                    // Use a safe version of the email for the path
+                    let emailPath = email.replacingOccurrences(of: ".", with: "_").replacingOccurrences(of: "@", with: "_")
+                    
+                    if let url = try await self.uploadProfilePicture(emailPath: emailPath, image: image) {
+                        finalPhotoURL = url.absoluteString
+                    }
                 } catch {
                     // Log the error but don't halt the critical activation process
-                    print("WARNING: Profile picture upload failed, continuing with other data: \(error.localizedDescription)")
+                    print("WARNING: Profile picture upload failed, continuing without it: \(error.localizedDescription)")
                 }
             }
 
-            // D. Update Firestore Document with All Missing Data
-            let partnerData: [String: Any] = [
-                "id": userId, // Link the Firestore document to the Auth UID
+            // --- 2. Prepare Data for Cloud Function ---
+            let data: [String: Any] = [
+                "email": email.lowercased(), // Send email to the function
                 "partnerDisplayName": partnerDisplayName,
                 "phoneNumber": phoneNumber,
                 "location": location,
-                "profilePictureURL": finalPhotoURL?.absoluteString ?? "" // Save the new URL
+                "profilePictureURL": finalPhotoURL // Send the new URL (or "" if it failed)
             ]
             
-            // Use the document ID found in step 1 to update the existing document
-            try await db.collection(partnerCollection).document(partnerDoc.documentID).updateData(partnerData)
+            // --- 3. Call the Cloud Function ---
+            print("Calling 'activatePartnerAccount' function...")
+            let result = try await functions.httpsCallable("activatePartnerAccount").call(data)
             
-            // E. **Crucial:** Save the PLAIN-TEXT 'sessionKey' securely on the device
+            // --- 4. Handle Successful Result ---
+            guard let resultData = result.data as? [String: Any],
+                  let sessionKey = resultData["sessionKey"] as? String else {
+                throw NSError(domain: "PartnerAuthVM", code: 500, userInfo: [NSLocalizedDescriptionKey: "Cloud function returned invalid data."])
+            }
+            
+            print("Cloud function success. Received session key.")
+
+            // --- 5. Save Credentials and Sign In ---
+            // A. **Crucial:** Save the PLAIN-TEXT 'sessionKey' securely on the device
             KeychainService.savePartnerSessionKey(sessionKey)
-            KeychainService.savePartnerEmail(email)
+            KeychainService.savePartnerEmail(email.lowercased())
             print("Activation successful. Key and email stored in Keychain.")
+            
+            // B. Sign in with the new key
+            // This will be caught by your 'authStateHandler', which will
+            // then call 'fetchPartnerData' and set 'isAuthenticated = true'.
+            try await Auth.auth().signIn(withEmail: email.lowercased(), password: sessionKey)
             
             successMessage = "Account activated and profile completed successfully! You are now signed in."
             showAlert = true
             
         } catch {
-            errorMessage = "Activation failed: \(getAuthErrorMessage(error: error))"
+            // --- 6. Handle Errors ---
+            print("Activation failed: \(error.localizedDescription)")
+            errorMessage = getAuthErrorMessage(error: error)
             showAlert = true
         }
         
@@ -329,19 +320,38 @@ class PartnerAuthenticationViewModel: ObservableObject {
         self.isLoadingInitialData = false
     }
 
-    private func getAuthErrorMessage(error: Error) -> String {
-        if let errorCode = AuthErrorCode(rawValue: (error as NSError).code) {
-            switch errorCode {
-            case .emailAlreadyInUse:
-                return "The email is already registered in our system. Attempting silent re-sign-in..."
-            case .invalidEmail:
-                return "The email address is not valid."
-            default:
-                return "Sign in/Activation failed: \(error.localizedDescription)"
-            }
-        }
-        return "An unknown error occurred."
-    }
+    // Helper function to decode Firebase Function errors
+       private func getAuthErrorMessage(error: Error) -> String {
+           let nsError = error as NSError
+           // Check for Cloud Function error domain
+           if nsError.domain == "com.google.firebase.functions" {
+               let code = nsError.code
+               var message = nsError.localizedDescription
+               
+               // Extract the custom message from the error's userInfo
+               if let details = nsError.userInfo["details"] as? String {
+                   message = details
+               }
+               
+               // You can check 'code' which maps to 'functions.https.HttpsError.Code'
+               // For example, 5 is 'not-found', 6 is 'already-exists'
+               return "Activation Failed: \(message)"
+           }
+           
+           // Handle standard Auth errors (from the signIn call)
+           if let errorCode = AuthErrorCode(rawValue: nsError.code) {
+               switch errorCode {
+               case .emailAlreadyInUse:
+                   return "The email is already registered."
+               case .invalidEmail:
+                   return "The email address is not valid."
+               default:
+                   return "An error occurred: \(error.localizedDescription)"
+               }
+           }
+           // Generic fallback
+           return "An unknown error occurred: \(error.localizedDescription)"
+       }
     
     func refreshPartnerData() async {
         guard let firebaseUser = Auth.auth().currentUser else {

@@ -70,8 +70,9 @@ struct PartnerProfileView: View {
 
     private var profileInfoSection: some View {
         VStack(spacing: 10) {
-            // Reads from authVM.signedInPartner
-            KFImage(authVM.signedInPartner?.profilePictureURL)
+            // --- THIS IS THE FIX ---
+            // Convert the String? to a URL? for KFImage
+            KFImage(URL(string: authVM.signedInPartner?.profilePictureURL ?? ""))
                 .placeholder { Image(systemName: "person.circle.fill").resizable().foregroundColor(.gray) }
                 .resizable().scaledToFill()
                 .frame(width: 120, height: 120)
