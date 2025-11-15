@@ -481,54 +481,256 @@ class MessageViewModel: ObservableObject {
 
     // MARK: - Chat Controls (Mute & Report)
     
+    /// Mutes a chat conversation for the current user
+    /// - Parameters:
+    ///   - chatId: The ID of the chat to mute
+    ///   - userId: The ID of the user muting the chat
     func muteChat(chatId: String, forUser userId: String) async {
         let chatRef = db.collection("chats").document(chatId)
         do {
+            // Store mute status with timestamp for better tracking
             try await chatRef.updateData([
-                "mutedBy.\(userId)": true
+                "mutedBy.\(userId)": true,
+                "mutedAt.\(userId)": FieldValue.serverTimestamp()
             ])
             print("Chat \(chatId) muted for user \(userId).")
+            // Clear error message on success
+            self.errorMessage = nil
         } catch {
             print("Error muting chat: \(error.localizedDescription)")
-            self.errorMessage = "Failed to mute chat."
+            self.errorMessage = "Failed to mute chat. Please try again."
         }
     }
     
+    /// Unmutes a chat conversation for the current user
+    /// - Parameters:
+    ///   - chatId: The ID of the chat to unmute
+    ///   - userId: The ID of the user unmuting the chat
     func unmuteChat(chatId: String, forUser userId: String) async {
         let chatRef = db.collection("chats").document(chatId)
         do {
+            // Remove both mute flag and timestamp
             try await chatRef.updateData([
-                "mutedBy.\(userId)": FieldValue.delete()
+                "mutedBy.\(userId)": FieldValue.delete(),
+                "mutedAt.\(userId)": FieldValue.delete()
             ])
+            print("Chat \(chatId) unmuted for user \(userId).")
+            // Clear error message on success
+            self.errorMessage = nil
         } catch {
             print("Error unmuting chat: \(error.localizedDescription)")
-            self.errorMessage = "Failed to unmute chat."
+            self.errorMessage = "Failed to unmute chat. Please try again."
         }
     }
     
-    // NEW: Report User Logic
-    func reportUser(chatId: String, recipientId: String, reason: String) async {
-        guard let userId = Auth.auth().currentUser?.uid else {
-            self.errorMessage = "You must be logged in to report a user."
-            return
+    // MARK: - Report User Logic
+    
+    /// Report categories for better categorization
+    enum ReportCategory: String, CaseIterable {
+        case spam = "Spam"
+        case harassment = "Harassment"
+        case inappropriateContent = "Inappropriate Content"
+        case scamFraud = "Scam/Fraud"
+        case fakeProfile = "Fake Profile"
+        case other = "Other"
+        
+        var description: String {
+            switch self {
+            case .spam: return "Unsolicited messages or repetitive content"
+            case .harassment: return "Bullying, threats, or abusive behavior"
+            case .inappropriateContent: return "Offensive, explicit, or inappropriate messages"
+            case .scamFraud: return "Attempts to scam or defraud"
+            case .fakeProfile: return "Suspected fake or impersonating account"
+            case .other: return "Other reason not listed"
+            }
+        }
+    }
+    
+    /// Severity levels for reports
+    enum ReportSeverity: String, CaseIterable {
+        case low = "Low"
+        case medium = "Medium"
+        case high = "High"
+        case critical = "Critical"
+    }
+    
+    /// Checks if a user has already reported another user in a specific chat
+    private func hasAlreadyReported(chatId: String, reportedUserId: String, reporterId: String) async -> Bool {
+        do {
+            let querySnapshot = try await db.collection("userReports")
+                .whereField("chatId", isEqualTo: chatId)
+                .whereField("reporterId", isEqualTo: reporterId)
+                .whereField("reportedUserId", isEqualTo: reportedUserId)
+                .whereField("status", in: ["pending", "under_review", "resolved"])
+                .limit(to: 1)
+                .getDocuments()
+            
+            return !querySnapshot.documents.isEmpty
+        } catch {
+            print("Error checking existing reports: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Fetches recent messages from a chat for context in the report
+    private func fetchRecentMessages(chatId: String, limit: Int = 10) async -> [[String: Any]] {
+        do {
+            let messagesSnapshot = try await db.collection("chats")
+                .document(chatId)
+                .collection("messages")
+                .order(by: "timestamp", descending: true)
+                .limit(to: limit)
+                .getDocuments()
+            
+            return messagesSnapshot.documents.compactMap { doc in
+                var data = doc.data()
+                data["messageId"] = doc.documentID
+                return data
+            }
+        } catch {
+            print("Error fetching recent messages for report: \(error.localizedDescription)")
+            return []
+        }
+    }
+    
+    /// Fetches user/partner information for the report
+    private func fetchUserInfo(userId: String) async -> [String: Any]? {
+        // Try users collection first
+        do {
+            let userDoc = try await db.collection("users").document(userId).getDocument()
+            if userDoc.exists, let data = userDoc.data() {
+                return [
+                    "userId": userId,
+                    "displayName": data["displayName"] as? String ?? "Unknown",
+                    "email": data["email"] as? String ?? "",
+                    "userType": "user"
+                ]
+            }
+        } catch {
+            print("Error fetching user info: \(error.localizedDescription)")
         }
         
-        let reportData: [String: Any] = [
-            "reporterId": userId,
+        // Try partners collection
+        do {
+            let partnerQuery = try await db.collection("partners")
+                .whereField("id", isEqualTo: userId)
+                .limit(to: 1)
+                .getDocuments()
+            
+            if let partnerDoc = partnerQuery.documents.first, let data = partnerDoc.data() {
+                return [
+                    "userId": userId,
+                    "displayName": data["partnerDisplayName"] as? String ?? "Unknown",
+                    "email": data["partnerEmail"] as? String ?? "",
+                    "userType": "partner"
+                ]
+            }
+        } catch {
+            print("Error fetching partner info: \(error.localizedDescription)")
+        }
+        
+        return nil
+    }
+    
+    /// Reports a user with enhanced context and validation
+    /// - Parameters:
+    ///   - chatId: The ID of the chat where the incident occurred
+    ///   - recipientId: The ID of the user being reported
+    ///   - category: The category of the report
+    ///   - severity: The severity level of the report
+    ///   - reason: Additional details provided by the reporter
+    ///   - includeRecentMessages: Whether to include recent chat messages as context
+    func reportUser(
+        chatId: String,
+        recipientId: String,
+        category: ReportCategory,
+        severity: ReportSeverity,
+        reason: String,
+        includeRecentMessages: Bool = true
+    ) async -> Bool {
+        guard let reporterId = Auth.auth().currentUser?.uid else {
+            self.errorMessage = "You must be logged in to report a user."
+            return false
+        }
+        
+        // Validate reason is not empty
+        guard !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            self.errorMessage = "Please provide a reason for reporting."
+            return false
+        }
+        
+        // Check for duplicate reports
+        let alreadyReported = await hasAlreadyReported(
+            chatId: chatId,
+            reportedUserId: recipientId,
+            reporterId: reporterId
+        )
+        
+        if alreadyReported {
+            self.errorMessage = "You have already reported this user for this conversation. Your previous report is under review."
+            return false
+        }
+        
+        // Fetch context information
+        var reportData: [String: Any] = [
+            "reporterId": reporterId,
             "reportedUserId": recipientId,
             "chatId": chatId,
-            "reason": reason,
+            "category": category.rawValue,
+            "severity": severity.rawValue,
+            "reason": reason.trimmingCharacters(in: .whitespacesAndNewlines),
             "timestamp": FieldValue.serverTimestamp(),
-            "status": "pending"
+            "status": "pending",
+            "reviewedBy": "",
+            "reviewedAt": nil,
+            "resolution": "",
+            "resolvedAt": nil
         ]
+        
+        // Include recent messages for context if requested
+        if includeRecentMessages {
+            let recentMessages = await fetchRecentMessages(chatId: chatId, limit: 10)
+            if !recentMessages.isEmpty {
+                reportData["recentMessages"] = recentMessages
+            }
+        }
+        
+        // Include user information
+        if let reportedUserInfo = await fetchUserInfo(userId: recipientId) {
+            reportData["reportedUserInfo"] = reportedUserInfo
+        }
+        
+        if let reporterInfo = await fetchUserInfo(userId: reporterId) {
+            reportData["reporterInfo"] = reporterInfo
+        }
         
         do {
             _ = try await db.collection("userReports").addDocument(data: reportData)
-            print("User \(recipientId) reported successfully from chat \(chatId).")
+            print("User \(recipientId) reported successfully from chat \(chatId) with category: \(category.rawValue), severity: \(severity.rawValue)")
+            
+            // Automatically mute the chat after reporting
+            await muteChat(chatId: chatId, forUser: reporterId)
+            
+            // Clear error message on success
+            self.errorMessage = nil
+            return true
         } catch {
             print("Error reporting user: \(error.localizedDescription)")
-            self.errorMessage = "Failed to submit report."
+            self.errorMessage = "Failed to submit report. Please try again."
+            return false
         }
+    }
+    
+    /// Legacy method for backward compatibility - uses default category and severity
+    func reportUser(chatId: String, recipientId: String, reason: String) async {
+        _ = await reportUser(
+            chatId: chatId,
+            recipientId: recipientId,
+            category: .other,
+            severity: .medium,
+            reason: reason,
+            includeRecentMessages: true
+        )
     }
     
     func deleteMessage(chatId: String, messageId: String) async {

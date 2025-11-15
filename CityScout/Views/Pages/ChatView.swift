@@ -64,14 +64,17 @@ struct ChatView: View {
             viewModel.messagesListener?.remove()
             viewModel.unsubscribeFromPartnerStatus()
         }
-        .alert("Error", isPresented: $showingAlert, presenting: viewModel.errorMessage) { _ in
-            Button("OK", role: .cancel) { }
-        } message: { errorMessage in
-            Text(errorMessage)
+        .alert(alertMessage.contains("successfully") ? "Report Submitted" : "Error", isPresented: $showingAlert) {
+            Button("OK", role: .cancel) {
+                alertMessage = ""
+            }
+        } message: {
+            Text(alertMessage)
         }
         .onChange(of: viewModel.errorMessage) { _, newMessage in
-            if newMessage != nil {
-                self.showingAlert = true
+            if let errorMsg = newMessage, !errorMsg.isEmpty {
+                alertMessage = errorMsg
+                showingAlert = true
             }
         }
     }
@@ -145,13 +148,33 @@ struct ChatView: View {
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
         .sheet(isPresented: $isShowingReportSheet) {
-            ReportUserSheet(reportReason: $reportReason) { reason in
-                Task {
-                    if let chatId = chat.id, let recipientId = self.partnerId {
-                        await viewModel.reportUser(chatId: chatId, recipientId: recipientId, reason: reason)
+            ReportUserSheet(
+                reportReason: $reportReason,
+                onReport: { category, severity, reason in
+                    Task {
+                        if let chatId = chat.id, let recipientId = self.partnerId {
+                            let success = await viewModel.reportUser(
+                                chatId: chatId,
+                                recipientId: recipientId,
+                                category: category,
+                                severity: severity,
+                                reason: reason
+                            )
+                            if success {
+                                // Show success message
+                                alertMessage = "User reported successfully. This conversation has been muted."
+                                showingAlert = true
+                                // Clear the report reason after successful submission
+                                reportReason = ""
+                            } else if let errorMsg = viewModel.errorMessage {
+                                // Show error message if report failed
+                                alertMessage = errorMsg
+                                showingAlert = true
+                            }
+                        }
                     }
                 }
-            }
+            )
         }
     }
     
@@ -767,34 +790,109 @@ private struct DateHeaderView: View {
 private struct ReportUserSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var reportReason: String
-    let onReport: (String) -> Void
+    let onReport: (MessageViewModel.ReportCategory, MessageViewModel.ReportSeverity, String) -> Void
+    
+    @State private var selectedCategory: MessageViewModel.ReportCategory = .other
+    @State private var selectedSeverity: MessageViewModel.ReportSeverity = .medium
+    @State private var showCategoryDescription = false
     
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Reason for Reporting")) {
+                Section(header: Text("Report Category")) {
+                    Picker("Category", selection: $selectedCategory) {
+                        ForEach(MessageViewModel.ReportCategory.allCases, id: \.self) { category in
+                            Text(category.rawValue).tag(category)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    
+                    if showCategoryDescription {
+                        Text(selectedCategory.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 4)
+                    }
+                    
+                    Button(showCategoryDescription ? "Hide Description" : "Show Description") {
+                        withAnimation {
+                            showCategoryDescription.toggle()
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                }
+                
+                Section(header: Text("Severity Level")) {
+                    Picker("Severity", selection: $selectedSeverity) {
+                        ForEach(MessageViewModel.ReportSeverity.allCases, id: \.self) { severity in
+                            HStack {
+                                Text(severity.rawValue)
+                                if severity == .critical {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.red)
+                                } else if severity == .high {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                            .tag(severity)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    Text(severityDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                }
+                
+                Section(
+                    header: Text("Additional Details"),
+                    footer: Text("Please provide specific details about why you are reporting this user. This information will help us review the report.")
+                ) {
                     TextEditor(text: $reportReason)
-                        .frame(height: 150)
+                        .frame(minHeight: 120)
+                        .overlay(
+                            Group {
+                                if reportReason.isEmpty {
+                                    Text("Describe what happened...")
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 8)
+                                        .allowsHitTesting(false)
+                                }
+                            },
+                            alignment: .topLeading
+                        )
                 }
                 
-                Button("Submit Report") {
-                    onReport(reportReason)
-                    dismiss()
+                Section {
+                    Button(action: {
+                        guard !reportReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            return
+                        }
+                        onReport(selectedCategory, selectedSeverity, reportReason)
+                        dismiss()
+                    }) {
+                        HStack {
+                            Spacer()
+                            Text("Submit Report")
+                                .fontWeight(.semibold)
+                            Spacer()
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(reportReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : Color.red)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .disabled(reportReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.red)
-                .foregroundColor(.white)
-                .cornerRadius(10)
                 
-                Button("Cancel") {
-                    dismiss()
+                Section(footer: Text("By submitting this report, you acknowledge that false reports may result in account restrictions.")) {
+                    EmptyView()
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color(.systemGray3))
-                .foregroundColor(.primary)
-                .cornerRadius(10)
             }
             .navigationTitle("Report User")
             .navigationBarTitleDisplayMode(.inline)
@@ -804,6 +902,19 @@ private struct ReportUserSheet: View {
                         .foregroundColor(.primary)
                 }
             }
+        }
+    }
+    
+    private var severityDescription: String {
+        switch selectedSeverity {
+        case .low:
+            return "Minor issue that doesn't require immediate attention"
+        case .medium:
+            return "Moderate issue that should be reviewed"
+        case .high:
+            return "Serious issue requiring prompt review"
+        case .critical:
+            return "Urgent issue requiring immediate attention (threats, illegal activity, etc.)"
         }
     }
 }
