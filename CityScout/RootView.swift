@@ -23,6 +23,7 @@ struct RootView: View {
                 // Partner is authenticated, show partner view
                 NavigationStack {
                     PartnerMessagesView()
+                        .environmentObject(authVM) // Provide authVM for ChatView compatibility
                 }
             }
             // Priority 2: Check if user is authenticated as a regular USER

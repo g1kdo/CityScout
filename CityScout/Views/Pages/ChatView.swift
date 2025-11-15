@@ -14,6 +14,8 @@ struct ChatView: View {
     let chat: Chat
     
     @EnvironmentObject var viewModel: MessageViewModel
+    // Support both regular users and partners
+    // authVM is always required (always in environment), but we use Firebase Auth for user ID
     @EnvironmentObject var authVM: AuthenticationViewModel
     @Environment(\.dismiss) var dismiss
 
@@ -26,19 +28,20 @@ struct ChatView: View {
     // Use a dedicated state variable for the PhotosPicker item
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     
-    // ⭐️ NEW: Safe wrapper for the current user's ID
-        private var currentUserId: String? {
-            authVM.signedInUser?.id
-        }
+    // ⭐️ UPDATED: Get current user ID from Firebase Auth directly
+    // This works for both regular users and partners since both authenticate via Firebase Auth
+    private var currentUserId: String? {
+        return Auth.auth().currentUser?.uid
+    }
         
-        // ⭐️ NEW: Safely calculate the partner's ID using the helper method
-        private var partnerId: String? {
-            guard let userId = currentUserId else { return nil }
-            return chat.getPartnerId(currentUserId: userId)
-        }
+    // ⭐️ Safely calculate the partner's ID using the helper method
+    private var partnerId: String? {
+        guard let userId = currentUserId else { return nil }
+        return chat.getPartnerId(currentUserId: userId)
+    }
 
     private var isMuted: Bool {
-        guard let userId = authVM.signedInUser?.id, let muted = chat.mutedBy?[userId] else { return false }
+        guard let userId = currentUserId, let muted = chat.mutedBy?[userId] else { return false }
         return muted
     }
 
@@ -120,7 +123,7 @@ struct ChatView: View {
             Menu {
                 Button(action: {
                     Task {
-                        if let userId = authVM.signedInUser?.id, let chatId = chat.id {
+                        if let userId = currentUserId, let chatId = chat.id {
                             if isMuted {
                                 await viewModel.unmuteChat(chatId: chatId, forUser: userId)
                             } else {

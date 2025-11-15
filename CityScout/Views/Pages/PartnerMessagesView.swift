@@ -144,12 +144,10 @@ struct PartnerMessagesView: View {
         }
         .navigationDestination(isPresented: $isShowingChatView) {
             if let chat = selectedChat {
-                // ⚠️ CHANGE 4: Route to PartnerChatView (when you create it)
-                // For now, let's assume you'll create a modified ChatView named PartnerChatView
-                // You may need to pass the partnerAuthVM here as well.
-                ChatView(chat: chat) // <-- Will be PartnerChatView(chat: chat)
+                // ChatView now works for both users and partners using Firebase Auth
+                // authVM is already in the environment from RootView
+                ChatView(chat: chat)
                     .environmentObject(messageVM)
-                    .environmentObject(partnerAuthVM) // ⬅️ CHANGED
             }
         }
         .navigationDestination(isPresented: $isShowingProfile) {

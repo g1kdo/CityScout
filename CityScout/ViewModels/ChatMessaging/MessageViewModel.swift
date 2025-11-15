@@ -74,12 +74,17 @@ class MessageViewModel: ObservableObject {
         }
 
         // 2. Try fetching from the "partners" collection if 'users' failed
+        // Partners use the "id" field (Auth UID) not the document ID
         do {
-            let partnerDoc = try await db.collection("partners").document(id).getDocument()
-            if partnerDoc.exists,
-               let displayName = partnerDoc.data()?["partnerDisplayName"] as? String {
+            let partnerQuerySnapshot = try await db.collection("partners")
+                .whereField("id", isEqualTo: id)
+                .limit(to: 1)
+                .getDocuments()
+            
+            if let partnerDoc = partnerQuerySnapshot.documents.first,
+               let displayName = partnerDoc.data()["partnerDisplayName"] as? String {
                 
-                let urlString = partnerDoc.data()?["profilePictureURL"] as? String
+                let urlString = partnerDoc.data()["profilePictureURL"] as? String
                 let profileURL = urlString.flatMap(URL.init(string:))
                 
                 return ChatParticipant(id: id, displayName: displayName, profilePictureURL: profileURL)
@@ -813,33 +818,103 @@ extension MessageViewModel {
     
     func setUserOnline() {
         guard let userId = Auth.auth().currentUser?.uid else { return }
-        let userRef = db.collection("users").document(userId) // Assuming 'users' is the source of truth
         
-        userRef.updateData([
-            "isOnline": true,
-            "lastSeen": FieldValue.serverTimestamp()
-        ]) { error in
-            if let error = error {
-                print("Error setting user online status: \(error.localizedDescription)")
-            } else {
-                print("User \(userId) status set to ONLINE.")
+        // Check if user is a partner first
+        Task {
+            let isPartner = await isUserPartner(userId: userId)
+            
+            if isPartner {
+                // Update partner status
+                do {
+                    let querySnapshot = try await db.collection("partners")
+                        .whereField("id", isEqualTo: userId)
+                        .limit(to: 1)
+                        .getDocuments()
+                    
+                    if let partnerDocument = querySnapshot.documents.first {
+                        let partnerDocRef = db.collection("partners").document(partnerDocument.documentID)
+                        try await partnerDocRef.updateData([
+                            "isOnline": true,
+                            "lastSeen": FieldValue.serverTimestamp()
+                        ])
+                        print("Partner \(userId) status set to ONLINE.")
+                        return
+                    }
+                } catch {
+                    print("Error setting partner online status: \(error.localizedDescription)")
+                }
+            }
+            
+            // Default to regular user status update
+            let userRef = db.collection("users").document(userId)
+            userRef.updateData([
+                "isOnline": true,
+                "lastSeen": FieldValue.serverTimestamp()
+            ]) { error in
+                if let error = error {
+                    print("Error setting user online status: \(error.localizedDescription)")
+                } else {
+                    print("User \(userId) status set to ONLINE.")
+                }
             }
         }
     }
     
     func setUserOffline() {
         guard let userId = Auth.auth().currentUser?.uid else { return }
-        let userRef = db.collection("users").document(userId) // Assuming 'users' is the source of truth
         
-        userRef.updateData([
-            "isOnline": false,
-            "lastSeen": FieldValue.serverTimestamp() // Crucial: Update lastSeen immediately when going offline
-        ]) { error in
-            if let error = error {
-                print("Error setting user offline status: \(error.localizedDescription)")
-            } else {
-                print("User \(userId) status set to OFFLINE, lastSeen updated.")
+        // Check if user is a partner first
+        Task {
+            let isPartner = await isUserPartner(userId: userId)
+            
+            if isPartner {
+                // Update partner status
+                do {
+                    let querySnapshot = try await db.collection("partners")
+                        .whereField("id", isEqualTo: userId)
+                        .limit(to: 1)
+                        .getDocuments()
+                    
+                    if let partnerDocument = querySnapshot.documents.first {
+                        let partnerDocRef = db.collection("partners").document(partnerDocument.documentID)
+                        try await partnerDocRef.updateData([
+                            "isOnline": false,
+                            "lastSeen": FieldValue.serverTimestamp()
+                        ])
+                        print("Partner \(userId) status set to OFFLINE, lastSeen updated.")
+                        return
+                    }
+                } catch {
+                    print("Error setting partner offline status: \(error.localizedDescription)")
+                }
             }
+            
+            // Default to regular user status update
+            let userRef = db.collection("users").document(userId)
+            userRef.updateData([
+                "isOnline": false,
+                "lastSeen": FieldValue.serverTimestamp() // Crucial: Update lastSeen immediately when going offline
+            ]) { error in
+                if let error = error {
+                    print("Error setting user offline status: \(error.localizedDescription)")
+                } else {
+                    print("User \(userId) status set to OFFLINE, lastSeen updated.")
+                }
+            }
+        }
+    }
+    
+    // Helper method to check if a user is a partner
+    private func isUserPartner(userId: String) async -> Bool {
+        do {
+            let querySnapshot = try await db.collection("partners")
+                .whereField("id", isEqualTo: userId)
+                .limit(to: 1)
+                .getDocuments()
+            return !querySnapshot.documents.isEmpty
+        } catch {
+            print("Error checking if user is partner: \(error.localizedDescription)")
+            return false
         }
     }
 }
