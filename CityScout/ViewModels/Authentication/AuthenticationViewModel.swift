@@ -49,13 +49,26 @@ class AuthenticationViewModel: ObservableObject {
                 authStateHandler = Auth.auth().addStateDidChangeListener { [weak self] _, firebaseUser in
                     guard let self = self else { return }
                     self.user = firebaseUser
-                    self.isAuthenticated = firebaseUser != nil
                     
                     if let fbUser = firebaseUser {
                         self.isLoadingInitialData = true // Start loading when a user is found
                         Task {
+                            // First, check if this user is a partner
+                            let isPartner = await self.isUserPartner(userId: fbUser.uid)
+                            
+                            if isPartner {
+                                // User is a partner, skip processing as regular user
+                                print("AuthenticationViewModel: User \(fbUser.uid) is a partner, skipping regular user processing")
+                                self.signedInUser = nil
+                                self.isAuthenticated = false
+                                self.isLoadingInitialData = false
+                                return
+                            }
+                            
+                            // User is not a partner, process as regular user
                             do {
                                 self.signedInUser = try await self.createSignedInUser(from: fbUser)
+                                self.isAuthenticated = true
                                 print("AuthenticationViewModel: SignedInUser updated for: \(self.signedInUser?.email ?? "N/A")")
                                 
                                 // NEW: Save FCM token on successful sign-in/load
@@ -78,6 +91,20 @@ class AuthenticationViewModel: ObservableObject {
                 }
             }
         }
+    
+    // Helper method to check if a user is a partner
+    private func isUserPartner(userId: String) async -> Bool {
+        do {
+            let querySnapshot = try await db.collection("partners")
+                .whereField("id", isEqualTo: userId)
+                .limit(to: 1)
+                .getDocuments()
+            return !querySnapshot.documents.isEmpty
+        } catch {
+            print("AuthenticationViewModel: Error checking if user is partner: \(error.localizedDescription)")
+            return false
+        }
+    }
     
     // NEW: Method to save the FCM token to Firestore
     private func saveFCMToken(_ token: String, for userId: String) async {
@@ -176,7 +203,7 @@ class AuthenticationViewModel: ObservableObject {
 
     // Helper to check for existing user on app launch
     func checkCurrentUser() async {
-           guard Auth.auth().currentUser != nil else {
+           guard let currentUser = Auth.auth().currentUser else {
                // No user is signed in, so we are not loading.
                self.isLoadingInitialData = false
                self.signedInUser = nil
@@ -184,10 +211,22 @@ class AuthenticationViewModel: ObservableObject {
                return
            }
 
-           // A user is signed in, so we must load their data.
+           // First, check if this user is a partner
+           let isPartner = await isUserPartner(userId: currentUser.uid)
+           
+           if isPartner {
+               // User is a partner, skip processing as regular user
+               print("AuthenticationViewModel: Current user is a partner, skipping regular user processing")
+               self.signedInUser = nil
+               self.isAuthenticated = false
+               self.isLoadingInitialData = false
+               return
+           }
+
+           // A user is signed in and is not a partner, so we must load their data.
            self.isLoadingInitialData = true
            do {
-               self.signedInUser = try await createSignedInUser(from: Auth.auth().currentUser!)
+               self.signedInUser = try await createSignedInUser(from: currentUser)
                self.isAuthenticated = true
                print("AuthenticationViewModel: Existing user loaded from Firebase Auth and Firestore.")
            } catch {

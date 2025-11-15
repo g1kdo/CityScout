@@ -83,6 +83,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct CityScoutApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authVM = AuthenticationViewModel()
+    @StateObject private var partnerAuthVM = PartnerAuthenticationViewModel()
     @StateObject private var homeVM = HomeViewModel()
     @StateObject private var messageVM = MessageViewModel()
     
@@ -92,6 +93,7 @@ struct CityScoutApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(authVM)
+                .environmentObject(partnerAuthVM)
                 .environmentObject(homeVM)
                 .environmentObject(messageVM)
         }

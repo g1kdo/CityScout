@@ -129,13 +129,14 @@ class PartnerAuthenticationViewModel: ObservableObject {
     }
     
 
-    private func uploadProfilePicture(emailPath: String, image: UIImage) async throws -> URL? {
+    private func uploadProfilePicture(userId: String, image: UIImage) async throws -> URL? {
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             throw NSError(domain: "PartnerAuthVM", code: 501, userInfo: [NSLocalizedDescriptionKey: "Could not convert image to JPEG data."])
         }
 
-        // Define storage path: partner_profiles/{safe_email_path}/profile.jpg
-        let storageRef = storage.reference().child("partner_profiles/\(emailPath)/profile.jpg")
+        // Define storage path: partner_profiles/{userId}/profile.jpg
+        // This matches the Firebase Storage security rules which require request.auth.uid == userId
+        let storageRef = storage.reference().child("partner_profiles/\(userId)/profile.jpg")
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
 
@@ -147,6 +148,22 @@ class PartnerAuthenticationViewModel: ObservableObject {
             print("PartnerAuthVM: Error uploading profile picture: \(error.localizedDescription)")
             throw error
         }
+    }
+    
+    // Helper method to update partner document with profile picture URL
+    private func updatePartnerProfilePictureURL(_ url: String, for userId: String) async throws {
+        let querySnapshot = try await db.collection(partnerCollection)
+            .whereField("id", isEqualTo: userId)
+            .limit(to: 1)
+            .getDocuments()
+        
+        guard let document = querySnapshot.documents.first else {
+            throw NSError(domain: "PartnerAuthVM", code: 404, userInfo: [NSLocalizedDescriptionKey: "Partner document not found"])
+        }
+        
+        try await db.collection(partnerCollection).document(document.documentID).updateData([
+            "profilePictureURL": url
+        ])
     }
     // MARK: - Core Activation / Sign In Logic
     
@@ -161,46 +178,24 @@ class PartnerAuthenticationViewModel: ObservableObject {
         isAuthenticating = true
         errorMessage = ""
         
+        // Store the image temporarily so we can upload it after authentication
+        let imageToUpload = self.profileImage
+        
         do {
-            // --- 1. Handle Profile Picture Upload FIRST ---
-            // We must upload the image and get the URL *before* we call the function.
-            var finalPhotoURL: String = ""
-            if let image = self.profileImage {
-                do {
-                    // We need the UID for the path, but we don't have it.
-                    // Let's change the path to be email-based or a random ID.
-                    // A random ID is safer as it doesn't expose email structure.
-                    // **Let's modify uploadProfilePicture to not require a UID.**
-                    
-                    // --- Let's pause and update uploadProfilePicture ---
-                    // See the updated function below. We'll pass the email.
-                    
-                    // Use a safe version of the email for the path
-                    let emailPath = email.replacingOccurrences(of: ".", with: "_").replacingOccurrences(of: "@", with: "_")
-                    
-                    if let url = try await self.uploadProfilePicture(emailPath: emailPath, image: image) {
-                        finalPhotoURL = url.absoluteString
-                    }
-                } catch {
-                    // Log the error but don't halt the critical activation process
-                    print("WARNING: Profile picture upload failed, continuing without it: \(error.localizedDescription)")
-                }
-            }
-
-            // --- 2. Prepare Data for Cloud Function ---
+            // --- 1. Prepare Data for Cloud Function (without profile picture URL) ---
             let data: [String: Any] = [
                 "email": email.lowercased(), // Send email to the function
                 "partnerDisplayName": partnerDisplayName,
                 "phoneNumber": phoneNumber,
                 "location": location,
-                "profilePictureURL": finalPhotoURL // Send the new URL (or "" if it failed)
+                "profilePictureURL": "" // Will be updated after upload
             ]
             
-            // --- 3. Call the Cloud Function ---
+            // --- 2. Call the Cloud Function to create the user ---
             print("Calling 'activatePartnerAccount' function...")
             let result = try await functions.httpsCallable("activatePartnerAccount").call(data)
             
-            // --- 4. Handle Successful Result ---
+            // --- 3. Handle Successful Result ---
             guard let resultData = result.data as? [String: Any],
                   let sessionKey = resultData["sessionKey"] as? String else {
                 throw NSError(domain: "PartnerAuthVM", code: 500, userInfo: [NSLocalizedDescriptionKey: "Cloud function returned invalid data."])
@@ -208,16 +203,40 @@ class PartnerAuthenticationViewModel: ObservableObject {
             
             print("Cloud function success. Received session key.")
 
-            // --- 5. Save Credentials and Sign In ---
+            // --- 4. Save Credentials and Sign In ---
             // A. **Crucial:** Save the PLAIN-TEXT 'sessionKey' securely on the device
             KeychainService.savePartnerSessionKey(sessionKey)
             KeychainService.savePartnerEmail(email.lowercased())
             print("Activation successful. Key and email stored in Keychain.")
             
-            // B. Sign in with the new key
+            // B. Sign in with the new key to get authenticated
             // This will be caught by your 'authStateHandler', which will
             // then call 'fetchPartnerData' and set 'isAuthenticated = true'.
-            try await Auth.auth().signIn(withEmail: email.lowercased(), password: sessionKey)
+            let authResult = try await Auth.auth().signIn(withEmail: email.lowercased(), password: sessionKey)
+            let userId = authResult.user.uid
+            print("Successfully signed in. User ID: \(userId)")
+            
+            // --- 5. Now that we're authenticated, upload the profile picture if one was selected ---
+            if let image = imageToUpload {
+                do {
+                    print("Uploading profile picture for user: \(userId)")
+                    if let url = try await self.uploadProfilePicture(userId: userId, image: image) {
+                        let photoURLString = url.absoluteString
+                        print("Profile picture uploaded successfully. URL: \(photoURLString)")
+                        
+                        // Update the partner document with the profile picture URL
+                        try await self.updatePartnerProfilePictureURL(photoURLString, for: userId)
+                        print("Partner document updated with profile picture URL")
+                        
+                        // Refresh partner data to reflect the new profile picture URL in the UI
+                        await self.refreshPartnerData()
+                    }
+                } catch {
+                    // Log the error but don't halt the process since activation was successful
+                    print("WARNING: Profile picture upload failed after activation: \(error.localizedDescription)")
+                    // You might want to show a non-blocking warning to the user
+                }
+            }
             
             successMessage = "Account activated and profile completed successfully! You are now signed in."
             showAlert = true
