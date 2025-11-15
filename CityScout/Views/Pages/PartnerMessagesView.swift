@@ -11,13 +11,13 @@ import Combine
 
 struct PartnerMessagesView: View {
     // ⚠️ CHANGE 1: Use the dedicated Partner Authentication ViewModel
-    @Environment(\.dismiss) var dismiss
     @EnvironmentObject var partnerAuthVM: PartnerAuthenticationViewModel // ⬅️ CHANGED
     @EnvironmentObject var messageVM: MessageViewModel
     @EnvironmentObject var homeVM: HomeViewModel // Assuming HomeViewModel might still be used for speech-to-text
 
     @State private var searchText: String = ""
     @State private var isShowingChatView: Bool = false
+    @State private var isShowingProfile: Bool = false
     @State private var selectedChat: Chat?
     // ⚠️ REMOVED: @State private var isFindingNewChatPartner: Bool = false (Partners only respond)
     @State private var cancellables = Set<AnyCancellable>()
@@ -41,14 +41,6 @@ struct PartnerMessagesView: View {
         VStack(spacing: 0) {
             VStack(spacing: 15) {
                 HStack {
-                    // Optional: You might keep the dismiss button if this view is presented as a sheet/modal
-                    // or replace it with a profile button, depending on your partner UI flow.
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "chevron.left")
-                            .font(.title2)
-                            .foregroundColor(.primary)
-                            .background(Circle().fill(Color(.systemGray6)).frame(width: 40, height: 40))
-                    }
                     Spacer()
 
                     Text("Client Chats") // ⬅️ Slight UI change for partner context
@@ -57,9 +49,30 @@ struct PartnerMessagesView: View {
 
                     Spacer()
 
-                    // ⚠️ REMOVED: Button to start a new chat (square.and.pencil)
-                    // Replaced with an empty space or different button if needed
-                    Spacer().frame(width: 40, height: 40) 
+                    // Profile button to navigate to PartnerProfileView
+                    Button(action: { isShowingProfile = true }) {
+                        // Show partner profile picture if available, otherwise use default icon
+                        if let profileURLString = partnerAuthVM.signedInPartner?.profilePictureURL,
+                           let profileURL = URL(string: profileURLString) {
+                            KFImage(profileURL)
+                                .placeholder { 
+                                    Image(systemName: "person.circle.fill")
+                                        .resizable()
+                                        .foregroundColor(.primary)
+                                }
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 40, height: 40)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color(.systemGray6), lineWidth: 2))
+                        } else {
+                            Image(systemName: "person.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                                .frame(width: 40, height: 40)
+                                .background(Circle().fill(Color(.systemGray6)))
+                        }
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.top, 10)
@@ -138,6 +151,10 @@ struct PartnerMessagesView: View {
                     .environmentObject(messageVM)
                     .environmentObject(partnerAuthVM) // ⬅️ CHANGED
             }
+        }
+        .navigationDestination(isPresented: $isShowingProfile) {
+            PartnerProfileView()
+                .environmentObject(partnerAuthVM)
         }
         // ⚠️ REMOVED: .fullScreenCover(isPresented: $isFindingNewChatPartner) logic
     }

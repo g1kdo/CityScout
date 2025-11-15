@@ -21,27 +21,25 @@ struct PartnerProfileView: View {
 
   
         var body: some View {
-            NavigationStack {
-                ScrollView {
-                    VStack(spacing: 30) {
-                        headerSection
-                        profileInfoSection
-                        actionButtonsSection
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 10)
+            ScrollView {
+                VStack(spacing: 30) {
+                    headerSection
+                    profileInfoSection
+                    actionButtonsSection
                 }
-                .navigationBarHidden(true)
-                .fullScreenCover(isPresented: $isShowingEditPartnerProfile) {
-                    EditPartnerProfileView(viewModel: viewModel)
-                        .environmentObject(authVM)
-                }
-                // --- ADD THIS MODIFIER ---
-                .fullScreenCover(isPresented: $isShowingSettings) {
-                    PartnerSettingsView()
-                }
-                // --- End of added modifier ---
+                .padding(.horizontal)
+                .padding(.top, 10)
             }
+            .navigationBarHidden(true)
+            .fullScreenCover(isPresented: $isShowingEditPartnerProfile) {
+                EditPartnerProfileView(viewModel: viewModel)
+                    .environmentObject(authVM)
+            }
+            // --- ADD THIS MODIFIER ---
+            .fullScreenCover(isPresented: $isShowingSettings) {
+                PartnerSettingsView()
+            }
+            // --- End of added modifier ---
             .onAppear {
                 viewModel.setup(with: authVM.signedInPartner)
             }
@@ -52,7 +50,11 @@ struct PartnerProfileView: View {
 
     private var headerSection: some View {
         HStack {
-            Button { dismiss() } label: {
+            // Back button - works with NavigationStack navigation
+            Button { 
+                // Use dismiss for navigation stack back navigation
+                dismiss()
+            } label: {
                 Image(systemName: "chevron.left")
                     .font(.title2).foregroundColor(.primary)
                     .padding().background(Circle().fill(Color(.systemGray6)))

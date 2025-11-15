@@ -98,7 +98,19 @@ class PartnerProfileViewModel: ObservableObject {
             // 2. Update the "partners" collection in Firestore
             // Unlike the user profile, we don't update the Firebase Auth profile itself,
             // as the partner's profile data lives exclusively in the "partners" collection.
-            try await db.collection("partners").document(firebaseUser.uid).setData(updatedFields, merge: true)
+            // Query by the "id" field to find the correct document
+            let querySnapshot = try await db.collection("partners")
+                .whereField("id", isEqualTo: firebaseUser.uid)
+                .limit(to: 1)
+                .getDocuments()
+            
+            guard let partnerDocument = querySnapshot.documents.first else {
+                errorMessage = "Partner document not found."
+                isLoading = false
+                return false
+            }
+            
+            try await db.collection("partners").document(partnerDocument.documentID).setData(updatedFields, merge: true)
 
             print("Partner profile updated successfully in Firestore.")
             isLoading = false
