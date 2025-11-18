@@ -777,21 +777,16 @@ class MessageViewModel: ObservableObject {
             
         let chatRef = db.collection("chats")
         
+        let participantIds = [userId, recipientId].sorted()
+        
         // --- Existing Chat Check ---
-                let existingChatQuery = chatRef.whereField("participants", isEqualTo: [userId, recipientId])
-                let existingChatQueryReversed = chatRef.whereField("participants", isEqualTo: [recipientId, userId])
+        let existingChatQuery = chatRef.whereField("participants", isEqualTo: participantIds)
 
                 do {
                     let snapshot = try await existingChatQuery.getDocuments()
                     if let existingChatDoc = snapshot.documents.first {
                         print("Chat already exists with ID: \(existingChatDoc.documentID)")
                         return try? existingChatDoc.data(as: Chat.self)
-                    } else {
-                        let snapshotReversed = try await existingChatQueryReversed.getDocuments()
-                        if let existingChatDoc = snapshotReversed.documents.first {
-                            print("Chat already exists with ID: \(existingChatDoc.documentID)")
-                            return try? existingChatDoc.data(as: Chat.self)
-                        }
                     }
                 } catch {
                     self.errorMessage = "Error checking for existing chat: \(error.localizedDescription)"
