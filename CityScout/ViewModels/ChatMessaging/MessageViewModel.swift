@@ -594,43 +594,45 @@ class MessageViewModel: ObservableObject {
     }
     
     /// Fetches user/partner information for the report
-    private func fetchUserInfo(userId: String) async -> [String: Any]? {
-        // Try users collection first
-        do {
-            let userDoc = try await db.collection("users").document(userId).getDocument()
-            if userDoc.exists, let data = userDoc.data() {
-                return [
-                    "userId": userId,
-                    "displayName": data["displayName"] as? String ?? "Unknown",
-                    "email": data["email"] as? String ?? "",
-                    "userType": "user"
-                ]
+        private func fetchUserInfo(userId: String) async -> [String: Any]? {
+            // Try users collection first
+            do {
+                let userDoc = try await db.collection("users").document(userId).getDocument()
+                if userDoc.exists, let data = userDoc.data() {
+                    return [
+                        "userId": userId,
+                        "displayName": data["displayName"] as? String ?? "Unknown",
+                        "email": data["email"] as? String ?? "",
+                        "userType": "user"
+                    ]
+                }
+            } catch {
+                print("Error fetching user info: \(error.localizedDescription)")
             }
-        } catch {
-            print("Error fetching user info: \(error.localizedDescription)")
-        }
-        
-        // Try partners collection
-        do {
-            let partnerQuery = try await db.collection("partners")
-                .whereField("id", isEqualTo: userId)
-                .limit(to: 1)
-                .getDocuments()
             
-            if let partnerDoc = partnerQuery.documents.first, let data = partnerDoc.data() {
-                return [
-                    "userId": userId,
-                    "displayName": data["partnerDisplayName"] as? String ?? "Unknown",
-                    "email": data["partnerEmail"] as? String ?? "",
-                    "userType": "partner"
-                ]
+            // Try partners collection
+            do {
+                let partnerQuery = try await db.collection("partners")
+                    .whereField("id", isEqualTo: userId)
+                    .limit(to: 1)
+                    .getDocuments()
+                
+                // FIX APPLIED HERE: Only unwrap partnerDoc optionally, then access data() non-optionally.
+                if let partnerDoc = partnerQuery.documents.first { // partnerDoc is Optional
+                    let data = partnerDoc.data() // data() on a QueryDocumentSnapshot is often non-optional
+                    return [
+                        "userId": userId,
+                        "displayName": data["partnerDisplayName"] as? String ?? "Unknown",
+                        "email": data["partnerEmail"] as? String ?? "",
+                        "userType": "partner"
+                    ]
+                }
+            } catch {
+                print("Error fetching partner info: \(error.localizedDescription)")
             }
-        } catch {
-            print("Error fetching partner info: \(error.localizedDescription)")
+            
+            return nil
         }
-        
-        return nil
-    }
     
     /// Reports a user with enhanced context and validation
     /// - Parameters:
@@ -682,9 +684,9 @@ class MessageViewModel: ObservableObject {
             "timestamp": FieldValue.serverTimestamp(),
             "status": "pending",
             "reviewedBy": "",
-            "reviewedAt": nil,
+            "reviewedAt": NSNull(),
             "resolution": "",
-            "resolvedAt": nil
+            "resolvedAt": NSNull()
         ]
         
         // Include recent messages for context if requested

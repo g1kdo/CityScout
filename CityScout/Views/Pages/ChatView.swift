@@ -8,6 +8,7 @@
 import SwiftUI
 import Kingfisher
 import AVFoundation
+import FirebaseAuth
 import PhotosUI
 
 struct ChatView: View {
