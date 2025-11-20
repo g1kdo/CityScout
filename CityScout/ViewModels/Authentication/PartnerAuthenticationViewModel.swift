@@ -75,7 +75,7 @@ class PartnerAuthenticationViewModel: ObservableObject {
                             print("PartnerAuthVM: Error loading partner data. The user is not a partner or data is corrupt: \(error.localizedDescription)")
                             self.signedInPartner = nil
                             // Force sign out if they successfully authenticated but aren't a partner
-                            try? Auth.auth().signOut()
+                            // try? Auth.auth().signOut()
                             // Also clear Keychain if Firebase Auth state is good but Firestore role is bad
                             KeychainService.clearPartnerCredentials() 
                         }
@@ -333,7 +333,7 @@ class PartnerAuthenticationViewModel: ObservableObject {
             print("PartnerAuthVM: Failed to load partner data for existing user: \(error.localizedDescription). Forcing sign out and clearing key.")
             self.signedInPartner = nil
             self.isAuthenticated = false
-            try? Auth.auth().signOut()
+            // try? Auth.auth().signOut()
             KeychainService.clearPartnerCredentials() // Clear key if the user is somehow corrupted
         }
         self.isLoadingInitialData = false
