@@ -54,7 +54,8 @@ struct Message: Identifiable, Codable, Equatable {
 
 // Helper structure to hold the name and photo URL for a single user
 struct ChatParticipant: Codable, Identifiable {
-    @DocumentID var id: String?
+    /*@DocumentID*/
+    var id: String?
     var displayName: String
     var profilePictureURL: URL?
     

@@ -11,7 +11,6 @@ class BookingViewModel: ObservableObject {
     @Published var checkOutTime: Date = Calendar.current.date(bySettingHour: 11, minute: 0, second: 0, of: Date()) ?? Date()
     @Published var numberOfPeople: Int = 1
     @Published var isLoading = false
-    // FIX: Changed this to a simple Bool for the alert modifier.
     @Published var bookingSuccess = false
     @Published var errorMessage: String?
     @Published var totalCost: Double = 0.0
@@ -24,10 +23,9 @@ class BookingViewModel: ObservableObject {
 
     private let messageVM: MessageViewModel
         
-    // 🎯 Update initializer to accept MessageViewModel
     init(messageVM: MessageViewModel) {
             self.messageVM = messageVM
-        }
+    }
     
     func calculateTripCost(destination: Destination?) {
         guard let destination = destination, !selectedDates.isEmpty else {
@@ -68,20 +66,7 @@ class BookingViewModel: ObservableObject {
         }
     }
     
-    private func fetchPartnerData(partnerId: String) async -> (email: String?, name: String?) {
-        do {
-            let partnerDoc = try await db.collection("partners").document(partnerId).getDocument()
-
-            if partnerDoc.exists {
-                let email = partnerDoc.data()?["partnerEmail"] as? String 
-                let name = partnerDoc.data()?["name"] as? String 
-                return (email, name)
-            }
-        } catch {
-            print("Error fetching partner data for email: \(error.localizedDescription)")
-        }
-        return (nil, nil)
-    }
+    // REMOVED: fetchPartnerData and sendBookingEmail (Moved to Cloud Function Trigger for security)
 
     func bookDestination(destination: Destination, userId: String) async {
         isLoading = true
@@ -89,10 +74,10 @@ class BookingViewModel: ObservableObject {
         bookingSuccess = false
 
         guard let destinationId = destination.id, let partnerId = destination.partnerId else {
-                    errorMessage = "Destination or Partner ID is missing."
-                    isLoading = false
-                    return
-            }
+            errorMessage = "Destination or Partner ID is missing."
+            isLoading = false
+            return
+        }
         
         let sortedDates = selectedDates.sorted()
         guard let firstDate = sortedDates.first else {
@@ -103,9 +88,6 @@ class BookingViewModel: ObservableObject {
         
         let calendar = Calendar.current
         
-        // --- CORRECTED LOGIC FOR SINGLE AND MULTI-DAY BOOKINGS ---
-        
-        // Combine start date with check-in time
         var startComponents = calendar.dateComponents([.year, .month, .day], from: firstDate)
         let checkInTimeComponents = calendar.dateComponents([.hour, .minute], from: checkInTime)
         startComponents.hour = checkInTimeComponents.hour
@@ -118,9 +100,8 @@ class BookingViewModel: ObservableObject {
         
         var endDate: Date
         
-        // If it's a single-day booking (e.g., a few hours)
         if sortedDates.count == 1 {
-            var endComponents = calendar.dateComponents([.year, .month, .day], from: firstDate) // Use the same day
+            var endComponents = calendar.dateComponents([.year, .month, .day], from: firstDate)
             let checkOutTimeComponents = calendar.dateComponents([.hour, .minute], from: checkOutTime)
             endComponents.hour = checkOutTimeComponents.hour
             endComponents.minute = checkOutTimeComponents.minute
@@ -130,13 +111,12 @@ class BookingViewModel: ObservableObject {
             }
             endDate = calculatedEndDate
             
-            // Ensure check-out is after check-in for same-day bookings
             if endDate <= startDate {
                 errorMessage = "For a single day booking, check-out time must be after check-in time."
                 isLoading = false; return
             }
             
-        } else { // If it's a multi-day (overnight) booking
+        } else {
             let lastDate = sortedDates.last!
             var endComponents = calendar.dateComponents([.year, .month, .day], from: lastDate)
             let checkOutTimeComponents = calendar.dateComponents([.hour, .minute], from: checkOutTime)
@@ -167,96 +147,39 @@ class BookingViewModel: ObservableObject {
         ]
 
         do {
-            // 1. Save the Booking
+            // 1. Save the Booking (Triggers the 'onBookingCreated' Cloud Function for email)
             let bookingRef = try await db.collection("bookings").addDocument(data: bookingData)
             
-            let (fetchedPartnerEmail, fetchedPartnerName) = await fetchPartnerData(partnerId: partnerId)
-                    
             // 2. Initiate Chat with Partner
-
+            // Note: If this fails due to permissions, the email will still be sent by the backend.
             let chat = await messageVM.startNewChat(with: partnerId)
-                    
-                    if let newChat = chat {
-                        // Send an automatic initial message about the booking
-                        let initialMessageText = "Hi there! I just booked *\(destination.name)* for my trip! I'm arriving on **\(startDate.formatted())** and checking out on **\(endDate.formatted())**. I'll be traveling with \(numberOfPeople) person(s) in total. I'm really looking forward to it and wanted to say hello! Could you tell me a little about the check-in process?"
-                        
-                        await messageVM.sendMessage(
-                            chatId: newChat.id!,
-                            text: initialMessageText,
-                            recipientId: partnerId
-                        )
-                    } else {
-                        print("Warning: Failed to initiate chat with partner.")
-                    }
-                    
-                    // 3. Send Email Notification to Partner
-                    if let email = fetchedPartnerEmail, !email.isEmpty {
-                            await sendBookingEmail(
-                                recipientEmail: email,
-                                bookingData: bookingData,
-                                destinationName: destination.name,
-                                partnerName: fetchedPartnerName ?? "Partner"
-                            )
-                        } else {
-                            // This block executes if partnerEmail is nil or empty.
-                            print("WARNING: Email notification skipped. Partner's contactEmail is missing or empty on the Partner object.")
-                        }
-                    
-                    // 4. Send Notification to User (Existing Logic)
-                    let notificationData: [String: Any] = [
-                        "title": "Booking Confirmed",
-                        "message": "Your booking for \(destination.name) has been confirmed!",
-                        "timestamp": FieldValue.serverTimestamp(), "isRead": false, "isArchived": false,
-                        "destinationId": destination.id ?? ""
-                    ]
-                    let notificationRef = db.collection(usersCollection).document(userId).collection("notifications")
-                    _ = try await notificationRef.addDocument(data: notificationData)
-                    
-                    bookingSuccess = true
-                } catch {
-                    errorMessage = "Failed to complete booking: \(error.localizedDescription)"
-                }
-                isLoading = false
+            
+            if let newChat = chat {
+                let initialMessageText = "Hi there! I just booked *\(destination.name)* for my trip! I'm arriving on **\(startDate.formatted())** and checking out on **\(endDate.formatted())**. I'll be traveling with \(numberOfPeople) person(s) in total. I'm really looking forward to it and wanted to say hello! Could you tell me a little about the check-in process?"
+                
+                await messageVM.sendMessage(
+                    chatId: newChat.id!,
+                    text: initialMessageText,
+                    recipientId: partnerId
+                )
+            } else {
+                print("Warning: Failed to initiate chat with partner. (Check 'getPartnerPublicInfo' in MessageViewModel)")
             }
             
-    private func sendBookingEmail(recipientEmail: String, bookingData: [String: Any], destinationName: String, partnerName: String) async {
-
-                // Get safe, numeric timestamps for reliable serialization
-                let startTimestamp = (bookingData["startDate"] as? Date)?.timeIntervalSince1970 ?? 0
-                let endTimestamp = (bookingData["endDate"] as? Date)?.timeIntervalSince1970 ?? 0
-        
-        print("Attempting to send email to: \(recipientEmail)")
-                
-                // Convert timestamps back to formatted strings for the email template data
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateStyle = .medium
-                dateFormatter.timeStyle = .short
-                
-                let startDateString = (bookingData["startDate"] as? Date)?.formatted() ?? "N/A"
-                let endDateString = (bookingData["endDate"] as? Date)?.formatted() ?? "N/A"
-
-                let emailPayload: [String: Any] = [
-                    "to": recipientEmail,
-                    "subject": "✅ New Booking Confirmation for \(destinationName)",
-                    "template": "booking_confirmation", // Or pass the full HTML body
-                    "data": [
-                        "partnerName": partnerName,
-                        "destinationName": destinationName,
-                        // Sending string dates for display in the email template
-                        "startDate": startDateString,
-                        "endDate": endDateString,
-                        "numberOfPeople": bookingData["numberOfPeople"] as? Int ?? 1,
-                        "totalCost": totalCost
-                    ]
-                ]
-                
-                do {
-                    // Call the Firebase Cloud Function
-                    let result = try await functions.httpsCallable("sendBookingEmail").call(emailPayload)
-                    print("Email function result: \(result.data)")
-                } catch {
-                    // Log the error but don't fail the booking, as the core booking is saved.
-                    print("Warning: Failed to send booking email via Cloud Function: \(error.localizedDescription)")
-                }
-            }
+            // 3. Send Notification to User (Local/Firestore)
+            let notificationData: [String: Any] = [
+                "title": "Booking Confirmed",
+                "message": "Your booking for \(destination.name) has been confirmed!",
+                "timestamp": FieldValue.serverTimestamp(), "isRead": false, "isArchived": false,
+                "destinationId": destination.id ?? ""
+            ]
+            let notificationRef = db.collection(usersCollection).document(userId).collection("notifications")
+            _ = try await notificationRef.addDocument(data: notificationData)
+            
+            bookingSuccess = true
+        } catch {
+            errorMessage = "Failed to complete booking: \(error.localizedDescription)"
         }
+        isLoading = false
+    }
+}

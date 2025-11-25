@@ -9,6 +9,7 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 import FirebaseStorage
+import FirebaseFunctions
 import Combine
 import AVFoundation
 import PhotosUI
@@ -40,6 +41,7 @@ class MessageViewModel: ObservableObject {
 
     private var db = Firestore.firestore()
     private var storage = FirebaseStorage.Storage.storage()
+    private var functions = Functions.functions()
     public var messagesListener: ListenerRegistration?
     private var chatsListener: ListenerRegistration?
     
@@ -57,45 +59,58 @@ class MessageViewModel: ObservableObject {
     }
     
     private func fetchChatParticipant(id: String) async -> ChatParticipant? {
-        // 1. Try fetching from the "users" collection (Standard User)
-        do {
-            let userDoc = try await db.collection("users").document(id).getDocument()
-            if userDoc.exists,
-               let displayName = userDoc.data()?["displayName"] as? String {
-                
-                let urlString = userDoc.data()?["profilePictureURL"] as? String
-                let profileURL = urlString.flatMap(URL.init(string:))
-                
-                // Note: We create a ChatParticipant here, using the user's ID as its ID
-                return ChatParticipant(id: id, displayName: displayName, profilePictureURL: profileURL)
-            }
-        } catch {
-            print("Error fetching user data: \(error.localizedDescription)")
-        }
+         // 1. Try fetching from "users"
+         do {
+             let userDoc = try await db.collection("users").document(id).getDocument()
+             if userDoc.exists, let displayName = userDoc.data()?["displayName"] as? String {
+                 let urlString = userDoc.data()?["profilePictureURL"] as? String
+                 let profileURL = urlString.flatMap(URL.init(string:))
+                 return ChatParticipant(id: id, displayName: displayName, profilePictureURL: profileURL)
+             }
+         } catch {
+             print("Error fetching user data: \(error.localizedDescription)")
+         }
 
-        // 2. Try fetching from the "partners" collection if 'users' failed
-        // Partners use the "id" field (Auth UID) not the document ID
-        do {
-            let partnerQuerySnapshot = try await db.collection("partners")
-                .whereField("id", isEqualTo: id)
-                .limit(to: 1)
-                .getDocuments()
-            
-            if let partnerDoc = partnerQuerySnapshot.documents.first,
-               let displayName = partnerDoc.data()["partnerDisplayName"] as? String {
-                
-                let urlString = partnerDoc.data()["profilePictureURL"] as? String
-                let profileURL = urlString.flatMap(URL.init(string:))
-                
-                return ChatParticipant(id: id, displayName: displayName, profilePictureURL: profileURL)
-            }
-        } catch {
-            print("Error fetching partner data: \(error.localizedDescription)")
-        }
+         // 2. Try fetching from "partners"
+         // First try direct Firestore access
+         do {
+             let partnerQuerySnapshot = try await db.collection("partners")
+                 .whereField("id", isEqualTo: id)
+                 .limit(to: 1)
+                 .getDocuments()
+             
+             if let partnerDoc = partnerQuerySnapshot.documents.first,
+                let displayName = partnerDoc.data()["partnerDisplayName"] as? String {
+                 
+                 let urlString = partnerDoc.data()["profilePictureURL"] as? String
+                 let profileURL = urlString.flatMap(URL.init(string:))
+                 
+                 return ChatParticipant(id: id, displayName: displayName, profilePictureURL: profileURL)
+             }
+         } catch {
+             print("Firestore fetch failed (Permissions?), trying Cloud Function... Error: \(error.localizedDescription)")
+             
+             // 3. FALLBACK: Use Callable Function to get public partner info (Bypasses rules)
+             do {
+                 let result = try await functions.httpsCallable("getPartnerPublicInfo").call(["partnerId": id])
+                 if let data = result.data as? [String: Any],
+                    let displayName = data["displayName"] as? String {
+                     
+                     let urlString = data["profilePictureURL"] as? String
+                     let profileURL = urlString.flatMap(URL.init(string:))
+                     
+                     print("Successfully fetched partner info via Cloud Function")
+                     return ChatParticipant(id: id, displayName: displayName, profilePictureURL: profileURL)
+                 }
+             } catch {
+                 print("Cloud Function fetch also failed: \(error.localizedDescription)")
+             }
+         }
 
-        // Fallback if neither document exists
-        return ChatParticipant(id: id, displayName: "Unknown User", profilePictureURL: nil)
-    }
+         return ChatParticipant(id: id, displayName: "Unknown User", profilePictureURL: nil)
+     }
+     
+   
     
     func getPartnerDisplayStatus() -> String {
         guard let status = partnerStatus else {

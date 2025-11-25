@@ -435,3 +435,129 @@ exports.activatePartnerAccount = functions.https.onCall(async (data, context) =>
     );
   }
 });
+
+
+// --- NEW: Trigger to send email automatically when a booking is created ---
+exports.onBookingCreated = functions.firestore
+    .document('bookings/{bookingId}')
+    .onCreate(async (snapshot, context) => {
+        const bookingData = snapshot.data();
+        const destinationId = bookingData.destinationId;
+
+        try {
+            // 1. Get Destination to find the Partner ID
+            const destDoc = await db.collection('destinations').doc(destinationId).get();
+            if (!destDoc.exists) {
+                console.log("Destination not found for booking");
+                return null;
+            }
+            const destination = destDoc.data();
+            const partnerId = destination.partnerId;
+
+            if (!partnerId) {
+                console.log("No partnerId linked to destination");
+                return null;
+            }
+
+            // 2. Fetch Partner Data (Admin SDK bypasses security rules)
+            // Trying both Document ID fetch and Field Query to be safe
+            let partnerData = null;
+            const partnerDoc = await db.collection('partners').doc(partnerId).get();
+            
+            if (partnerDoc.exists) {
+                partnerData = partnerDoc.data();
+            } else {
+                // Fallback: Try querying if partnerId is the Auth UID field
+                const q = await db.collection('partners').where('id', '==', partnerId).limit(1).get();
+                if (!q.empty) {
+                    partnerData = q.docs[0].data();
+                }
+            }
+
+            if (!partnerData || !partnerData.partnerEmail) {
+                console.log("Partner data or email not found");
+                return null;
+            }
+
+            // 3. Send Email
+            const startDate = bookingData.startDate.toDate().toLocaleDateString();
+            const endDate = bookingData.endDate.toDate().toLocaleDateString();
+            
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                        .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+                        .header { background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                        .details { margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-radius: 5px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header"><h2>New Booking Confirmed!</h2></div>
+                        <p>Hello <strong>${partnerData.partnerDisplayName || "Partner"}</strong>,</p>
+                        <p>You have a new booking for <strong>${bookingData.destinationName}</strong>.</p>
+                        <div class="details">
+                            <p><strong>Check-in:</strong> ${startDate}</p>
+                            <p><strong>Check-out:</strong> ${endDate}</p>
+                            <p><strong>Guests:</strong> ${bookingData.numberOfPeople}</p>
+                            <p><strong>Total Price:</strong> $${bookingData.price}</p>
+                        </div>
+                        <p>Check the app for more details.</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            await mailTransport.sendMail({
+                from: `CityScout <${functions.config().mail.email}>`,
+                to: partnerData.partnerEmail,
+                subject: `New Booking: ${bookingData.destinationName}`,
+                html: htmlContent
+            });
+
+            console.log(`Booking email sent to ${partnerData.partnerEmail}`);
+        } catch (error) {
+            console.error("Error in onBookingCreated:", error);
+        }
+        return null;
+    });
+
+// --- NEW: Helper to get public partner info for the Chat (Bypasses Client Rules) ---
+exports.getPartnerPublicInfo = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+    
+    const targetId = data.partnerId;
+    if (!targetId) throw new functions.https.HttpsError('invalid-argument', 'Missing partnerId');
+
+    try {
+        // Try direct document fetch first
+        const doc = await db.collection('partners').doc(targetId).get();
+        if (doc.exists) {
+            const d = doc.data();
+            return {
+                displayName: d.partnerDisplayName || d.name || "Partner",
+                profilePictureURL: d.profilePictureURL,
+                id: d.id // Return the Auth UID
+            };
+        }
+
+        // Fallback: Query by 'id' field
+        const query = await db.collection('partners').where('id', '==', targetId).limit(1).get();
+        if (!query.empty) {
+            const d = query.docs[0].data();
+            return {
+                displayName: d.partnerDisplayName || d.name || "Partner",
+                profilePictureURL: d.profilePictureURL,
+                id: d.id
+            };
+        }
+
+        throw new functions.https.HttpsError('not-found', 'Partner not found');
+    } catch (error) {
+        console.error("Error fetching partner info:", error);
+        throw new functions.https.HttpsError('internal', 'Error fetching partner info');
+    }
+});
